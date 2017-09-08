@@ -1,16 +1,36 @@
 # PlayRho User Guide
 
-This is the user guide for PlayRho. This document is based off of the Box2D 2.3.0 User Manual written by Erin Catto. For information on Box2D, please see: http://box2d.org.
+# Table of Contents
+
+1. [Introduction](#introduction)
+  - [About PlayRho](#about_playrho)
+  - [Prerequisites](#prerequisites)
+  - [About this User Guide](#about_this_user_guide)
+  - [Feedback and Reporting Bugs](#feedback_and_reporting_bugs)
+2. [Getting Started with PlayRho](#getting_started_with_playrho)
+3. [Core Concepts](#core_concepts)
+  - [Definitions](#definitions)
+  - [Modules](#modules)
+  - [Units](#units)
+  - [Factories and Definitions](#factories_and_definitions)
+4. [Worlds](#worlds)
+5. [Bodies](#bodies)
+6. [Joints](#joints)
+7. [Fixtures](#fixtures)
+8. [Shapes](#shapes)
+9. [Contacts](#contacts)
+10. [Limitations](#limitations)
+11. [References](#references)
 
 ## Introduction
 
-### About
+### About PlayRho
 
 PlayRho is a real-time oriented physics engine and library. It's currently best suited for 2-D games.
 
 Programmers can use it in their games to make objects move in some more realistic ways and make the game world more interactive. From a game engine's point of view, a physics engine is just a system for procedural animation.
 
-PlayRho is written in ISO C++14. Most of the types defined in the engine are within the `playrho` namespace. Hopefully this is sufficient to avoid name clashing with your game engine.
+PlayRho is written in ISO C++14. Most of the types defined in the engine are within the `playrho` namespace.
 
 ### Prerequisites
 
@@ -18,7 +38,7 @@ This document assumes that you are familiar with basic physics concepts such as 
 
 Since PlayRho is written in C++14, you are expected to be experienced in C++14 programming. PlayRho should not be your first C++ programming project. You should be comfortable with compiling, linking, and debugging.
 
-### About this Document
+### About this User Guide
 
 This document covers some of the PlayRho API. However, not every aspect is covered. You are encouraged to look at the code for the applications included with PlayRho to learn more. Also, the PlayRho code base has comments formatted for Doxygen, so there is also a hyper-linked [API document](https://louis-langholtz.github.io/PlayRho/API/index.html) which is more specific to the API itself.
 
@@ -26,9 +46,7 @@ This document covers some of the PlayRho API. However, not every aspect is cover
 
 If you have a question or feedback about PlayRho, please create an issue for it on GitHub. This is also a place for community discussion.
 
-PlayRho issues are tracked using the GitHub [Issues interface for this project](https://github.com/louis-langholtz/PlayRho/issues). This provides a way to track issues and helps to ensure that your issue will not be lost.
-
-Please file bugs and feature requests here: https://github.com/louis-langholtz/PlayRho/issues
+PlayRho bugs, feature requests, and other issues may be submitted and tracked at the GitHub [Issues interface for this project](https://github.com/louis-langholtz/PlayRho/issues).
 
 You can help with getting your issue fixed by providing more details. A source code contribution in the form of a [Google Test](https://github.com/google/googletest) based C++ unit test that reproduces the problem is highly encouraged.
 
