@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_WELD_JOINT_H
-#define B2_WELD_JOINT_H
+#ifndef PLAYRHO_WELD_JOINT_HPP
+#define PLAYRHO_WELD_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/WeldJointDef.hpp>
@@ -33,6 +33,8 @@ namespace playrho {
 class WeldJoint : public Joint
 {
 public:
+    
+    /// @brief Initializing constructor.
     WeldJoint(const WeldJointDef& def);
 
     Length2D GetAnchorA() const override;
@@ -56,8 +58,10 @@ public:
     /// @brief Gets the frequency.
     Frequency GetFrequency() const { return m_frequency; }
 
-    /// Set/get damping ratio.
+    /// @brief Sets damping ratio.
     void SetDampingRatio(Real ratio) { m_dampingRatio = ratio; }
+
+    /// @brief Gets damping ratio.
     Real GetDampingRatio() const { return m_dampingRatio; }
 
 private:

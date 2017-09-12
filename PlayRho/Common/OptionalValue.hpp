@@ -18,8 +18,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef OptionalValue_hpp
-#define OptionalValue_hpp
+#ifndef PLAYRHO_OPTIONAL_VALUE_HPP
+#define PLAYRHO_OPTIONAL_VALUE_HPP
 
 #include <cassert>
 
@@ -33,26 +33,49 @@ namespace playrho {
     class OptionalValue
     {
     public:
+        
+        /// @brief Value type.
         using value_type = T;
         
         constexpr OptionalValue() = default;
+        
+        /// @brief Copy constructor.
         constexpr OptionalValue(const OptionalValue& other) = default;
+        
+        /// @brief Initializing constructor.
         constexpr OptionalValue(const T v);
         
-        constexpr const T& operator*() const;
-        constexpr T& operator*();
-        constexpr const T* operator->() const;
-        constexpr T* operator->();
+        /// @brief Indirection operator.
+        constexpr const T& operator* () const;
 
+        /// @brief Indirection operator.
+        constexpr T& operator* ();
+        
+        /// @brief Member of pointer operator.
+        constexpr const T* operator-> () const;
+        
+        /// @brief Member of pointer operator.
+        constexpr T* operator-> ();
+
+        /// @brief bool operator.
         constexpr explicit operator bool() const noexcept;
+
+        /// @brief Whether this optional value has a value.
         constexpr bool has_value() const noexcept;
         
-        OptionalValue& operator=(const OptionalValue& other) = default;
-        OptionalValue& operator=(const T v);
+        /// @brief Assignment operator.
+        OptionalValue& operator= (const OptionalValue& other) = default;
 
+        /// @brief Assignment operator.
+        OptionalValue& operator= (const T v);
+
+        /// @brief Accesses the value.
         constexpr T& value();
+
+        /// @brief Accesses the value.
         constexpr const T& value() const;
         
+        /// @brief Gets the value or provides the alternate given value instead.
         constexpr T value_or(const T& alt) const;
         
     private:
@@ -138,4 +161,4 @@ namespace playrho {
     
 } // namespace playrho
 
-#endif /* OptionalValue_hpp */
+#endif /* PLAYRHO_OPTIONAL_VALUE_HPP */

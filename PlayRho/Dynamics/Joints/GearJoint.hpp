@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_GEAR_JOINT_H
-#define B2_GEAR_JOINT_H
+#ifndef PLAYRHO_GEAR_JOINT_HPP
+#define PLAYRHO_GEAR_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/GearJointDef.hpp>
@@ -41,6 +41,8 @@ namespace playrho {
 class GearJoint : public Joint
 {
 public:
+    
+    /// @brief Initializing constructor.
     GearJoint(const GearJointDef& data);
     
     Length2D GetAnchorA() const override;
@@ -61,8 +63,10 @@ public:
     /// @brief Gets the second joint.
     NonNull<Joint*> GetJoint2() const noexcept { return m_joint2; }
    
-    /// Set/Get the gear ratio.
+    /// @brief Sets the gear ratio.
     void SetRatio(Real ratio);
+    
+    /// @brief Gets the ratio.
     Real GetRatio() const noexcept;
 
 private:

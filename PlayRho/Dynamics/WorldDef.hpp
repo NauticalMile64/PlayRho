@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef WorldDef_hpp
-#define WorldDef_hpp
+#ifndef PLAYRHO_WORLD_DEF_HPP
+#define PLAYRHO_WORLD_DEF_HPP
 
 /// @file
 /// Declarations of the WorldDef class.
@@ -31,8 +31,13 @@ namespace playrho {
     /// @brief World construction definitions.
     struct WorldDef
     {
+        /// @brief Uses the given gravity value.
         constexpr WorldDef& UseGravity(LinearAcceleration2D value) noexcept;
+
+        /// @brief Uses the given min vertex radius value.
         constexpr WorldDef& UseMinVertexRadius(Positive<Length> value) noexcept;
+        
+        /// @brief Uses the given max vertex radius value.
         constexpr WorldDef& UseMaxVertexRadius(Positive<Length> value) noexcept;
         
         /// @brief Gravity.
@@ -89,4 +94,4 @@ namespace playrho {
     }
 
 }
-#endif /* WorldDef_hpp */
+#endif /* PLAYRHO_WORLD_DEF_HPP */

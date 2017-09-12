@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef DistanceJointDef_hpp
-#define DistanceJointDef_hpp
+#ifndef PLAYRHO_DISTANCE_JOINT_DEF_HPP
+#define PLAYRHO_DISTANCE_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -39,10 +39,13 @@ class DistanceJoint;
 /// @warning Do not use a zero or short length.
 struct DistanceJointDef : public JointBuilder<DistanceJointDef>
 {
+    
+    /// @brief Super type.
     using super = JointBuilder<DistanceJointDef>;
     
     constexpr DistanceJointDef() noexcept: super{JointType::Distance} {}
     
+    /// @brief Copy constructor.
     DistanceJointDef(const DistanceJointDef& copy) = default;
     
     /// @brief Initializing constructor.
@@ -51,10 +54,13 @@ struct DistanceJointDef : public JointBuilder<DistanceJointDef>
                      Length2D anchorA = Length2D{},
                      Length2D anchorB = Length2D{}) noexcept;
     
+    /// @brief Uses the given length.
     constexpr DistanceJointDef& UseLength(Length v) noexcept;
     
+    /// @brief Uses the given frequency.
     constexpr DistanceJointDef& UseFrequency(NonNegative<Frequency> v) noexcept;
     
+    /// @brief Uses the given damping ratio.
     constexpr DistanceJointDef& UseDampingRatio(Real v) noexcept;
     
     /// @brief Local anchor point relative to bodyA's origin.
@@ -93,8 +99,9 @@ constexpr DistanceJointDef& DistanceJointDef::UseDampingRatio(Real v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 DistanceJointDef GetDistanceJointDef(const DistanceJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* DistanceJointDef_hpp */
+#endif /* PLAYRHO_DISTANCE_JOINT_DEF_HPP */

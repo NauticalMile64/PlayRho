@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef DEBUGDRAW_H
-#define DEBUGDRAW_H
+#ifndef PLAYRHO_DEBUGDRAW_HPP
+#define  PLAYRHO_DEBUGDRAW_HPP
 
 #include <PlayRho/PlayRho.hpp>
 #include "Drawer.hpp"
@@ -42,27 +42,31 @@ struct Coord2D
     float y;
 };
 
+/// @brief Multiplication operator.
 inline Coord2D operator* (Coord2D coord, float scalar)
 {
     return Coord2D{coord.x * scalar, coord.y * scalar};
 }
 
+/// @brief Multiplication operator.
 inline Coord2D operator* (float scalar, Coord2D coord)
 {
     return Coord2D{coord.x * scalar, coord.y * scalar};
 }
 
+/// @brief Division operator.
 inline Coord2D operator/ (Coord2D coord, float scalar)
 {
     return Coord2D{coord.x / scalar, coord.y / scalar};
 }
 
+/// @brief Addition operator.
 inline Coord2D operator+ (Coord2D a, Coord2D b)
 {
     return Coord2D{a.x + b.x, a.y + b.y};
 }
 
-
+/// @brief Subtraction operator.
 inline Coord2D operator- (Coord2D a, Coord2D b)
 {
     return Coord2D{a.x - b.x, a.y - b.y};

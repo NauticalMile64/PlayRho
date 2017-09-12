@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef BodyConstraint_hpp
-#define BodyConstraint_hpp
+#ifndef PLAYRHO_BODY_CONSTRAINT_HPP
+#define PLAYRHO_BODY_CONSTRAINT_HPP
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Dynamics/MovementConf.hpp>
@@ -36,10 +36,12 @@ namespace playrho {
     public:
         // Note: Seeing World.TilesComesToRest times of around 5686 ms with this setup.
 
+        /// @brief Index type.
         using index_type = std::remove_const<decltype(MaxBodies)>::type;
         
         BodyConstraint() = default;
         
+        /// @brief Initializing constructor.
         constexpr BodyConstraint(InvMass invMass, InvRotInertia invRotI, Length2D localCenter,
                                  Position position, Velocity velocity) noexcept:
             m_position{position},
@@ -132,6 +134,7 @@ namespace playrho {
         return *this;
     }
     
+    /// @brief Gets the BodyConstraint based on the given parameters.
     inline BodyConstraint GetBodyConstraint(const Body& body, Time time,
                                             MovementConf conf) noexcept
     {
@@ -146,4 +149,4 @@ namespace playrho {
 
 } // namespace playrho
 
-#endif /* BodyConstraint_hpp */
+#endif /* PLAYRHO_BODY_CONSTRAINT_HPP */

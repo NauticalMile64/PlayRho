@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_ROPE_JOINT_H
-#define B2_ROPE_JOINT_H
+#ifndef PLAYRHO_ROPE_JOINT_HPP
+#define PLAYRHO_ROPE_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/RopeJointDef.hpp>
@@ -39,6 +39,8 @@ namespace playrho {
 class RopeJoint : public Joint
 {
 public:
+    
+    /// @brief Initializing constructor.
     RopeJoint(const RopeJointDef& data);
 
     Length2D GetAnchorA() const override;
@@ -53,10 +55,13 @@ public:
     /// The local anchor point relative to bodyB's origin.
     Length2D GetLocalAnchorB() const  { return m_localAnchorB; }
 
-    /// Set/Get the maximum length of the rope.
+    /// @brief Sets the maximum length of the rope.
     void SetMaxLength(Length length) { m_maxLength = length; }
+
+    /// @brief Gets the maximum length of the rope.
     Length GetMaxLength() const;
 
+    /// @brief Gets the limit state.
     LimitState GetLimitState() const;
 
 private:

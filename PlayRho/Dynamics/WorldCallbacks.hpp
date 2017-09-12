@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_WORLD_CALLBACKS_H
-#define B2_WORLD_CALLBACKS_H
+#ifndef PLAYRHO_WORLD_CALLBACKS_HPP
+#define PLAYRHO_WORLD_CALLBACKS_HPP
 
 #include <PlayRho/Common/Settings.hpp>
 
@@ -72,13 +72,20 @@ public:
 class ContactImpulsesList
 {
 public:
-    using count_t = std::remove_const<decltype(MaxManifoldPoints)>::type;
-
-    count_t GetCount() const noexcept { return count; }
-
-    Momentum GetEntryNormal(count_t index) const noexcept { return normalImpulses[index]; }
-    Momentum GetEntryTanget(count_t index) const noexcept { return tangentImpulses[index]; }
     
+    /// @brief Counter type.
+    using Counter = std::remove_const<decltype(MaxManifoldPoints)>::type;
+
+    /// @brief Gets the count.
+    Counter GetCount() const noexcept { return count; }
+
+    /// @brief Gets the given indexed entry normal.
+    Momentum GetEntryNormal(Counter index) const noexcept { return normalImpulses[index]; }
+
+    /// @brief Gets the given indexed entry tangent.
+    Momentum GetEntryTanget(Counter index) const noexcept { return tangentImpulses[index]; }
+    
+    /// @brief Adds an entry of the given data.
     void AddEntry(Momentum normal, Momentum tangent) noexcept
     {
         assert(count < MaxManifoldPoints);
@@ -90,7 +97,7 @@ public:
 private:
     Momentum normalImpulses[MaxManifoldPoints];
     Momentum tangentImpulses[MaxManifoldPoints];
-    count_t count = 0;
+    Counter count = 0;
 };
 
 /// @brief A pure-virtual interface for "listeners" for contacts.
@@ -109,6 +116,8 @@ private:
 class ContactListener
 {
 public:
+    
+    /// @brief Iteration type.
     using iteration_type = unsigned;
 
     virtual ~ContactListener() = default;

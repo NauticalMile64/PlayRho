@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_MOTOR_JOINT_H
-#define B2_MOTOR_JOINT_H
+#ifndef PLAYRHO_MOTOR_JOINT_HPP
+#define PLAYRHO_MOTOR_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/MotorJointDef.hpp>
@@ -34,6 +34,8 @@ namespace playrho {
 class MotorJoint : public Joint
 {
 public:
+    
+    /// @brief Initializing constructor.
     MotorJoint(const MotorJointDef& def);
 
     Length2D GetAnchorA() const override;
@@ -42,12 +44,16 @@ public:
     Momentum2D GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// Set/get the target linear offset, in frame A.
+    /// @brief Sets the target linear offset, in frame A.
     void SetLinearOffset(const Length2D linearOffset);
+
+    /// @brief Gets the target linear offset, in frame A.
     const Length2D GetLinearOffset() const;
 
-    /// Set/get the target angular offset.
+    /// @brief Sets the target angular offset.
     void SetAngularOffset(Angle angularOffset);
+
+    /// @brief Gets the target angular offset.
     Angle GetAngularOffset() const;
 
     /// @brief Sets the maximum friction force.

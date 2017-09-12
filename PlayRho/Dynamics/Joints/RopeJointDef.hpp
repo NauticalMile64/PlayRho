@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef RopeJointDef_hpp
-#define RopeJointDef_hpp
+#ifndef PLAYRHO_ROPE_JOINT_DEF_HPP
+#define PLAYRHO_ROPE_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -36,13 +36,19 @@ class RopeJoint;
 /// @see collideConnected in JointDef.
 struct RopeJointDef : public JointBuilder<RopeJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<RopeJointDef>;
     
     constexpr RopeJointDef() noexcept: super{JointType::Rope} {}
     
+    /// @brief Initializing constructor.
     constexpr RopeJointDef(Body* bodyA, Body* bodyB) noexcept:
-    super{super{JointType::Rope}.UseBodyA(bodyA).UseBodyB(bodyB)} {}
+        super{super{JointType::Rope}.UseBodyA(bodyA).UseBodyB(bodyB)}
+    {
+        // Intentionally empty.
+    }
     
+    /// @brief Uses the given max length value.
     constexpr RopeJointDef& UseMaxLength(Length v) noexcept;
     
     /// The local anchor point relative to bodyA's origin.
@@ -61,9 +67,10 @@ constexpr RopeJointDef& RopeJointDef::UseMaxLength(Length v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 RopeJointDef GetRopeJointDef(const RopeJoint& joint) noexcept;
 
 } // namespace playrho
 
 
-#endif /* RopeJointDef_hpp */
+#endif /* PLAYRHO_ROPE_JOINT_DEF_HPP */

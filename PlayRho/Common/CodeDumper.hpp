@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef CodeDumper_hpp
-#define CodeDumper_hpp
+#ifndef PLAYRHO_CODE_DUMPER_HPP
+#define PLAYRHO_CODE_DUMPER_HPP
 
 #include <PlayRho/Common/Settings.hpp>
 
@@ -59,25 +59,33 @@ namespace playrho
     /// Dump joint to the log file.
     void Dump(const FrictionJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const GearJoint& joint, std::size_t index);
     
+    /// @brief Dumps the joint to the log file.
     void Dump(const MotorJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const MouseJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const PrismaticJoint& joint, std::size_t index);
 
     /// Dump joint to dmLog
     void Dump(const PulleyJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const RevoluteJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const RopeJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const WeldJoint& joint, std::size_t index);
 
+    /// @brief Dumps the joint to the log file.
     void Dump(const WheelJoint& joint, std::size_t index);
     
 } // namespace playrho
 
-#endif /* CodeDumper_hpp */
+#endif /* PLAYRHO_CODE_DUMPER_HPP */

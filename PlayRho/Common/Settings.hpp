@@ -24,8 +24,8 @@
  * @brief Types and default settings file.
  */
 
-#ifndef PLAYRHO_SETTINGS_H
-#define PLAYRHO_SETTINGS_H
+#ifndef PLAYRHO_SETTINGS_HPP
+#define PLAYRHO_SETTINGS_HPP
 
 #include <cstddef>
 #include <cassert>
@@ -35,7 +35,7 @@
 #include <algorithm>
 
 #include <PlayRho/Common/Templates.hpp>
-#include <PlayRho/Common/RealNum.hpp>
+#include <PlayRho/Common/RealConstants.hpp>
 #include <PlayRho/Common/Units.hpp>
 #include <PlayRho/Common/Wider.hpp>
 
@@ -54,12 +54,14 @@ namespace details
 template <typename T>
 struct Defaults
 {
+    /// @brief Gets the linear slop.
     static constexpr auto GetLinearSlop() noexcept
     {
         // Return the value used by Box2D 2.3.2 b2_linearSlop define....
         return Length{Real(0.005f) * Meter};
     }
     
+    /// @brief Gets the max vertex radius.
     static constexpr auto GetMaxVertexRadius() noexcept
     {
         // DefaultLinearSlop * Real{2 * 1024 * 1024};
@@ -72,6 +74,8 @@ struct Defaults
 template <unsigned int FRACTION_BITS>
 struct Defaults<Fixed<std::int32_t,FRACTION_BITS>>
 {
+    
+    /// @brief Gets the linear slop.
     static constexpr auto GetLinearSlop() noexcept
     {
         // Needs to be big enough that the step tolerance doesn't go to zero.
@@ -79,6 +83,7 @@ struct Defaults<Fixed<std::int32_t,FRACTION_BITS>>
         return Length{Meter / Real{(1 << (FRACTION_BITS - 2))}};
     }
     
+    /// @brief Gets the max vertex radius.
     static constexpr auto GetMaxVertexRadius() noexcept
     {
         // linearSlop * 2550000
@@ -102,8 +107,9 @@ using ChildCounter = std::remove_const<decltype(MaxChildCount)>::type;
 
 /// Time step iterations type.
 /// @details A type for countining iterations per time-step.
-using ts_iters_t = std::uint8_t;
+using TimestepIters = std::uint8_t;
 
+/// @brief Maximum float value.
 constexpr auto MaxFloat = std::numeric_limits<Real>::max(); // FLT_MAX
 
 // Collision
@@ -127,7 +133,10 @@ constexpr auto MaxShapeVertices = std::uint8_t{254};
 ///   for bodies to come to rest.
 constexpr auto DefaultLinearSlop = details::Defaults<Real>::GetLinearSlop();
 
+/// @brief Default minimum vertex radius.
 constexpr auto DefaultMinVertexRadius = DefaultLinearSlop * Real{2};
+
+/// @brief Default maximum vertex radius.
 constexpr auto DefaultMaxVertexRadius = details::Defaults<Real>::GetMaxVertexRadius();
 
 /// @brief Default AABB extension amount.
@@ -152,6 +161,7 @@ constexpr auto DefaultMaxLinearCorrection = Real{0.2f} * Meter;
 /// @note This value should be greater than the angular slop value.
 constexpr auto DefaultMaxAngularCorrection = Real(8.0f / 180.0f) * Pi * Radian;
 
+/// @brief Default maximum translation amount.
 constexpr auto DefaultMaxTranslation = Length{Real(2.0f) * Meter};
 
 /// @brief Default maximum rotation per world step.
@@ -182,7 +192,10 @@ constexpr auto DefaultMaxSubSteps = std::uint8_t{8};
 /// @brief Default velocity threshold.
 constexpr auto DefaultVelocityThreshold = Real(1) * MeterPerSecond;
 
+/// @brief Default regular-phase minimum momentum.
 constexpr auto DefaultRegMinMomentum = Momentum{(Real(0) / Real(100)) * NewtonSecond};
+
+/// @brief Default TOI-phase minimum momentum.
 constexpr auto DefaultToiMinMomentum = Momentum{(Real(0) / Real(100)) * NewtonSecond};
 
 /// @brief Maximum number of bodies in a world.
@@ -239,9 +252,6 @@ constexpr auto DefaultAngularSleepTolerance = Real{(Pi * 2) / 180} * RadianPerSe
 /// @details Ratio used for switching between rounded-corner collisions and closest-face
 ///   biased normal collisions.
 constexpr auto DefaultCirclesRatio = Real{10};
-
-// Mathematical constants
-constexpr auto SquareRootTwo = Real(1.414213562373095048801688724209698078569671875376948073176679737990732478462);
 
 }
 

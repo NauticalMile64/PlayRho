@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_PRISMATIC_JOINT_H
-#define B2_PRISMATIC_JOINT_H
+#ifndef PLAYRHO_PRISMATIC_JOINT_HPP
+#define PLAYRHO_PRISMATIC_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/PrismaticJointDef.hpp>
@@ -39,6 +39,8 @@ namespace playrho {
 class PrismaticJoint : public Joint
 {
 public:
+    
+    /// @brief Copy constructor.
     PrismaticJoint(const PrismaticJointDef& def);
 
     Length2D GetAnchorA() const override;
@@ -88,6 +90,8 @@ public:
 
     /// @brief Sets the maximum motor force.
     void SetMaxMotorForce(Force force) noexcept;
+
+    /// @brief Gets the maximum motor force.
     Force GetMaxMotorForce() const noexcept { return m_maxMotorForce; }
 
     /// @brief Gets the current motor force given the inverse time step.

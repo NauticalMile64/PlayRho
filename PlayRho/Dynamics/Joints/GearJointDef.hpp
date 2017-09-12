@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef GearJointDef_hpp
-#define GearJointDef_hpp
+#ifndef PLAYRHO_GEAR_JOINT_DEF_HPP
+#define PLAYRHO_GEAR_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -36,10 +36,13 @@ class GearJoint;
 /// revolute or prismatic joints (any combination will work).
 struct GearJointDef : public JointBuilder<GearJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<GearJointDef>;
     
+    /// @brief Initializing constructor.
     GearJointDef(NonNull<Joint*> j1, NonNull<Joint*> j2) noexcept;
     
+    /// @brief Uses the given ratio value.
     GearJointDef& UseRatio(Real v) noexcept;
     
     /// The first revolute/prismatic joint attached to the gear joint.
@@ -59,8 +62,9 @@ inline GearJointDef& GearJointDef::UseRatio(Real v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 GearJointDef GetGearJointDef(const GearJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* GearJointDef_hpp */
+#endif /* PLAYRHO_GEAR_JOINT_DEF_HPP */

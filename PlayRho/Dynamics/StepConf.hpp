@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_STEP_CONF_HPP
-#define B2_STEP_CONF_HPP
+#ifndef PLAYRHO_STEP_CONF_HPP
+#define PLAYRHO_STEP_CONF_HPP
 
 /// @file
 /// Declarations of the StepConf class, and free functions associated with it.
@@ -42,7 +42,7 @@ public:
     /// @brief Step iterations type.
     /// @details A type for countining iterations per-step.
     /// @note The special value of -1 is reserved for signifying an invalid iteration value.
-    using iteration_type = ts_iters_t;
+    using iteration_type = TimestepIters;
 
     /// @brief Invalid iteration value.
     static constexpr auto InvalidIteration = static_cast<iteration_type>(-1);
@@ -126,6 +126,7 @@ public:
     /// @sa regPositionIterations.
     Length regMinSeparation = -DefaultLinearSlop * Real{3};
     
+    /// @brief Regular-phase min momentum.
     Momentum regMinMomentum = DefaultRegMinMomentum;
 
     /// @brief Time of impact resolution rate.
@@ -146,6 +147,7 @@ public:
     /// @sa toiPositionIterations.
     Length toiMinSeparation = -DefaultLinearSlop * Real(1.5f);
 
+    /// @brief TOI-phase min momentum.
     Momentum toiMinMomentum = DefaultToiMinMomentum;
 
     /// @brief Target depth.
@@ -320,11 +322,13 @@ private:
     Frequency invTime = DefaultStepFrequency;
 };
 
+/// @brief Gets the maximum regular linear correction from the given value.
 inline Length GetMaxRegLinearCorrection(const StepConf& conf) noexcept
 {
     return conf.maxLinearCorrection * static_cast<Real>(conf.regPositionIterations);
 }
 
+/// @brief Determines whether the maximum translation is within tolerance.
 bool IsMaxTranslationWithinTolerance(const StepConf& conf) noexcept;
 
 } // namespace playrho

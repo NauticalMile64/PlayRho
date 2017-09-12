@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef Filter_hpp
-#define Filter_hpp
+#ifndef PLAYRHO_FILTER_HPP
+#define PLAYRHO_FILTER_HPP
 
 /// @file
 /// Declarations of the Filter struct and any free functions associated with it.
@@ -59,6 +59,7 @@ namespace playrho {
         index_type groupIndex = 0;
     };
     
+    /// @brief Determines whether collision processing should be performed.
     inline bool ShouldCollide(const Filter filterA, const Filter filterB) noexcept
     {
         if ((filterA.groupIndex == filterB.groupIndex) && (filterA.groupIndex != 0))
@@ -70,4 +71,4 @@ namespace playrho {
     }
 }
 
-#endif /* Filter_hpp */
+#endif /* PLAYRHO_FILTER_HPP */

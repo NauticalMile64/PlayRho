@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef WorldManifold_hpp
-#define WorldManifold_hpp
+#ifndef PLAYRHO_WORLD_MANIFOLD_HPP
+#define PLAYRHO_WORLD_MANIFOLD_HPP
 
 #include <PlayRho/Common/Math.hpp>
 
@@ -36,6 +36,8 @@ namespace playrho
     class WorldManifold
     {
     public:
+        
+        /// @brief Size type.
         using size_type = std::remove_const<decltype(MaxManifoldPoints)>::type;
 
     private:
@@ -69,6 +71,7 @@ namespace playrho
         /// normal, invalid points, and invalid separations.
         WorldManifold() = default;
         
+        /// @brief Initializing constructor.
         constexpr explicit WorldManifold(UnitVec2 normal) noexcept:
             m_normal{normal}, m_count{0}
         {
@@ -76,6 +79,7 @@ namespace playrho
             // Intentionally empty.
         }
         
+        /// @brief Initializing constructor.
         constexpr explicit WorldManifold(UnitVec2 normal, PointData ps0) noexcept:
             m_normal{normal}, m_count{1},
             m_points{ps0.location, GetInvalid<Length2D>()},
@@ -86,6 +90,7 @@ namespace playrho
             // Intentionally empty.
         }
         
+        /// @brief Initializing constructor.
         constexpr explicit WorldManifold(UnitVec2 normal, PointData ps0, PointData ps1) noexcept:
             m_normal{normal}, m_count{2},
             m_points{ps0.location, ps1.location},
@@ -142,6 +147,7 @@ namespace playrho
             return m_separations[index];
         }
         
+        /// @brief Gets the given index contact impulses.
         ContactImpulses GetImpulses(size_type index) const noexcept
         {
             assert(index < MaxManifoldPoints);
@@ -185,4 +191,4 @@ namespace playrho
     
 }
 
-#endif /* WorldManifold_hpp */
+#endif /* PLAYRHO_WORLD_MANIFOLD_HPP */

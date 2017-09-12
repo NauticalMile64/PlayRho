@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef WeldJointDef_hpp
-#define WeldJointDef_hpp
+#ifndef PLAYRHO_WELD_JOINT_DEF_HPP
+#define PLAYRHO_WELD_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -36,6 +36,7 @@ class WeldJoint;
 /// of the anchor points is important for computing the reaction torque.
 struct WeldJointDef : public JointBuilder<WeldJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<WeldJointDef>;
     
     constexpr WeldJointDef() noexcept: super{JointType::Weld} {}
@@ -44,8 +45,10 @@ struct WeldJointDef : public JointBuilder<WeldJointDef>
     /// anchor point.
     WeldJointDef(NonNull<Body*> bodyA, NonNull<Body*> bodyB, const Length2D anchor) noexcept;
     
+    /// @brief Uses the given frequency value.
     constexpr WeldJointDef& UseFrequency(Frequency v) noexcept;
     
+    /// @brief Uses the given damping ratio.
     constexpr WeldJointDef& UseDampingRatio(Real v) noexcept;
     
     /// The local anchor point relative to bodyA's origin.
@@ -79,8 +82,9 @@ constexpr WeldJointDef& WeldJointDef::UseDampingRatio(Real v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 WeldJointDef GetWeldJointDef(const WeldJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* WeldJointDef_hpp */
+#endif /* PLAYRHO_WELD_JOINT_DEF_HPP */

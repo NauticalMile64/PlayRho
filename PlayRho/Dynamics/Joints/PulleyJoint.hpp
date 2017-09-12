@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_PULLEY_JOINT_H
-#define B2_PULLEY_JOINT_H
+#ifndef PLAYRHO_PULLEY_JOINT_HPP
+#define PLAYRHO_PULLEY_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/PulleyJointDef.hpp>
@@ -38,9 +38,14 @@ namespace playrho {
 class PulleyJoint : public Joint
 {
 public:
+    
+    /// @brief Initializing constructor.
     PulleyJoint(const PulleyJointDef& data);
 
+    /// @brief Gets the local anchor A.
     Length2D GetLocalAnchorA() const noexcept;
+
+    /// @brief Gets the local anchor B.
     Length2D GetLocalAnchorB() const noexcept;
 
     Length2D GetAnchorA() const override;

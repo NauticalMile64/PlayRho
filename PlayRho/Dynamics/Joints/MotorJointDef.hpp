@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef MotorJointDef_hpp
-#define MotorJointDef_hpp
+#ifndef PLAYRHO_MOTOR_JOINT_DEF_HPP
+#define PLAYRHO_MOTOR_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -34,6 +34,7 @@ class MotorJoint;
 /// Motor joint definition.
 struct MotorJointDef : public JointBuilder<MotorJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<MotorJointDef>;
     
     constexpr MotorJointDef() noexcept: super{JointType::Motor} {}
@@ -41,10 +42,13 @@ struct MotorJointDef : public JointBuilder<MotorJointDef>
     /// Initialize the bodies and offsets using the current transforms.
     MotorJointDef(NonNull<Body*> bodyA, NonNull<Body*> bodyB) noexcept;
     
+    /// @brief Uses the given maximum force value.
     MotorJointDef& UseMaxForce(NonNegative<Force> v) noexcept;
     
+    /// @brief Uses the given max torque value.
     MotorJointDef& UseMaxTorque(NonNegative<Torque> v) noexcept;
     
+    /// @brief Uses the given correction factor.
     MotorJointDef& UseCorrectionFactor(Real v) noexcept;
     
     /// Position of bodyB minus the position of bodyA, in bodyA's frame.
@@ -81,8 +85,9 @@ inline MotorJointDef& MotorJointDef::UseCorrectionFactor(Real v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 MotorJointDef GetMotorJointDef(const MotorJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* MotorJointDef_hpp */
+#endif /* PLAYRHO_MOTOR_JOINT_DEF_HPP */

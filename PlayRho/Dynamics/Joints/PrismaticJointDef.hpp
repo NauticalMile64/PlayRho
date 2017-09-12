@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PrismaticJointDef_hpp
-#define PrismaticJointDef_hpp
+#ifndef PLAYRHO_PRISMATIC_JOINT_DEF_HPP
+#define PLAYRHO_PRISMATIC_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -39,10 +39,12 @@ class PrismaticJoint;
 /// anchors and a local axis helps when saving and loading a game.
 struct PrismaticJointDef : public JointBuilder<PrismaticJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<PrismaticJointDef>;
     
     constexpr PrismaticJointDef() noexcept: super{JointType::Prismatic} {}
     
+    /// @brief Copy constructor.
     PrismaticJointDef(const PrismaticJointDef& copy) = default;
     
     /// @brief Initializing constructor.
@@ -51,12 +53,16 @@ struct PrismaticJointDef : public JointBuilder<PrismaticJointDef>
     PrismaticJointDef(NonNull<Body*> bodyA, NonNull<Body*> bodyB, const Length2D anchor,
                       const UnitVec2 axis) noexcept;
     
+    /// @brief Uses the given enable limit state value.
     PrismaticJointDef& UseEnableLimit(bool v) noexcept;
     
+    /// @brief Uses the given lower translation value.
     PrismaticJointDef& UseLowerTranslation(Length v) noexcept;
     
+    /// @brief Uses the given upper translation value.
     PrismaticJointDef& UseUpperTranslation(Length v) noexcept;
     
+    /// @brief Uses the given enable motor state value.
     PrismaticJointDef& UseEnableMotor(bool v) noexcept;
     
     /// The local anchor point relative to bodyA's origin.
@@ -114,8 +120,9 @@ inline PrismaticJointDef& PrismaticJointDef::UseEnableMotor(bool v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 PrismaticJointDef GetPrismaticJointDef(const PrismaticJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* PrismaticJointDef_hpp */
+#endif /* PLAYRHO_PRISMATIC_JOINT_DEF_HPP */

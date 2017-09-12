@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef RevoluteJointDef_hpp
-#define RevoluteJointDef_hpp
+#ifndef PLAYRHO_REVOLUTE_JOINT_DEF_HPP
+#define PLAYRHO_REVOLUTE_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -44,6 +44,7 @@ class RevoluteJoint;
 ///       the joints will be broken.
 struct RevoluteJointDef : public JointBuilder<RevoluteJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<RevoluteJointDef>;
     
     constexpr RevoluteJointDef() noexcept: super{JointType::Revolute} {}
@@ -51,12 +52,16 @@ struct RevoluteJointDef : public JointBuilder<RevoluteJointDef>
     /// @brief Initialize the bodies, anchors, and reference angle using a world anchor point.
     RevoluteJointDef(NonNull<Body*> bodyA, NonNull<Body*> bodyB, const Length2D anchor) noexcept;
     
+    /// @brief Uses the given enable limit state value.
     constexpr RevoluteJointDef& UseEnableLimit(bool v) noexcept;
     
+    /// @brief Uses the given lower angle value.
     constexpr RevoluteJointDef& UseLowerAngle(Angle v) noexcept;
     
+    /// @brief Uses the given upper angle value.
     constexpr RevoluteJointDef& UseUpperAngle(Angle v) noexcept;
     
+    /// @brief Uses the given enable motor state value.
     constexpr RevoluteJointDef& UseEnableMotor(bool v) noexcept;
 
     /// @brief Local anchor point relative to bodyA's origin.
@@ -112,8 +117,9 @@ constexpr RevoluteJointDef& RevoluteJointDef::UseEnableMotor(bool v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 RevoluteJointDef GetRevoluteJointDef(const RevoluteJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* RevoluteJointDef_hpp */
+#endif /* PLAYRHO_REVOLUTE_JOINT_DEF_HPP */

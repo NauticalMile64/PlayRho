@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef FixtureDef_hpp
-#define FixtureDef_hpp
+#ifndef PLAYRHO_FIXTURE_DEF_HPP
+#define PLAYRHO_FIXTURE_DEF_HPP
 
 /// @file
 /// Declarations of the FixtureDef struct and any free functions associated with it.
@@ -38,8 +38,14 @@ namespace playrho {
     ///
     struct FixtureDef
     {
+        
+        /// @brief Uses the given user data.
         constexpr FixtureDef& UseUserData(void* value) noexcept;
+
+        /// @brief Uses the given sensor state value.
         constexpr FixtureDef& UseIsSensor(bool value) noexcept;
+        
+        /// @brief Uses the given filter value.
         constexpr FixtureDef& UseFilter(Filter value) noexcept;
         
         /// Use this to store application specific fixture data.
@@ -71,13 +77,15 @@ namespace playrho {
         return *this;
     }
 
+    /// @brief Gets the default fixture definition.
     constexpr FixtureDef GetDefaultFixtureDef() noexcept
     {
         return FixtureDef{};
     }
     
+    /// @brief Gets the fixture definition for the given fixture.
     FixtureDef GetFixtureDef(const Fixture& fixture) noexcept;
 
 } // namespace playrho
 
-#endif /* FixtureDef_hpp */
+#endif /* PLAYRHO_FIXTURE_DEF_HPP */

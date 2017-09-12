@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_FRICTION_JOINT_H
-#define B2_FRICTION_JOINT_H
+#ifndef PLAYRHO_FRICTION_JOINT_HPP
+#define PLAYRHO_FRICTION_JOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
 #include <PlayRho/Dynamics/Joints/FrictionJointDef.hpp>
@@ -34,6 +34,8 @@ namespace playrho {
 class FrictionJoint : public Joint
 {
 public:
+    
+    /// @brief Initializing constructor.
     FrictionJoint(const FrictionJointDef& def);
 
     Length2D GetAnchorA() const override;

@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef Transformation_hpp
-#define Transformation_hpp
+#ifndef PLAYRHO_TRANSFORMATION_HPP
+#define PLAYRHO_TRANSFORMATION_HPP
 
 #include <PlayRho/Common/Settings.hpp>
 #include <PlayRho/Common/Vector2D.hpp>
@@ -40,26 +40,30 @@ namespace playrho
         UnitVec2 q; ///< Rotational portion of the transformation. 8-bytes.
     };
     
+    /// @brief Identity transformation value.
     constexpr auto Transform_identity = Transformation{
         Length2D{Real(0) * Meter, Real(0) * Meter}, UnitVec2::GetRight()
     };
     
+    /// @brief Determines if the given value is valid.
     template <>
     constexpr inline bool IsValid(const Transformation& value) noexcept
     {
         return IsValid(value.p) && IsValid(value.q);
     }
     
-    constexpr inline bool operator == (Transformation lhs, Transformation rhs) noexcept
+    /// @brief Equality operator.
+    constexpr inline bool operator== (Transformation lhs, Transformation rhs) noexcept
     {
         return (lhs.p == rhs.p) && (lhs.q == rhs.q);
     }
     
-    constexpr inline bool operator != (Transformation lhs, Transformation rhs) noexcept
+    /// @brief Inequality operator.
+    constexpr inline bool operator!= (Transformation lhs, Transformation rhs) noexcept
     {
         return (lhs.p != rhs.p) || (lhs.q != rhs.q);
     }
 
 }
 
-#endif /* Transformation_hpp */
+#endif /* PLAYRHO_TRANSFORMATION_HPP */

@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef FrictionJointDef_hpp
-#define FrictionJointDef_hpp
+#ifndef PLAYRHO_FRICTION_JOINT_DEF_HPP
+#define PLAYRHO_FRICTION_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -34,6 +34,8 @@ class FrictionJoint;
 /// @brief Friction joint definition.
 struct FrictionJointDef : public JointBuilder<FrictionJointDef>
 {
+    
+    /// @brief Super type.
     using super = JointBuilder<FrictionJointDef>;
     
     constexpr FrictionJointDef() noexcept: super{JointType::Friction} {}
@@ -43,8 +45,10 @@ struct FrictionJointDef : public JointBuilder<FrictionJointDef>
     ///   anchor and world axis.
     FrictionJointDef(Body* bodyA, Body* bodyB, const Length2D anchor) noexcept;
     
+    /// @brief Uses the given maximum force value.
     constexpr FrictionJointDef& UseMaxForce(NonNegative<Force> v) noexcept;
     
+    /// @brief Uses the given maximum torque value.
     constexpr FrictionJointDef& UseMaxTorque(NonNegative<Torque> v) noexcept;
     
     /// @brief Local anchor point relative to bodyA's origin.
@@ -72,8 +76,9 @@ constexpr FrictionJointDef& FrictionJointDef::UseMaxTorque(NonNegative<Torque> v
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 FrictionJointDef GetFrictionJointDef(const FrictionJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* FrictionJointDef_hpp */
+#endif /* PLAYRHO_FRICTION_JOINT_DEF_HPP */

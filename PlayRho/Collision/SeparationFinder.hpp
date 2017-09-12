@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef SeparationFinder_hpp
-#define SeparationFinder_hpp
+#ifndef PLAYRHO_SEPARATION_FINDER_HPP
+#define PLAYRHO_SEPARATION_FINDER_HPP
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Collision/IndexPair.hpp>
@@ -111,8 +111,13 @@ namespace playrho {
             return Length{0};
         }
         
+        /// @brief Gets the type.
         constexpr Type GetType() const noexcept;
+
+        /// @brief Gets the axis.
         constexpr UnitVec2 GetAxis() const noexcept;
+        
+        /// @brief Gets the local point.
         constexpr Length2D GetLocalPoint() const noexcept;
 
     private:
@@ -159,4 +164,4 @@ namespace playrho {
 
 }
 
-#endif /* SeparationFinder_hpp */
+#endif /* PLAYRHO_SEPARATION_FINDER_HPP */

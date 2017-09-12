@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PulleyJointDef_hpp
-#define PulleyJointDef_hpp
+#ifndef PLAYRHO_PULLEY_JOINT_DEF_HPP
+#define PLAYRHO_PULLEY_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -34,6 +34,7 @@ class PulleyJoint;
 /// @details This requires two ground anchors, two dynamic body anchor points, and a pulley ratio.
 struct PulleyJointDef : public JointBuilder<PulleyJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<PulleyJointDef>;
     
     PulleyJointDef() noexcept: super{JointType::Pulley}
@@ -46,6 +47,7 @@ struct PulleyJointDef : public JointBuilder<PulleyJointDef>
                    const Length2D groundAnchorA, const Length2D groundAnchorB,
                    const Length2D anchorA, const Length2D anchorB);
     
+    /// @brief Uses the given ratio value.
     PulleyJointDef& UseRatio(Real v) noexcept;
     
     /// The first ground anchor in world coordinates. This point never moves.
@@ -76,8 +78,9 @@ inline PulleyJointDef& PulleyJointDef::UseRatio(Real v) noexcept
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 PulleyJointDef GetPulleyJointDef(const PulleyJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* PulleyJointDef_hpp */
+#endif /* PLAYRHO_PULLEY_JOINT_DEF_HPP */

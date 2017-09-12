@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef MouseJointDef_hpp
-#define MouseJointDef_hpp
+#ifndef PLAYRHO_MOUSE_JOINT_DEF_HPP
+#define PLAYRHO_MOUSE_JOINT_DEF_HPP
 
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -35,10 +35,12 @@ class Body;
 /// @details This requires a world target point, tuning parameters, and the time step.
 struct MouseJointDef : public JointBuilder<MouseJointDef>
 {
+    /// @brief Super type.
     using super = JointBuilder<MouseJointDef>;
     
     constexpr MouseJointDef() noexcept: super{JointType::Mouse} {}
 
+    /// @brief Initializing constructor.
     constexpr MouseJointDef(NonNull<Body*> b) noexcept: super{super{JointType::Mouse}.UseBodyB(b)}
     {
         // Intentionally empty.
@@ -101,8 +103,9 @@ constexpr MouseJointDef& MouseJointDef::UseDampingRatio(NonNegative<Real> v) noe
     return *this;
 }
 
+/// @brief Gets the definition data for the given joint.
 MouseJointDef GetMouseJointDef(const MouseJoint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* MouseJointDef_hpp */
+#endif /* PLAYRHO_MOUSE_JOINT_DEF_HPP */

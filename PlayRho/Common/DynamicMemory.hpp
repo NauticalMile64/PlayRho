@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef DynamicMemory_hpp
-#define DynamicMemory_hpp
+#ifndef PLAYRHO_DYNAMIC_MEMORY_HPP
+#define PLAYRHO_DYNAMIC_MEMORY_HPP
 
 #include <cstddef>
 
@@ -28,27 +28,32 @@ namespace playrho
 {
     // Memory Allocation
     
-    /// Implement this function to use your own memory allocator.
+    /// @brief Allocates memory.
+    /// @note Implement this function to use your own memory allocator.
     void* Alloc(std::size_t size);
     
+    /// @brief Allocates memory.
     template <typename T>
     T* Alloc(std::size_t size)
     {
         return static_cast<T*>(Alloc(size * sizeof(T)));
     }
     
-    /// Implement this function to use your own memory allocator.
+    /// @brief Reallocates memory.
+    /// @note Implement this function to use your own memory allocator.
     void* Realloc(void* ptr, std::size_t new_size);
     
+    /// @brief Reallocates memory.
     template <typename T>
     T* Realloc(T* ptr, std::size_t size)
     {
         return static_cast<T*>(Realloc(static_cast<void *>(ptr), size * sizeof(T)));
     }
     
-    /// If you implement Alloc, you should also implement this function.
+    /// @brief Frees memory.
+    /// @note If you implement Alloc, you should also implement this function.
     void Free(void* mem);
 
 } // namespace playrho
 
-#endif /* DynamicMemory_hpp */
+#endif /* PLAYRHO_DYNAMIC_MEMORY_HPP */

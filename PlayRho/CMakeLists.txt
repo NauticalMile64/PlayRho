@@ -1,10 +1,10 @@
-if(NOT PLAYRHO_REALNUM_TYPE)
-	set(PLAYRHO_REALNUM_TYPE float)
+if(NOT PLAYRHO_REAL_TYPE)
+	set(PLAYRHO_REAL_TYPE float)
 endif()
-message(STATUS "PLAYRHO_REALNUM_TYPE=${PLAYRHO_REALNUM_TYPE}")
+message(STATUS "PLAYRHO_REAL_TYPE=${PLAYRHO_REAL_TYPE}")
 
-file(REMOVE "Common/RealNum.hpp")
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Common/RealNum.hpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/Common/RealNum.hpp")
+file(REMOVE "Common/Real.hpp")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Common/Real.hpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/Common/Real.hpp")
 
 file(GLOB PLAYRHO_Collision_SRCS
 	"Collision/*.cpp"
@@ -41,12 +41,6 @@ file(GLOB PLAYRHO_Joints_SRCS
 )
 file(GLOB PLAYRHO_Joints_HDRS
 	"Dynamics/Joints/*.hpp"
-)
-file(GLOB PLAYRHO_Rope_SRCS
-	"Rope/*.cpp"
-)
-file(GLOB PLAYRHO_Rope_HDRS
-	"Rope/*.hpp"
 )
 file(GLOB PLAYRHO_General_HDRS
 	"*.hpp"
@@ -115,7 +109,6 @@ source_group(Dynamics FILES ${PLAYRHO_Dynamics_SRCS} ${PLAYRHO_Dynamics_HDRS})
 source_group(Dynamics\\Contacts FILES ${PLAYRHO_Contacts_SRCS} ${PLAYRHO_Contacts_HDRS})
 source_group(Dynamics\\Joints FILES ${PLAYRHO_Joints_SRCS} ${PLAYRHO_Joints_HDRS})
 source_group(Include FILES ${PLAYRHO_General_HDRS})
-source_group(Rope FILES ${PLAYRHO_Rope_SRCS} ${PLAYRHO_Rope_HDRS})
 
 if(PLAYRHO_INSTALL)
 	# install headers
@@ -126,7 +119,6 @@ if(PLAYRHO_INSTALL)
 	install(FILES ${PLAYRHO_Dynamics_HDRS} DESTINATION include/PlayRho/Dynamics)
 	install(FILES ${PLAYRHO_Contacts_HDRS} DESTINATION include/PlayRho/Dynamics/Contacts)
 	install(FILES ${PLAYRHO_Joints_HDRS} DESTINATION include/PlayRho/Dynamics/Joints)
-	install(FILES ${PLAYRHO_Rope_HDRS} DESTINATION include/PlayRho/Rope)
 
 	# install libraries
 	if(PLAYRHO_BUILD_SHARED)

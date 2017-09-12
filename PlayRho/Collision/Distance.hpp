@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef B2_DISTANCE_H
-#define B2_DISTANCE_H
+#ifndef PLAYRHO_DISTANCE_HPP
+#define PLAYRHO_DISTANCE_HPP
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Collision/Simplex.hpp>
@@ -30,8 +30,8 @@ namespace playrho
     /// Witness Points.
     struct WitnessPoints
     {
-        Length2D a;
-        Length2D b;
+        Length2D a; ///< Point A.
+        Length2D b; ///< Point B.
     };
     
     /// Gets the witness points of the given simplex.
@@ -40,15 +40,18 @@ namespace playrho
     /// Distance Configuration.
     struct DistanceConf
     {
+        /// @brief Iteration type.
         using iteration_type = std::remove_const<decltype(DefaultMaxDistanceIters)>::type;
 
-        Simplex::Cache cache;
-        iteration_type maxIterations = DefaultMaxDistanceIters;
+        Simplex::Cache cache; ///< Cache.
+        iteration_type maxIterations = DefaultMaxDistanceIters; ///< Max iterations.
     };
 
     /// @brief Distance Output.
     struct DistanceOutput
     {
+        
+        /// @brief State of the distance output.
         enum State: std::uint8_t
         {
             Unknown,
@@ -58,6 +61,7 @@ namespace playrho
             HitMaxIters
         };
 
+        /// @brief Iteration type.
         using iteration_type = std::remove_const<decltype(DefaultMaxDistanceIters)>::type;
 
         Simplex simplex; ///< Simplex.
