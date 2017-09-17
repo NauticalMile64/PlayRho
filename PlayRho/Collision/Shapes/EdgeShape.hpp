@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_EDGE_SHAPE_HPP
-#define PLAYRHO_EDGE_SHAPE_HPP
+#ifndef PLAYRHO_COLLISION_SHAPES_EDGESHAPE_HPP
+#define PLAYRHO_COLLISION_SHAPES_EDGESHAPE_HPP
 
 #include <PlayRho/Collision/Shapes/Shape.hpp>
 
@@ -72,7 +72,7 @@ public:
     }
 
     /// @brief Initializing constructor.
-    EdgeShape(const Conf& conf = GetDefaultConf()) noexcept:
+    explicit EdgeShape(const Conf& conf = GetDefaultConf()) noexcept:
         Shape{conf},
         m_vertices{conf.vertex1, conf.vertex2}
     {
@@ -105,10 +105,10 @@ public:
     /// @return Mass data for this shape.
     MassData GetMassData() const noexcept override;
     
-    void Accept(Visitor& visitor) const override;
+    void Accept(ShapeVisitor& visitor) const override;
 
     /// @brief Sets this as an isolated edge.
-    void Set(const Length2D v1, const Length2D v2);
+    void Set(Length2D v1, Length2D v2);
 
     /// @brief Gets vertex number 1 (of 2).
     Length2D GetVertex1() const noexcept { return m_vertices[0]; }
@@ -142,11 +142,6 @@ inline DistanceProxy EdgeShape::GetChild(ChildCounter index) const
     return DistanceProxy{GetVertexRadius(), 2, m_vertices, m_normals};
 }
 
-inline void EdgeShape::Accept(Visitor& visitor) const
-{
-    visitor.Visit(*this);
-}
-
 } // namespace playrho
 
-#endif
+#endif // PLAYRHO_COLLISION_SHAPES_EDGESHAPE_HPP

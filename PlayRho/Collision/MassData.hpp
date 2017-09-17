@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_MASS_DATA_HPP
-#define PLAYRHO_MASS_DATA_HPP
+#ifndef PLAYRHO_COLLISION_MASSDATA_HPP
+#define PLAYRHO_COLLISION_MASSDATA_HPP
 
 /// @file
 /// Declaration of the MassData structure and associated free functions.
@@ -32,11 +32,6 @@ namespace playrho {
     
     class Fixture;
     class Body;
-    class Shape;
-    class PolygonShape;
-    class EdgeShape;
-    class DiskShape;
-    class ChainShape;
 
     /// @brief Mass data.
     /// @details This holds the mass data computed for a shape.
@@ -55,6 +50,13 @@ namespace playrho {
         NonNegative<RotInertia> I = NonNegative<RotInertia>{0};
     };
     
+    // Free functions...
+    
+    /// @defgroup MassDataFreeFunctions MassData free functions.
+    /// @details A collection of non-member, non-friend, MassData related functions.
+    /// @sa MassData.
+    /// @{
+    
     /// @brief MassData equality operator.
     constexpr bool operator== (MassData lhs, MassData rhs)
     {
@@ -67,31 +69,13 @@ namespace playrho {
         return !(lhs == rhs);
     }
 
-    /// @brief Gets the area of a cirlce.
-    NonNegative<Area> GetAreaOfCircle(Length radius);
-
-    /// @brief Gets the area of a polygon.
-    /// @note This function is valid for any non-self-intersecting (simple) polygon,
-    ///   which can be convex or concave.
-    /// @note Winding order doesn't matter.
-    NonNegative<Area> GetAreaOfPolygon(Span<const Length2D> vertices);
-    
-    /// @brief Gets the polar moment of the area enclosed by the given vertices.
-    ///
-    /// @warning Behavior is undefined if given collection has less than 3 vertices.
-    ///
-    /// @param vertices Collection of three or more vertices.
-    ///
-    SecondMomentOfArea GetPolarMoment(Span<const Length2D> vertices);
-
     /// @brief Computes the mass data for a circular shape.
     ///
     /// @param r Radius of the circlular shape.
     /// @param density Areal density of mass.
     /// @param location Location of the center of the shape.
     ///
-    MassData GetMassData(const Length r, const NonNegative<Density> density,
-                         const Length2D location);
+    MassData GetMassData(Length r, NonNegative<Density> density, Length2D location);
 
     /// @brief Computes the mass data for a linear shape.
     ///
@@ -100,12 +84,11 @@ namespace playrho {
     /// @param v0 Location of vertex zero.
     /// @param v1 Location of vertex one.
     ///
-    MassData GetMassData(const Length r, const NonNegative<Density> density,
-                         const Length2D v0, const Length2D v1);
+    MassData GetMassData(Length r, NonNegative<Density> density, Length2D v0, Length2D v1);
 
     /// @brief Gets the mass data for the given collection of vertices with the given
     ///    properties.
-    MassData GetMassData(const Length vertexRadius, const NonNegative<Density> density,
+    MassData GetMassData(Length vertexRadius, NonNegative<Density> density,
                          Span<const Length2D> vertices);
     
     /// @brief Computes the mass data for the given fixture.
@@ -131,6 +114,8 @@ namespace playrho {
     /// @return a struct containing the mass, inertia and center of the body.
     MassData GetMassData(const Body& body) noexcept;
     
-}
+    /// @}
 
-#endif /* B2_MASS_DATA_HPP */
+} // namespace playrho
+
+#endif // PLAYRHO_COLLISION_MASSDATA_HPP

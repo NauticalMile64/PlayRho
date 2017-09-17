@@ -18,8 +18,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_MULTI_SHAPE_HPP
-#define PLAYRHO_MULTI_SHAPE_HPP
+#ifndef PLAYRHO_COLLISION_SHAPES_MULTISHAPE_HPP
+#define PLAYRHO_COLLISION_SHAPES_MULTISHAPE_HPP
 
 #include <PlayRho/Collision/Shapes/Shape.hpp>
 #include <vector>
@@ -77,6 +77,8 @@ namespace playrho {
         /// @brief Copy constructor.
         MultiShape(const MultiShape&) = default;
         
+        ~MultiShape() override = default;
+        
         /// @brief Gets the number of child primitives.
         /// @return Positive non-zero count.
         ChildCounter GetChildCount() const noexcept override;
@@ -91,7 +93,7 @@ namespace playrho {
         /// @return Mass data for this shape.
         MassData GetMassData() const noexcept override;
                 
-        void Accept(Visitor& visitor) const override;
+        void Accept(ShapeVisitor& visitor) const override;
         
         /// Creates a convex hull from the given set of local points.
         /// The size of the set must be in the range [1, MaxShapeVertices].
@@ -134,12 +136,7 @@ namespace playrho {
             child.vertices.data(), child.normals.data()
         };
     }
-    
-    inline void MultiShape::Accept(playrho::Shape::Visitor &visitor) const
-    {
-        visitor.Visit(*this);
-    }
 
-}
+} // namespace playrho
 
-#endif /* PLAYRHO_MULTI_SHAPE_HPP */
+#endif // PLAYRHO_COLLISION_SHAPES_MULTISHAPE_HPP

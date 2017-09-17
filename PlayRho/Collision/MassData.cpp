@@ -27,10 +27,9 @@
 #include <PlayRho/Dynamics/Fixture.hpp>
 #include <PlayRho/Dynamics/Body.hpp>
 
-using namespace playrho;
+namespace playrho {
 
-MassData playrho::GetMassData(const Length r, const NonNegative<Density> density,
-                            const Length2D location)
+MassData GetMassData(Length r, NonNegative<Density> density, Length2D location)
 {
     // Uses parallel axis theorem, perpendicular axis theorem, and the second moment of area.
     // See: https://en.wikipedia.org/wiki/Second_moment_of_area
@@ -53,8 +52,7 @@ MassData playrho::GetMassData(const Length r, const NonNegative<Density> density
     return MassData{location, mass, I};
 }
 
-MassData playrho::GetMassData(const Length r, const NonNegative<Density> density,
-                            const Length2D v0, const Length2D v1)
+MassData GetMassData(Length r, NonNegative<Density> density, Length2D v0, Length2D v1)
 {
     const auto r_squared = Area{r * r};
     const auto circle_area = r_squared * Pi;
@@ -78,7 +76,6 @@ MassData playrho::GetMassData(const Length r, const NonNegative<Density> density
         Length2D{v1 - offset},
         Length2D{v1 + offset}
     };
-    assert(vertices.size() == 4);
     const auto I_z = GetPolarMoment(vertices);
     const auto I0 = SecondMomentOfArea{halfCircleArea * (halfRSquared + GetLengthSquared(v0))};
     const auto I1 = SecondMomentOfArea{halfCircleArea * (halfRSquared + GetLengthSquared(v1))};
@@ -89,7 +86,7 @@ MassData playrho::GetMassData(const Length r, const NonNegative<Density> density
     return MassData{center, totalMass, I};
 }
 
-MassData playrho::GetMassData(const Length vertexRadius, const NonNegative<Density> density,
+MassData GetMassData(Length vertexRadius, NonNegative<Density> density,
                               Span<const Length2D> vertices)
 {
     // See: https://en.wikipedia.org/wiki/Centroid#Centroid_of_polygon
@@ -124,9 +121,9 @@ MassData playrho::GetMassData(const Length vertexRadius, const NonNegative<Densi
         case 0:
             return MassData{};
         case 1:
-            return ::GetMassData(vertexRadius, density, vertices[0]);
+            return playrho::GetMassData(vertexRadius, density, vertices[0]);
         case 2:
-            return ::GetMassData(vertexRadius, density, vertices[0], vertices[1]);;
+            return playrho::GetMassData(vertexRadius, density, vertices[0], vertices[1]);;
         default:
             break;
     }
@@ -179,68 +176,12 @@ MassData playrho::GetMassData(const Length vertexRadius, const NonNegative<Densi
     return MassData{massDataCenter, mass, massDataI};
 }
 
-NonNegative<Area> playrho::GetAreaOfCircle(Length radius)
-{
-    return Area{radius * radius * Pi};
-}
-
-NonNegative<Area> playrho::GetAreaOfPolygon(Span<const Length2D> vertices)
-{
-    // Uses the "Shoelace formula".
-    // See: https://en.wikipedia.org/wiki/Shoelace_formula
-    auto sum = Real(0) * SquareMeter;
-    const auto count = vertices.size();
-    for (auto i = decltype(count){0}; i < count; ++i)
-    {
-        const auto last_v = vertices[GetModuloPrev(i, count)];
-        const auto this_v = vertices[i];
-        const auto next_v = vertices[GetModuloNext(i, count)];
-        sum += GetX(this_v) * (GetY(next_v) - GetY(last_v));
-    }
-    
-    // Note that using the absolute value isn't necessary for vertices in counter-clockwise
-    // ordering; only needed for clockwise ordering.
-    return Abs(sum) / Real{2};
-}
-
-SecondMomentOfArea playrho::GetPolarMoment(Span<const Length2D> vertices)
-{
-    assert(vertices.size() > 2);
-
-    // Use formulas Ix and Iy for second moment of area of any simple polygon and apply
-    // the perpendicular axis theorem on these to get the desired answer.
-    //
-    // See:
-    // https://en.wikipedia.org/wiki/Second_moment_of_area#Any_polygon
-    // https://en.wikipedia.org/wiki/Second_moment_of_area#Perpendicular_axis_theorem
-    auto sum_x = SquareMeter * SquareMeter * Real(0);
-    auto sum_y = SquareMeter * SquareMeter * Real(0);
-    const auto count = vertices.size();
-    for (auto i = decltype(count){0}; i < count; ++i)
-    {
-        const auto this_v = vertices[i];
-        const auto next_v = vertices[GetModuloNext(i, count)];
-        const auto fact_b = Cross(this_v, next_v);
-        sum_x += [&]() {
-            const auto fact_a = Square(GetY(this_v)) + GetY(this_v) * GetY(next_v) + Square(GetY(next_v));
-            return fact_a * fact_b;
-        }();
-        sum_y += [&]() {
-            const auto fact_a = Square(GetX(this_v)) + GetX(this_v) * GetX(next_v) + Square(GetX(next_v));
-            return fact_a * fact_b;
-        }();
-    }
-    const auto secondMomentOfAreaX = SecondMomentOfArea{sum_x};
-    const auto secondMomentOfAreaY = SecondMomentOfArea{sum_y};
-    return (secondMomentOfAreaX + secondMomentOfAreaY) / Real{12};
-}
-
-MassData playrho::GetMassData(const Fixture& f)
+MassData GetMassData(const Fixture& f)
 {
     return f.GetShape()->GetMassData();
 }
 
-MassData playrho::ComputeMassData(const Body& body) noexcept
+MassData ComputeMassData(const Body& body) noexcept
 {
     auto mass = Mass{0};
     auto I = RotInertia{0};
@@ -259,8 +200,10 @@ MassData playrho::ComputeMassData(const Body& body) noexcept
     return MassData{center, mass, I};
 }
 
-MassData playrho::GetMassData(const Body& body) noexcept
+MassData GetMassData(const Body& body) noexcept
 {
     const auto I = GetLocalInertia(body);
     return MassData{body.GetLocalCenter(), GetMass(body), I};
 }
+
+} // namespace playrho

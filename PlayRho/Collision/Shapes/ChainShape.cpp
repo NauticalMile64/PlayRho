@@ -20,8 +20,9 @@
  */
 
 #include <PlayRho/Collision/Shapes/ChainShape.hpp>
+#include <PlayRho/Collision/Shapes/ShapeVisitor.hpp>
 
-using namespace playrho;
+namespace playrho {
 
 namespace {
 #if 0
@@ -88,7 +89,7 @@ MassData ChainShape::GetMassData() const noexcept
             for (auto i = decltype(vertexCount){1}; i < vertexCount; ++i)
             {
                 const auto v = GetVertex(i);
-                const auto massData = ::GetMassData(vertexRadius, density, vprev, v);
+                const auto massData = playrho::GetMassData(vertexRadius, density, vprev, v);
                 mass += Mass{massData.mass};
                 center += Real{Mass{massData.mass} / Kilogram} * massData.center;
                 I += RotInertia{massData.I};
@@ -105,7 +106,7 @@ MassData ChainShape::GetMassData() const noexcept
         }
         if (vertexCount == 1)
         {
-            return ::GetMassData(GetVertexRadius(), density, GetVertex(0));
+            return playrho::GetMassData(GetVertexRadius(), density, GetVertex(0));
         }
     }
     return MassData{};
@@ -131,3 +132,10 @@ DistanceProxy ChainShape::GetChild(ChildCounter index) const
     }
     return DistanceProxy{GetVertexRadius(), 1, &m_vertices[0], nullptr};
 }
+
+void ChainShape::Accept(ShapeVisitor &visitor) const
+{
+    visitor.Visit(*this);
+}
+
+} // namespace playrho

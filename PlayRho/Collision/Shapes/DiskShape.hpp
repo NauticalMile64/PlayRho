@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_CIRCLE_SHAPE_HPP
-#define PLAYRHO_CIRCLE_SHAPE_HPP
+#ifndef PLAYRHO_COLLISION_SHAPES_DISKSHAPE_HPP
+#define PLAYRHO_COLLISION_SHAPES_DISKSHAPE_HPP
 
 #include <PlayRho/Collision/Shapes/Shape.hpp>
 
@@ -97,7 +97,7 @@ public:
     MassData GetMassData() const noexcept override;
     
     /// @brief Accepts the given visitor.
-    void Accept(Visitor& visitor) const override;
+    void Accept(ShapeVisitor& visitor) const override;
 
     /// Gets the "radius" of the shape.
     /// @return Non-negative distance.
@@ -142,11 +142,6 @@ inline DistanceProxy DiskShape::GetChild(ChildCounter index) const
     return DistanceProxy{GetVertexRadius(), 1, &m_location, nullptr};
 }
 
-inline void DiskShape::Accept(Visitor& visitor) const
-{
-    visitor.Visit(*this);
-}
-
 } // namespace playrho
 
-#endif
+#endif // PLAYRHO_COLLISION_SHAPES_DISKSHAPE_HPP

@@ -42,14 +42,14 @@ namespace {
         return SimplexEdge{wA, idxA, wB, idxB};
     }
     
-    inline Simplex::Edges GetSimplexEdges(const IndexPair3 indexPairs,
+    inline SimplexEdges GetSimplexEdges(const IndexPair3 indexPairs,
                                           const DistanceProxy& proxyA, const Transformation& xfA,
                                           const DistanceProxy& proxyB, const Transformation& xfB)
     {
         /// @brief Size type.
         using size_type = std::remove_const<decltype(MaxSimplexEdges)>::type;
 
-        Simplex::Edges simplexEdges;
+        SimplexEdges simplexEdges;
         const auto count = GetNumIndices(indexPairs);
         switch (count)
         {
@@ -70,7 +70,7 @@ namespace {
         return simplexEdges;
     }
 
-}
+} // namespace
 
 WitnessPoints GetWitnessPoints(const Simplex& simplex) noexcept
 {
@@ -100,7 +100,7 @@ WitnessPoints GetWitnessPoints(const Simplex& simplex) noexcept
 
 DistanceOutput Distance(const DistanceProxy& proxyA, const Transformation& transformA,
                         const DistanceProxy& proxyB, const Transformation& transformB,
-                        const DistanceConf conf)
+                        DistanceConf conf)
 {
     assert(proxyA.GetVertexCount() > 0);
     assert(IsValid(transformA.p));
@@ -206,7 +206,7 @@ DistanceOutput Distance(const DistanceProxy& proxyA, const Transformation& trans
 
 Area TestOverlap(const DistanceProxy& proxyA, const Transformation& xfA,
                  const DistanceProxy& proxyB, const Transformation& xfB,
-                 const DistanceConf conf)
+                 DistanceConf conf)
 {
     const auto distanceInfo = Distance(proxyA, xfA, proxyB, xfB, conf);
     assert(distanceInfo.state != DistanceOutput::Unknown && distanceInfo.state != DistanceOutput::HitMaxIters);

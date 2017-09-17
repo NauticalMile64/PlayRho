@@ -1,5 +1,5 @@
 /*
- * Original work Copyright (c) 2006-2009 Erin Catto http://www.box2d.org
+ * Original work Copyright (c) 2006-2007 Erin Catto http://www.box2d.org
  * Modified work Copyright (c) 2017 Louis Langholtz https://github.com/louis-langholtz/PlayRho
  *
  * This software is provided 'as-is', without any express or implied
@@ -19,8 +19,16 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#include <PlayRho/Common/Settings.hpp>
+#include <PlayRho/Dynamics/Joints/Joint.hpp>
+#include <PlayRho/Dynamics/Joints/TypeJointVisitor.hpp>
 
 namespace playrho {
+
+JointType GetType(const Joint& joint) noexcept
+{
+    auto visitor = TypeJointVisitor{};
+    joint.Accept(visitor);
+    return visitor.GetType().value_or(JointType::Unknown);
+}
 
 } // namespace playrho

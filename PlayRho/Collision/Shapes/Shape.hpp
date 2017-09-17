@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_SHAPE_HPP
-#define PLAYRHO_SHAPE_HPP
+#ifndef PLAYRHO_COLLISION_SHAPES_SHAPE_HPP
+#define PLAYRHO_COLLISION_SHAPES_SHAPE_HPP
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Collision/DistanceProxy.hpp>
@@ -27,13 +27,9 @@
 
 namespace playrho {
 
-class DiskShape;
-class EdgeShape;
-class PolygonShape;
-class ChainShape;
-class MultiShape;
+class ShapeVisitor;
 
-/// @brief Shape.
+/// @brief A base abstract class for describing a type of shape.
 ///
 /// @details This is a polymorphic abstract base class for shapes.
 /// A shape is used for collision detection. You can create a shape however you like.
@@ -41,6 +37,8 @@ class MultiShape;
 /// is created. Shapes may encapsulate one or more child shapes.
 ///
 /// @note This data structure is 32-bytes large (on at least one 64-bit platform).
+///
+/// @sa ShapeFreeFunctions
 ///
 class Shape
 {
@@ -111,26 +109,6 @@ public:
         constexpr ConcreteConf& UseDensity(NonNegative<Density> value) noexcept;
     };
 
-    class Visitor;
-
-    /// @brief Default constructor is deleted.
-    /// @details This is a base class that shouldn't ever be directly instantiated.
-    Shape() = delete;
-
-    /// @brief Initializing constructor.
-    ///
-    Shape(const Conf& conf) noexcept:
-        m_vertexRadius{conf.vertexRadius},
-        m_density{conf.density},
-        m_friction{conf.friction},
-        m_restitution{conf.restitution}
-    {
-        // Intentionally empty.
-    }
-
-    /// @brief Copy constructor.
-    Shape(const Shape&) = default;
-
     virtual ~Shape() = default;
 
     /// @brief Gets the number of child primitives of the shape.
@@ -147,7 +125,7 @@ public:
     virtual MassData GetMassData() const noexcept = 0;
 
     /// @brief Accepts a visitor.
-    virtual void Accept(Visitor& visitor) const = 0;
+    virtual void Accept(ShapeVisitor& visitor) const = 0;
     
     /// @brief Gets the vertex radius.
     NonNegative<Length> GetVertexRadius() const noexcept;
@@ -190,6 +168,35 @@ public:
     /// @brief Sets the coefficient of restitution.
     /// @note This will _not_ change the restitution of existing contacts.
     void SetRestitution(Finite<Real> restitution) noexcept;
+
+protected:
+
+    /// @brief Default constructor.
+    /// @details This is a base class that shouldn't ever be directly instantiated.
+    Shape() = default;
+    
+    /// @brief Initializing constructor.
+    ///
+    explicit Shape(const Conf& conf) noexcept:
+        m_vertexRadius{conf.vertexRadius},
+        m_density{conf.density},
+        m_friction{conf.friction},
+        m_restitution{conf.restitution}
+    {
+        // Intentionally empty.
+    }
+    
+    /// @brief Copy constructor.
+    Shape(const Shape& other) = default;
+    
+    /// @brief Move constructor.
+    Shape(Shape&& other) = default;
+
+    /// @brief Copy assignment operator.
+    Shape& operator= (const Shape& other) = default;
+    
+    /// @brief Move assignment operator.
+    Shape& operator= (Shape&& other) = default;
 
 private:
     
@@ -238,57 +245,6 @@ Shape::Builder<ConcreteConf>::UseDensity(NonNegative<Density> value) noexcept
     return static_cast<ConcreteConf&>(*this);
 }
 
-/// @brief Visitor interface.
-///
-/// @details Interface to inerit from for objects wishing to "visit" shapes.
-///   This uses the vistor design pattern.
-/// @sa https://en.wikipedia.org/wiki/Visitor_pattern .
-///
-class Shape::Visitor
-{
-public:
-    virtual ~Visitor() = default;
-    
-    /// @brief Visits a DiskShape.
-    virtual void Visit(const DiskShape&)
-    {
-        visited = true;
-    }
-    
-    /// @brief Visits an EdgeShape.
-    virtual void Visit(const EdgeShape&)
-    {
-        visited = true;
-    }
-    
-    /// @brief Visits a PolygonShape.
-    virtual void Visit(const PolygonShape&)
-    {
-        visited = true;
-    }
-    
-    /// @brief Visits a ChainShape.
-    virtual void Visit(const ChainShape&)
-    {
-        visited = true;
-    }
-    
-    /// @brief Visits a MultiShape.
-    virtual void Visit(const MultiShape&)
-    {
-        visited = true;
-    }
-    
-    /// @brief Is base visited.
-    bool IsBaseVisited() const noexcept
-    {
-        return visited;
-    }
-    
-private:
-    bool visited = false;
-};
-
 inline NonNegative<Length> Shape::GetVertexRadius() const noexcept
 {
     return m_vertexRadius;
@@ -331,7 +287,12 @@ inline void Shape::SetRestitution(Finite<Real> restitution) noexcept
 
 // Free functions...
 
-/// Gets the vertex radius of the given shape.
+/// @defgroup ShapeFreeFunctions Shape free functions.
+/// @details A collection of non-member, non-friend functions that operate on Shape objects.
+/// @sa Shape.
+/// @{
+
+/// @brief Gets the vertex radius of the given shape.
 /// @details Gets the radius of every vertex of this shape.
 /// This is used for collision handling.
 /// @note This value should never be less than zero.
@@ -342,9 +303,13 @@ inline NonNegative<Length> GetVertexRadius(const Shape& shape) noexcept
 
 /// @brief Test a point for containment in the given shape.
 /// @param shape Shape to use for test.
-/// @param pLocal Point in local coordinates.
-bool TestPoint(const Shape& shape, const Length2D pLocal) noexcept;
+/// @param point Point in local coordinates.
+/// @return <code>true</code> if the given point is contained by the given shape,
+///   <code>false</code> otherwise.
+bool TestPoint(const Shape& shape, Length2D point) noexcept;
+
+/// @}
 
 } // namespace playrho
 
-#endif
+#endif // PLAYRHO_COLLISION_SHAPES_SHAPE_HPP

@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_TIME_OF_IMPACT_HPP
-#define PLAYRHO_TIME_OF_IMPACT_HPP
+#ifndef PLAYRHO_COLLISION_TIMEOFIMPACT_HPP
+#define PLAYRHO_COLLISION_TIMEOFIMPACT_HPP
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Common/Wider.hpp>
@@ -44,7 +44,7 @@ namespace playrho {
     ///   significantly more than 0.
     ///
     /// @sa SolvePositionConstraints
-     /// @sa SolveTOIPositionConstraints
+    /// @sa SolveTOIPositionConstraints
     ///
     struct ToiConf
     {
@@ -78,7 +78,7 @@ namespace playrho {
         /// @brief T-Max.
         Real tMax = 1;
         
-        /// @brief Targetted depth of impact.
+        /// @brief Targeted depth of impact.
         /// @note Value must be less than twice the minimum vertex radius of any shape.
         Length targetDepth = DefaultLinearSlop * Real{3};
 
@@ -244,14 +244,14 @@ namespace playrho {
     /// @param sweepA Sweep A. Sweep of motion for shape represented by proxy A.
     /// @param proxyB Proxy B. The proxy's vertex count must be 1 or more.
     /// @param sweepB Sweep B. Sweep of motion for shape represented by proxy B.
-    /// @param conf Configuration details for on calculation. Like the targetted depth of penetration.
+    /// @param conf Configuration details for on calculation. Like the targeted depth of penetration.
     ///
     /// @return Time of impact output data.
     ///
     TOIOutput GetToiViaSat(const DistanceProxy& proxyA, const Sweep& sweepA,
                            const DistanceProxy& proxyB, const Sweep& sweepB,
-                           const ToiConf conf = GetDefaultToiConf());
+                           ToiConf conf = GetDefaultToiConf());
 
 } // namespace playrho
 
-#endif
+#endif // PLAYRHO_COLLISION_TIMEOFIMPACT_HPP

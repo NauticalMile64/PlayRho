@@ -19,8 +19,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_JOINT_HPP
-#define PLAYRHO_JOINT_HPP
+#ifndef PLAYRHO_DYNAMICS_JOINTS_JOINT_HPP
+#define PLAYRHO_DYNAMICS_JOINTS_JOINT_HPP
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Dynamics/Joints/JointDef.hpp>
@@ -33,11 +33,11 @@
 namespace playrho {
 
 class Body;
-class Joint;
 class StepConf;
 struct Velocity;
 struct ConstraintSolverConf;
 class BodyConstraint;
+class JointVisitor;
 
 /// @brief A body constraint pointer alias.
 using BodyConstraintPtr = BodyConstraint*;
@@ -56,8 +56,12 @@ using BodyConstraintsMap =
 #endif
 
 /// @brief Base joint class.
+///
 /// @details Joints are used to constraint two bodies together in various fashions.
 ///   Some joints also feature limits and motors.
+///
+/// @sa JointFreeFunctions
+///
 class Joint
 {
 public:
@@ -74,8 +78,7 @@ public:
     /// @brief Is the given definition okay.
     static bool IsOkay(const JointDef& def) noexcept;
 
-    /// @brief Gets the type of the concrete joint.
-    JointType GetType() const noexcept;
+    virtual ~Joint() = default;
 
     /// @brief Gets the first body attached to this joint.
     Body* GetBodyA() const noexcept;
@@ -94,6 +97,9 @@ public:
 
     /// Get the angular reaction on bodyB.
     virtual AngularMomentum GetAngularReaction() const = 0;
+    
+    /// @brief Accepts a visitor.
+    virtual void Accept(JointVisitor& visitor) const = 0;
 
     /// Get the user data pointer.
     void* GetUserData() const noexcept;
@@ -109,12 +115,10 @@ public:
     /// @brief Shifts the origin for any points stored in world coordinates.
     virtual void ShiftOrigin(const Length2D newOrigin) { NOT_USED(newOrigin);  }
 
-    virtual ~Joint() = default;
-
 protected:
     
     /// @brief Initializing constructor.
-    Joint(const JointDef& def);
+    explicit Joint(const JointDef& def);
 
 private:
     friend class JointAtty;
@@ -126,9 +130,9 @@ private:
     enum Flag: FlagsType
     {
         // Used when crawling contact graph when forming islands.
-        e_islandFlag = 0x01,
+        e_islandFlag = 0x01u,
 
-        e_collideConnectedFlag = 0x02
+        e_collideConnectedFlag = 0x02u
     };
 
     static constexpr FlagsType GetFlags(const JointDef& def) noexcept;
@@ -174,8 +178,7 @@ private:
     Body* const m_bodyA;
     Body* const m_bodyB;
     void* m_userData;
-    const JointType m_type;
-    FlagsType m_flags = 0; ///< Flags. 1-byte.
+    FlagsType m_flags = 0u; ///< Flags. 1-byte.
 };
 
 constexpr inline Joint::FlagsType Joint::GetFlags(const JointDef& def) noexcept
@@ -189,15 +192,10 @@ constexpr inline Joint::FlagsType Joint::GetFlags(const JointDef& def) noexcept
 }
 
 inline Joint::Joint(const JointDef& def):
-    m_type{def.type}, m_bodyA{def.bodyA}, m_bodyB{def.bodyB},
+    m_bodyA{def.bodyA}, m_bodyB{def.bodyB},
     m_flags{GetFlags(def)}, m_userData{def.userData}
 {
     // Intentionally empty.
-}
-
-inline JointType Joint::GetType() const noexcept
-{
-    return m_type;
 }
 
 inline Body* Joint::GetBodyA() const noexcept
@@ -222,12 +220,12 @@ inline void Joint::SetUserData(void* data) noexcept
 
 inline bool Joint::GetCollideConnected() const noexcept
 {
-    return m_flags & e_collideConnectedFlag;
+    return (m_flags & e_collideConnectedFlag) != 0u;
 }
 
 inline bool Joint::IsIslanded() const noexcept
 {
-    return m_flags & e_islandFlag;
+    return (m_flags & e_islandFlag) != 0u;
 }
 
 inline void Joint::SetIslanded() noexcept
@@ -242,6 +240,11 @@ inline void Joint::UnsetIslanded() noexcept
 
 // Free functions...
 
+/// @defgroup JointFreeFunctions Joint free functions.
+/// @details A collection of non-member, non-friend functions that operate on Joint objects.
+/// @sa Joint.
+/// @{
+
 /// @brief Short-cut function to determine if both bodies are enabled.
 bool IsEnabled(const Joint& j) noexcept;
 
@@ -250,6 +253,8 @@ void SetAwake(Joint& j) noexcept;
 
 /// @brief Gets the world index of the given joint.
 JointCounter GetWorldIndex(const Joint* joint);
+
+/// @}
 
 #ifdef PLAYRHO_PROVIDE_VECTOR_AT
 /// @brief Provides referenced access to the identified element of the given container.
@@ -262,4 +267,4 @@ BodyConstraintPtr& At(std::unordered_map<const Body*, BodyConstraint*>& containe
 
 } // namespace playrho
 
-#endif
+#endif // PLAYRHO_DYNAMICS_JOINTS_JOINT_HPP

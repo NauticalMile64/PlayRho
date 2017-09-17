@@ -18,10 +18,11 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_OPTIONAL_VALUE_HPP
-#define PLAYRHO_OPTIONAL_VALUE_HPP
+#ifndef PLAYRHO_COMMON_OPTIONALVALUE_HPP
+#define PLAYRHO_COMMON_OPTIONALVALUE_HPP
 
 #include <cassert>
+#include <utility>
 
 namespace playrho {
     
@@ -41,10 +42,21 @@ namespace playrho {
         
         /// @brief Copy constructor.
         constexpr OptionalValue(const OptionalValue& other) = default;
-        
+
+        /// @brief Move constructor.
+        constexpr OptionalValue(OptionalValue&& other) noexcept:
+            m_value{std::move(other.m_value)}, m_set{other.m_set}
+        {
+            // Intentionally empty.
+            // Note that the exception specification of this constructor
+            //   doesn't match the defaulted one (when built with boost units).
+        }
+
         /// @brief Initializing constructor.
-        constexpr OptionalValue(const T v);
-        
+        constexpr explicit OptionalValue(T v);
+
+        ~OptionalValue() = default;
+
         /// @brief Indirection operator.
         constexpr const T& operator* () const;
 
@@ -66,8 +78,18 @@ namespace playrho {
         /// @brief Assignment operator.
         OptionalValue& operator= (const OptionalValue& other) = default;
 
+        /// @brief Move assignment operator.
+        OptionalValue& operator= (OptionalValue&& other) noexcept
+        {
+            // Note that the exception specification of this method
+            //   doesn't match the defaulted one (when built with boost units).
+            m_value = std::move(other.m_value);
+            m_set = other.m_set;
+            return *this;
+        }
+
         /// @brief Assignment operator.
-        OptionalValue& operator= (const T v);
+        OptionalValue& operator= (T v);
 
         /// @brief Accesses the value.
         constexpr T& value();
@@ -84,7 +106,7 @@ namespace playrho {
     };
     
     template<typename T>
-    constexpr OptionalValue<T>::OptionalValue(const T v): m_value{v}, m_set{true} {}
+    constexpr OptionalValue<T>::OptionalValue(T v): m_value{v}, m_set{true} {}
     
     template<typename T>
     constexpr bool OptionalValue<T>::has_value() const noexcept
@@ -99,7 +121,7 @@ namespace playrho {
     }
     
     template<typename T>
-    OptionalValue<T>& OptionalValue<T>::operator=(const T v)
+    OptionalValue<T>& OptionalValue<T>::operator=(T v)
     {
         m_value = v;
         m_set = true;
@@ -161,4 +183,4 @@ namespace playrho {
     
 } // namespace playrho
 
-#endif /* PLAYRHO_OPTIONAL_VALUE_HPP */
+#endif // PLAYRHO_COMMON_OPTIONALVALUE_HPP

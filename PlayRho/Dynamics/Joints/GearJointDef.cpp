@@ -22,7 +22,7 @@
 #include <PlayRho/Dynamics/Joints/GearJointDef.hpp>
 #include <PlayRho/Dynamics/Joints/GearJoint.hpp>
 
-using namespace playrho;
+namespace playrho {
 
 GearJointDef::GearJointDef(NonNull<Joint*> j1, NonNull<Joint*> j2) noexcept:
     super{super{JointType::Gear}.UseBodyA(j1->GetBodyB()).UseBodyB(j2->GetBodyB())},
@@ -31,7 +31,7 @@ GearJointDef::GearJointDef(NonNull<Joint*> j1, NonNull<Joint*> j2) noexcept:
     // Intentionally empty.
 }
 
-GearJointDef playrho::GetGearJointDef(const GearJoint& joint) noexcept
+GearJointDef GetGearJointDef(const GearJoint& joint) noexcept
 {
     auto def = GearJointDef{joint.GetJoint1(), joint.GetJoint2()};
     
@@ -40,3 +40,5 @@ GearJointDef playrho::GetGearJointDef(const GearJoint& joint) noexcept
     
     return def;
 }
+
+} // namespace playrho

@@ -18,10 +18,18 @@
  */
 
 #include <PlayRho/Collision/Shapes/DiskShape.hpp>
+#include <PlayRho/Collision/Shapes/ShapeVisitor.hpp>
 
-using namespace playrho;
+namespace playrho {
 
 MassData DiskShape::GetMassData() const noexcept
 {
-    return ::GetMassData(GetVertexRadius(), GetDensity(), GetLocation());
+    return playrho::GetMassData(GetVertexRadius(), GetDensity(), GetLocation());
 }
+
+void DiskShape::Accept(ShapeVisitor& visitor) const
+{
+    visitor.Visit(*this);
+}
+
+} // namespace playrho

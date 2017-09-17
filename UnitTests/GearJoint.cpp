@@ -83,14 +83,14 @@ TEST(GearJoint, ByteSize)
 
 TEST(GearJoint, Construction)
 {
-    Body body{BodyDef{}};
+    Body body{nullptr, BodyDef{}};
     RevoluteJointDef rdef{&body, &body, Length2D{}};
     RevoluteJoint revJoint1{rdef};
     RevoluteJoint revJoint2{rdef};
     GearJointDef def{&revJoint1, &revJoint2};
     GearJoint joint{def};
     
-    EXPECT_EQ(joint.GetType(), def.type);
+    EXPECT_EQ(GetType(joint), def.type);
     EXPECT_EQ(joint.GetBodyA(), def.joint1->GetBodyB());
     EXPECT_EQ(joint.GetBodyB(), def.joint2->GetBodyB());
     EXPECT_EQ(joint.GetCollideConnected(), def.collideConnected);
@@ -105,7 +105,7 @@ TEST(GearJoint, Construction)
 
 TEST(GearJoint, SetRatio)
 {
-    Body body{BodyDef{}};
+    Body body{nullptr, BodyDef{}};
     RevoluteJointDef rdef{&body, &body, Length2D{}};
     RevoluteJoint revJoint1{rdef};
     RevoluteJoint revJoint2{rdef};
@@ -118,14 +118,14 @@ TEST(GearJoint, SetRatio)
 
 TEST(GearJoint, GetGearJointDef)
 {
-    Body body{BodyDef{}};
+    Body body{nullptr, BodyDef{}};
     RevoluteJointDef rdef{&body, &body, Length2D{}};
     RevoluteJoint revJoint1{rdef};
     RevoluteJoint revJoint2{rdef};
     GearJointDef def{&revJoint1, &revJoint2};
     GearJoint joint{def};
     
-    ASSERT_EQ(joint.GetType(), def.type);
+    ASSERT_EQ(GetType(joint), def.type);
     ASSERT_EQ(joint.GetBodyA(), def.joint1->GetBodyB());
     ASSERT_EQ(joint.GetBodyB(), def.joint2->GetBodyB());
     ASSERT_EQ(joint.GetCollideConnected(), def.collideConnected);

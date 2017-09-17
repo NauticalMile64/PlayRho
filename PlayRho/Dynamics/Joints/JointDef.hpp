@@ -19,32 +19,16 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_JOINT_DEF_HPP
-#define PLAYRHO_JOINT_DEF_HPP
+#ifndef PLAYRHO_DYNAMICS_JOINTS_JOINTDEF_HPP
+#define PLAYRHO_DYNAMICS_JOINTS_JOINTDEF_HPP
 
+#include <PlayRho/Dynamics/Joints/JointType.hpp>
 #include <cstdint>
 
 namespace playrho {
 
 class Body;
 class Joint;
-
-/// @brief Enumeration of joint types.
-enum class JointType : std::uint8_t
-{
-    Unknown,
-    Revolute,
-    Prismatic,
-    Distance,
-    Pulley,
-    Mouse,
-    Gear,
-    Wheel,
-    Weld,
-    Friction,
-    Rope,
-    Motor
-};
 
 /// @brief Abstract base Joint definition class.
 /// @details Joint definitions are used to construct joints.
@@ -56,7 +40,7 @@ struct JointDef
     JointDef() = delete; // deleted to prevent direct instantiation.
     
     /// @brief Initializing constructor.
-    constexpr JointDef(JointType t) noexcept : type{t}
+    constexpr explicit JointDef(JointType t) noexcept : type{t}
     {
         // Intentionally empty.
     }
@@ -97,7 +81,7 @@ struct JointBuilder : JointDef
     using reference = value_type&;
     
     /// @brief Initializing constructor.
-    constexpr JointBuilder(JointType t) noexcept : JointDef{t}
+    constexpr explicit JointBuilder(JointType t) noexcept : JointDef{t}
     {
         // Intentionally empty.
     }
@@ -136,4 +120,4 @@ void Set(JointDef& def, const Joint& joint) noexcept;
 
 } // namespace playrho
 
-#endif /* PLAYRHO_JOINT_DEF_HPP */
+#endif // PLAYRHO_DYNAMICS_JOINTS_JOINTDEF_HPP

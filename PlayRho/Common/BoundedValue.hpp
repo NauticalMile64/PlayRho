@@ -18,14 +18,15 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_BOUNDED_VALUE_HPP
-#define PLAYRHO_BOUNDED_VALUE_HPP
+#ifndef PLAYRHO_COMMON_BOUNDEDVALUE_HPP
+#define PLAYRHO_COMMON_BOUNDEDVALUE_HPP
 
 #include <PlayRho/Common/InvalidArgument.hpp>
 
 #include <limits>
 #include <type_traits>
 #include <iostream>
+#include <utility>
 
 namespace playrho {
     
@@ -73,7 +74,8 @@ namespace playrho {
 
     /// @brief Checks if the given value is above negative infinity.
     template <typename T>
-    constexpr void CheckIfAboveNegInf(typename std::enable_if<!std::is_pointer<T>::value, T>::type value)
+    constexpr void CheckIfAboveNegInf(typename std::enable_if<!std::is_pointer<T>::value, T>::type
+                                      value)
     {
         if (std::numeric_limits<T>::has_infinity)
         {
@@ -86,7 +88,8 @@ namespace playrho {
     
     /// @brief Checks if the given value is above negative infinity.
     template <typename T>
-    constexpr void CheckIfAboveNegInf(typename std::enable_if<std::is_pointer<T>::value, T>::type )
+    constexpr void CheckIfAboveNegInf(typename std::enable_if<std::is_pointer<T>::value, T>::type
+                                      /*value*/)
     {
         // Intentionally empty.
     }
@@ -169,7 +172,7 @@ namespace playrho {
                 case HiValueCheck::OneOrLess:
                     if (!ValueCheckHelper<value_type>::has_one)
                     {
-                        throw exception_type{"BoundedValue: value's type does not have a trivial 1"};
+                        throw exception_type{"BoundedValue: value's type does not have trivial 1"};
                     }
                     if (!(value <= ValueCheckHelper<value_type>::one()))
                     {
@@ -195,6 +198,20 @@ namespace playrho {
             DoHiCheck(value);
         }
         
+        /// @brief Copy constructor.
+        constexpr BoundedValue(const this_type& value) = default;
+
+        /// @brief Move constructor.
+        constexpr BoundedValue(this_type&& value) noexcept:
+            m_value{std::move(value.m_value)}
+        {
+            // Intentionally empty.
+            // Note that the exception specification of this constructor
+            //   doesn't match the defaulted one (when built with boost units).
+        }
+
+        ~BoundedValue() noexcept = default;
+
         /// @brief Assignment operator.
         constexpr BoundedValue& operator= (const this_type& other) noexcept
         {
@@ -208,6 +225,15 @@ namespace playrho {
             DoLoCheck(value);
             DoHiCheck(value);
             m_value = value;
+            return *this;
+        }
+
+        /// @brief Move assignment operator.
+        constexpr BoundedValue& operator= (this_type&& value) noexcept
+        {
+            // Note that the exception specification of this method
+            //   doesn't match the defaulted one (when built with boost units).
+            m_value = std::move(value.m_value);
             return *this;
         }
 
@@ -468,6 +494,15 @@ namespace playrho {
     
     // Common useful aliases...
 
+    /// @defgroup BoundedAliases Bounded value type aliases.
+    /// @details Type aliases for bounding values via on-construction checks that
+    ///   throw the <code>InvalidArgument</code> exception if an attempt is made
+    ///   to construct the bounded value type with a value not allowed by the specific
+    ///   alias.
+    /// @sa BoundedValue.
+    /// @sa InvalidArgument.
+    /// @{
+    
     /// @brief Non negative bounded value type.
     template <typename T>
     using NonNegative = typename std::enable_if<!std::is_pointer<T>::value,
@@ -505,12 +540,15 @@ namespace playrho {
     template <typename T>
     using UnitInterval = BoundedValue<T, LoValueCheck::ZeroOrMore, HiValueCheck::OneOrLess>;
     
+    /// @}
+ 
     /// @brief BoundedValue stream output operator.
     template <typename T, LoValueCheck lo, HiValueCheck hi>
     ::std::ostream& operator<<(::std::ostream& os, const BoundedValue<T, lo, hi>& value)
     {
         return os << T(value);
     }
-}
 
-#endif /* PLAYRHO_BOUNDED_VALUE_HPP */
+} // namespace playrho
+
+#endif // PLAYRHO_COMMON_BOUNDEDVALUE_HPP

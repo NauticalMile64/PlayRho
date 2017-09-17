@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_POLYGON_SHAPE_HPP
-#define PLAYRHO_POLYGON_SHAPE_HPP
+#ifndef PLAYRHO_COLLISION_SHAPES_POLYGONSHAPE_HPP
+#define PLAYRHO_COLLISION_SHAPES_POLYGONSHAPE_HPP
 
 #include <PlayRho/Collision/Shapes/Shape.hpp>
 #include <PlayRho/Common/VertexSet.hpp>
@@ -107,7 +107,7 @@ public:
     /// @return Mass data for this shape.
     MassData GetMassData() const noexcept override;
     
-    void Accept(Visitor& visitor) const override;
+    void Accept(ShapeVisitor& visitor) const override;
 
     /// Creates a convex hull from the given array of local points.
     /// The size of the span must be in the range [1, MaxShapeVertices].
@@ -195,11 +195,6 @@ inline DistanceProxy PolygonShape::GetChild(ChildCounter index) const
         m_normals.data()};
 }
 
-inline void PolygonShape::Accept(Visitor& visitor) const
-{
-    visitor.Visit(*this);
-}
-
 inline PolygonShape::VertexCounter PolygonShape::GetVertexCount() const noexcept
 {
     return static_cast<VertexCounter>(m_vertices.size());
@@ -233,7 +228,7 @@ bool Validate(const PolygonShape& shape);
 /// @param hy the half-height.
 /// @param center the center of the box in local coordinates.
 /// @param angle the rotation of the box in local coordinates.
-void SetAsBox(PolygonShape& shape, Length hx, Length hy, const Length2D center, Angle angle) noexcept;
+void SetAsBox(PolygonShape& shape, Length hx, Length hy, Length2D center, Angle angle) noexcept;
 
 /// @brief Transforms the given shape by the given transformation.
 inline PolygonShape Transform(PolygonShape value, Transformation xfm) noexcept
@@ -242,4 +237,5 @@ inline PolygonShape Transform(PolygonShape value, Transformation xfm) noexcept
 }
 
 } // namespace playrho
-#endif
+
+#endif // PLAYRHO_COLLISION_SHAPES_POLYGONSHAPE_HPP

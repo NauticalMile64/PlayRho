@@ -17,8 +17,8 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef PLAYRHO_MATH_HPP
-#define PLAYRHO_MATH_HPP
+#ifndef PLAYRHO_COMMON_MATH_HPP
+#define PLAYRHO_COMMON_MATH_HPP
 
 #include <PlayRho/Common/Settings.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
@@ -38,6 +38,13 @@
 
 namespace playrho
 {
+/// @brief Contact impulses data.
+struct ContactImpulses
+{
+    Momentum m_normal; ///< Normal impulse. This is the non-penetration impulse (4-bytes).
+    Momentum m_tangent; ///< Tangent impulse. This is the friction impulse (4-bytes).
+};
+
 // Other templates.
 
 /// @brief Gets the "X" element of the given value - i.e. the first element.
@@ -88,6 +95,11 @@ constexpr inline auto StripUnit(const BoundedValue<T, lo, hi>& v)
 {
     return StripUnit(v.get());
 }
+
+/// @defgroup Math Mathematical functions.
+/// @details These are non-member non-friend functions for mathematical operations
+///   especially those with mixed input and output types.
+/// @{
 
 /// @brief Squares the given value.
 template<class TYPE>
@@ -208,7 +220,7 @@ constexpr inline Vec2 GetVec2(const UnitVec2 value)
 
 /// @brief Gets whether a given value is almost zero.
 /// @details An almost zero value is "subnormal". Dividing by these values can lead to
-/// odd results like a divide by zero trap occuring.
+/// odd results like a divide by zero trap occurring.
 /// @return <code>true</code> if the given value is almost zero, <code>false</code> otherwise.
 constexpr inline bool AlmostZero(float value)
 {
@@ -217,7 +229,7 @@ constexpr inline bool AlmostZero(float value)
 
 /// @brief Gets whether a given value is almost zero.
 /// @details An almost zero value is "subnormal". Dividing by these values can lead to
-/// odd results like a divide by zero trap occuring.
+/// odd results like a divide by zero trap occurring.
 /// @return <code>true</code> if the given value is almost zero, <code>false</code> otherwise.
 constexpr inline bool AlmostZero(double value)
 {
@@ -226,7 +238,7 @@ constexpr inline bool AlmostZero(double value)
 
 /// @brief Gets whether a given value is almost zero.
 /// @details An almost zero value is "subnormal". Dividing by these values can lead to
-/// odd results like a divide by zero trap occuring.
+/// odd results like a divide by zero trap occurring.
 /// @return <code>true</code> if the given value is almost zero, <code>false</code> otherwise.
 constexpr inline bool AlmostZero(long double value)
 {
@@ -235,7 +247,7 @@ constexpr inline bool AlmostZero(long double value)
 
 /// @brief Gets whether a given value is almost zero.
 /// @details An almost zero value is "subnormal". Dividing by these values can lead to
-/// odd results like a divide by zero trap occuring.
+/// odd results like a divide by zero trap occurring.
 /// @return <code>true</code> if the given value is almost zero, <code>false</code> otherwise.
 constexpr inline bool AlmostZero(Fixed32 value)
 {
@@ -245,7 +257,7 @@ constexpr inline bool AlmostZero(Fixed32 value)
 #ifndef _WIN32
 /// @brief Gets whether a given value is almost zero.
 /// @details An almost zero value is "subnormal". Dividing by these values can lead to
-/// odd results like a divide by zero trap occuring.
+/// odd results like a divide by zero trap occurring.
 /// @return <code>true</code> if the given value is almost zero, <code>false</code> otherwise.
 constexpr inline bool AlmostZero(Fixed64 value)
 {
@@ -310,7 +322,7 @@ inline Angle GetAngle(const UnitVec2 value)
 }
 
 /// @brief Gets the angle.
-/// @return Anglular value in the range of -Pi to +Pi radians.
+/// @return Angular value in the range of -Pi to +Pi radians.
 template <class T>
 inline Angle GetAngle(const Vector2D<T> value)
 {
@@ -343,7 +355,7 @@ inline auto GetLength(T value)
 /// @brief Performs the dot product on two vectors (A and B).
 ///
 /// @details The dot product of two vectors is defined as:
-///   the magnitude of vector A, mulitiplied by, the magnitude of vector B,
+///   the magnitude of vector A, multiplied by, the magnitude of vector B,
 ///   multiplied by, the cosine of the angle between the two vectors (A and B).
 ///   Thus the dot product of two vectors is a value ranging between plus and minus the
 ///   magnitudes of each vector times each other.
@@ -524,13 +536,6 @@ constexpr inline Mat33 GetSymInverse33(const Mat33& value) noexcept
     };
 }
 
-/// @brief Contact impulses data.
-struct ContactImpulses
-{
-    Momentum m_normal; ///< Normal impulse. This is the non-penetration impulse (4-bytes).
-    Momentum m_tangent; ///< Tangent impulse. This is the friction impulse (4-bytes).
-};
-
 /// @brief Gets a vector counter-clockwise (reverse-clockwise) perpendicular to the given vector.
 /// @details This takes a vector of form (x, y) and returns the vector (-y, x).
 /// @param vector Vector to return a counter-clockwise perpendicular equivalent for.
@@ -705,7 +710,7 @@ constexpr inline Length2D Transform(const Length2D v, const Transformation T) no
 /// transformation again) will result in the original vector being returned.
 /// @sa <code>Transform</code>.
 /// @param v 2-D vector to inverse transform (inverse translate and inverse rotate).
-/// @param T Transformation (a translation and rotation) to invertedly apply to the given vector.
+/// @param T Transformation (a translation and rotation) to inversely apply to the given vector.
 /// @return Inverse transformed vector.
 constexpr inline Length2D InverseTransform(const Length2D v, const Transformation T) noexcept
 {
@@ -769,12 +774,12 @@ constexpr inline T Clamp(T value, T low, T high) noexcept
 /// largest power of 2. For a 64-bit value:"
 inline std::uint64_t NextPowerOfTwo(std::uint64_t x)
 {
-    x |= (x >> 1);
-    x |= (x >> 2);
-    x |= (x >> 4);
-    x |= (x >> 8);
-    x |= (x >> 16);
-    x |= (x >> 32);
+    x |= (x >>  1u);
+    x |= (x >>  2u);
+    x |= (x >>  4u);
+    x |= (x >>  8u);
+    x |= (x >> 16u);
+    x |= (x >> 32u);
     return x + 1;
 }
 
@@ -832,7 +837,7 @@ inline Angle GetNormalized(Angle value)
     return Angle{std::fmod(angleInRadians, Real(2 * Pi)) * Radian};
 }
 
-/// @brief Gets a sweep with the given sweep's angles normalized.
+/// @brief Gets a sweep with the given sweeps's angles normalized.
 /// @param sweep Sweep to return with its angles normalized.
 /// @return Sweep with its pos0 angle to be between -2 pi and 2 pi
 ///    and its pos1 angle reduced by the amount pos0's angle was reduced by.
@@ -857,15 +862,6 @@ inline Real Normalize(Vec2& vector)
         return length;
     }
     return 0;
-}
-
-/// @brief Gets whether the given velocity is "under active" based on the given tolerances.
-inline bool IsUnderActive(Velocity velocity,
-                          LinearVelocity linSleepTol, AngularVelocity angSleepTol) noexcept
-{
-    const auto linVelSquared = GetLengthSquared(velocity.linear);
-    const auto angVelSquared = Square(velocity.angular);
-    return (angVelSquared <= Square(angSleepTol)) && (linVelSquared <= Square(linSleepTol));
 }
 
 /// @brief Gets the contact relative velocity.
@@ -963,12 +959,12 @@ inline UnitVec2 GetUnitVector(const Vector2D<T> value,
 /// @return value divided by its length if length not almost zero otherwise invalid value.
 /// @sa AlmostEqual.
 template <class T>
-inline UnitVec2 GetUnitVector(const Vector2D<T> value, T& magnitude,
-                              const UnitVec2 fallback = UnitVec2::GetDefaultFallback());
+inline UnitVec2 GetUnitVector(Vector2D<T> value, T& magnitude,
+                              UnitVec2 fallback = UnitVec2::GetDefaultFallback());
 
 /// @brief Gets the unit vector of the given value.
 template <>
-inline UnitVec2 GetUnitVector(const Vector2D<Real> value, Real& magnitude, const UnitVec2 fallback)
+inline UnitVec2 GetUnitVector(Vector2D<Real> value, Real& magnitude, UnitVec2 fallback)
 {
     return UnitVec2::Get(StripUnit(GetX(value)), StripUnit(GetY(value)), magnitude, fallback);
 }
@@ -977,7 +973,7 @@ inline UnitVec2 GetUnitVector(const Vector2D<Real> value, Real& magnitude, const
 
 /// @brief Gets the unit vector of the given value.
 template <>
-inline UnitVec2 GetUnitVector(const Vector2D<Length> value, Length& magnitude, const UnitVec2 fallback)
+inline UnitVec2 GetUnitVector(Vector2D<Length> value, Length& magnitude, UnitVec2 fallback)
 {
     auto tmp = Real{0};
     const auto uv = UnitVec2::Get(StripUnit(GetX(value)), StripUnit(GetY(value)), tmp, fallback);
@@ -987,8 +983,8 @@ inline UnitVec2 GetUnitVector(const Vector2D<Length> value, Length& magnitude, c
 
 /// @brief Gets the unit vector of the given value.
 template <>
-inline UnitVec2 GetUnitVector(const Vector2D<LinearVelocity> value, LinearVelocity& magnitude,
-                              const UnitVec2 fallback)
+inline UnitVec2 GetUnitVector(Vector2D<LinearVelocity> value, LinearVelocity& magnitude,
+                              UnitVec2 fallback)
 {
     auto tmp = Real{0};
     const auto uv = UnitVec2::Get(StripUnit(GetX(value)), StripUnit(GetY(value)), tmp, fallback);
@@ -996,11 +992,40 @@ inline UnitVec2 GetUnitVector(const Vector2D<LinearVelocity> value, LinearVeloci
     return uv;
 }
 
-#endif
+#endif // USE_BOOST_UNITS
 
 /// @brief Gets the vertices for a circle described by the given parameters.
-std::vector<Length2D> GetCircleVertices(const Length radius, unsigned slices,
+std::vector<Length2D> GetCircleVertices(Length radius, unsigned slices,
                                         Angle start = Angle{0}, Real turns = Real{1});
 
+/// @brief Gets the area of a cirlce.
+NonNegative<Area> GetAreaOfCircle(Length radius);
+
+/// @brief Gets the area of a polygon.
+/// @note This function is valid for any non-self-intersecting (simple) polygon,
+///   which can be convex or concave.
+/// @note Winding order doesn't matter.
+NonNegative<Area> GetAreaOfPolygon(Span<const Length2D> vertices);
+
+/// @brief Gets the polar moment of the area enclosed by the given vertices.
+///
+/// @warning Behavior is undefined if given collection has less than 3 vertices.
+///
+/// @param vertices Collection of three or more vertices.
+///
+SecondMomentOfArea GetPolarMoment(Span<const Length2D> vertices);
+
+/// @}
+
+/// @brief Gets whether the given velocity is "under active" based on the given tolerances.
+inline bool IsUnderActive(Velocity velocity,
+                          LinearVelocity linSleepTol, AngularVelocity angSleepTol) noexcept
+{
+    const auto linVelSquared = GetLengthSquared(velocity.linear);
+    const auto angVelSquared = Square(velocity.angular);
+    return (angVelSquared <= Square(angSleepTol)) && (linVelSquared <= Square(linSleepTol));
 }
-#endif
+
+} // namespace playrho
+
+#endif // PLAYRHO_COMMON_MATH_HPP
