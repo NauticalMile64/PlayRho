@@ -61,8 +61,9 @@ enum class BodyType;
 
 /// @brief Definition of an independent and simulatable "world".
 ///
-/// @details The world class manages all physics entities, dynamic simulation, and queries.
-///   In a physical sense, perhaps this is more like a universe. In any case, there's
+/// @details The world class manages physics entities, dynamic simulation, and queries.
+///   In a physical sense, perhaps this is more like a universe in that entities in a
+///   world have no interaction with entities in other worlds. In any case, there's
 ///   precedence, from a physics-engine standpoint, for this being called a world.
 ///
 /// @note From a memory management perspective, world instances own Body, Joint, and Contact
@@ -70,17 +71,12 @@ enum class BodyType;
 /// @note This data structure is 352-bytes large (with 4-byte Real on at least one 64-bit
 ///   platform).
 ///
-/// @sa WorldFreeFunctions
-///
 class World
 {
 public:
     
     /// @brief Proxy size type.
     using proxy_size_type = std::remove_const<decltype(MaxContacts)>::type;
-
-    /// @brief Time step iteration type.
-    using ts_iters_type = TimestepIters;
     
     /// @brief Bodies container type.
     using Bodies = std::vector<Body*>;
@@ -92,8 +88,6 @@ public:
     /// @note Cannot be container of Joint instances since joints are polymorphic types.
     using Joints = std::vector<Joint*>;
     
-    class LockedError;
-
     /// @brief Constructs a world object.
     /// @throws InvalidArgument if the given max vertex radius is less than the min.
     explicit World(const WorldDef& def = GetDefaultWorldDef());
@@ -129,6 +123,7 @@ public:
     /// @note No reference to the definition is retained.
     /// @warning This function is locked during callbacks.
     /// @return Pointer to newly created body.
+    /// @throws WrongState if this method is called while the world is locked.
     /// @throws LengthError if this operation would create more than MaxBodies.
     Body* CreateBody(const BodyDef& def = GetDefaultBodyDef());
 
@@ -136,6 +131,7 @@ public:
     /// @note This function is locked during callbacks.
     /// @warning This automatically deletes all associated shapes and joints.
     /// @warning This function is locked during callbacks.
+    /// @throws WrongState if this method is called while the world is locked.
     void Destroy(Body* body);
 
     /// @brief Creates a joint to constrain bodies together.
@@ -143,6 +139,7 @@ public:
     ///   connected bodies to cease colliding.
     /// @warning This function is locked during callbacks.
     /// @return Pointer to newly created joint.
+    /// @throws WrongState if this method is called while the world is locked.
     /// @throws LengthError if this operation would create more than MaxJoints.
     Joint* CreateJoint(const JointDef& def);
 
@@ -154,6 +151,8 @@ public:
     /// @warning Behavior is undefined if the passed joint was not created by this world.
     ///
     /// @param joint Joint, created by this world, to destroy.
+    ///
+    /// @throws WrongState if this method is called while the world is locked.
     ///
     void Destroy(Joint* joint);
 
@@ -179,13 +178,15 @@ public:
     ///
     /// @post Static bodies are unmoved.
     /// @post Kinetic bodies are moved based on their previous velocities.
-    /// @post Dynamic bodies are moved based on their previous velocities, gravity,
-    /// applied forces, applied impulses, masses, damping, and the restitution and friction values
-    /// of their fixtures when they experience collisions.
+    /// @post Dynamic bodies are moved based on their previous velocities, gravity, applied
+    ///   forces, applied impulses, masses, damping, and the restitution and friction values
+    ///   of their fixtures when they experience collisions.
     ///
     /// @param conf Configuration for the simulation step.
     ///
     /// @return Statistics for the step.
+    ///
+    /// @throws WrongState if this method is called while the world is locked.
     ///
     StepStats Step(const StepConf& conf);
 
@@ -196,7 +197,7 @@ public:
     /// @brief Queries the world for all fixtures that potentially overlap the provided AABB.
     /// @param aabb the query box.
     /// @param callback User implemented callback function.
-    void QueryAABB(const AABB& aabb, QueryFixtureCallback callback);
+    void QueryAABB(const AABB& aabb, QueryFixtureCallback callback) const;
 
     /// @brief Ray-cast operation code.
     ///
@@ -219,7 +220,7 @@ public:
     /// @param point2 Ray ending point.
     /// @param callback A user implemented callback function.
     ///
-    void RayCast(Length2D point1, Length2D point2, RayCastCallback callback);
+    void RayCast(Length2D point1, Length2D point2, RayCastCallback callback) const;
 
     /// @brief Gets the world body range for this world.
     /// @return Body range that can be iterated over using its begin and end methods
@@ -275,9 +276,11 @@ public:
     /// @brief Is the world locked (in the middle of a time step).
     bool IsLocked() const noexcept;
 
-    /// Shift the world origin. Useful for large worlds.
-    /// The body shift formula is: position -= newOrigin
+    /// @brief Shifts the world origin.
+    /// @note Useful for large worlds.
+    /// @note The body shift formula is: position -= newOrigin
     /// @param newOrigin the new origin with respect to the old origin
+    /// @throws WrongState if this method is called while the world is locked.
     void ShiftOrigin(Length2D newOrigin);
 
     /// @brief Gets the minimum vertex radius that shapes in this world can be.
@@ -295,6 +298,7 @@ public:
     
     /// @brief Sets the type of the given body.
     /// @note This may alter the body's mass and velocity.
+    /// @throws WrongState if this method is called while the world is locked.
     void SetType(Body& body, BodyType type);
 
     /// @brief Register for proxies for the given fixture.
@@ -304,15 +308,22 @@ public:
     bool RegisterForProxies(Body* body);
 
     /// @brief Creates a fixture with the given parameters.
+    /// @throws InvalidArgument if called for a body that doesn't belong to this world.
+    /// @throws InvalidArgument if called without a shape.
+    /// @throws InvalidArgument if called for a shape with a vertex radius less than the
+    ///    minimum vertex radius.
+    /// @throws InvalidArgument if called for a shape with a vertex radius greater than the
+    ///    maximum vertex radius.
+    /// @throws WrongState if this method is called while the world is locked.
     Fixture* CreateFixture(Body& body, const std::shared_ptr<const Shape>& shape,
                            const FixtureDef& def = GetDefaultFixtureDef(),
                            bool resetMassData = true);
 
     /// @brief Destroys a fixture.
     ///
-    /// @details This removes the fixture from the broad-phase and
-    /// destroys all contacts associated with this fixture.
-    /// All fixtures attached to a body are implicitly destroyed when the body is destroyed.
+    /// @details This removes the fixture from the broad-phase and destroys all contacts
+    ///   associated with this fixture.
+    ///   All fixtures attached to a body are implicitly destroyed when the body is destroyed.
     ///
     /// @warning This function is locked during callbacks.
     /// @note Make sure to explicitly call ResetMassData after fixtures have been destroyed.
@@ -321,6 +332,8 @@ public:
     /// @param resetMassData Whether or not to reset the mass data of the associated body.
     ///
     /// @sa ResetMassData.
+    ///
+    /// @throws WrongState if this method is called while the world is locked.
     ///
     bool DestroyFixture(Fixture* fixture, bool resetMassData = true);
     
@@ -699,11 +712,9 @@ private:
     Positive<Length> m_maxVertexRadius;
 };
 
-class World::LockedError: public std::logic_error
-{
-public:
-    using std::logic_error::logic_error;
-};
+/// @example HelloWorld.cpp
+///   This is an example of how to use the World class.
+///
 
 /// @brief World ray cast opcode enumeration.
 enum class World::RayCastOpcode
@@ -918,13 +929,9 @@ inline void World::UnsetIslanded(Joint* joint) noexcept
 
 // Free functions.
 
-/// @defgroup WorldFreeFunctions World free functions.
-/// @details A collection of non-member, non-friend functions that operate on World objects.
-/// @sa World.
-/// @{
-
 /// @brief Gets the body count in the given world.
 /// @return 0 or higher.
+/// @relatedalso World
 inline BodyCounter GetBodyCount(const World& world) noexcept
 {
     return static_cast<BodyCounter>(world.GetBodies().size());
@@ -932,6 +939,7 @@ inline BodyCounter GetBodyCount(const World& world) noexcept
 
 /// Gets the count of joints in the given world.
 /// @return 0 or higher.
+/// @relatedalso World
 inline JointCounter GetJointCount(const World& world) noexcept
 {
     return static_cast<JointCounter>(world.GetJoints().size());
@@ -941,12 +949,14 @@ inline JointCounter GetJointCount(const World& world) noexcept
 /// @note Not all contacts are for shapes that are actually touching. Some contacts are for
 ///   shapes which merely have overlapping AABBs.
 /// @return 0 or higher.
+/// @relatedalso World
 inline ContactCounter GetContactCount(const World& world) noexcept
 {
     return static_cast<ContactCounter>(world.GetContacts().size());
 }
 
 /// @brief Gets the touching count for the given world.
+/// @relatedalso World
 ContactCounter GetTouchingCount(const World& world) noexcept;
 
 /// @brief Steps the world ahead by a given time amount.
@@ -977,30 +987,35 @@ ContactCounter GetTouchingCount(const World& world) noexcept;
 /// @param positionIterations Number of iterations for the position constraint solver.
 ///   The position constraint solver resolves the positions of bodies that overlap.
 ///
+/// @relatedalso World
+///
 StepStats Step(World& world, Time delta,
-               World::ts_iters_type velocityIterations = 8,
-               World::ts_iters_type positionIterations = 3);
+               TimestepIters velocityIterations = 8,
+               TimestepIters positionIterations = 3);
 
 /// @brief Gets the count of fixtures in the given world.
+/// @relatedalso World
 std::size_t GetFixtureCount(const World& world) noexcept;
 
 /// @brief Gets the count of unique shapes in the given world.
+/// @relatedalso World
 std::size_t GetShapeCount(const World& world) noexcept;
 
 /// @brief Gets the count of awake bodies in the given world.
+/// @relatedalso World
 BodyCounter GetAwakeCount(const World& world) noexcept;
 
 /// @brief Awakens all of the bodies in the given world.
 /// @details Calls all of the world's bodies' <code>SetAwake</code> method.
 /// @return Sum total of calls to bodies' <code>SetAwake</code> method that returned true.
 /// @sa Body::SetAwake.
+/// @relatedalso World
 BodyCounter Awaken(World& world) noexcept;
 
 /// @brief Clears forces.
 /// @details Manually clear the force buffer on all bodies.
+/// @relatedalso World
 void ClearForces(World& world) noexcept;
-
-/// @}
 
 } // namespace playrho
 

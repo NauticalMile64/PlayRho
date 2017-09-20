@@ -78,12 +78,15 @@ namespace playrho {
     }
 
     /// @brief Gets the default fixture definition.
+    /// @relatedalso FixtureDef
     constexpr FixtureDef GetDefaultFixtureDef() noexcept
     {
         return FixtureDef{};
     }
     
     /// @brief Gets the fixture definition for the given fixture.
+    /// @param fixture Fixture to get the definition for.
+    /// @relatedalso Fixture
     FixtureDef GetFixtureDef(const Fixture& fixture) noexcept;
 
 } // namespace playrho

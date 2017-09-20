@@ -116,6 +116,7 @@ struct JointBuilder : JointDef
 };
 
 /// @brief Sets the joint definition data for the given joint.
+/// @relatedalso JointDef
 void Set(JointDef& def, const Joint& joint) noexcept;
 
 } // namespace playrho

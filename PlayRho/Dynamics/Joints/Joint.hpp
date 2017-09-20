@@ -39,6 +39,10 @@ struct ConstraintSolverConf;
 class BodyConstraint;
 class JointVisitor;
 
+/// @defgroup JointsGroup Joint Classes
+/// @details These are user creatable classes that specify constraints on one or more
+///   Body instances.
+
 /// @brief A body constraint pointer alias.
 using BodyConstraintPtr = BodyConstraint*;
 
@@ -60,7 +64,9 @@ using BodyConstraintsMap =
 /// @details Joints are used to constraint two bodies together in various fashions.
 ///   Some joints also feature limits and motors.
 ///
-/// @sa JointFreeFunctions
+/// @ingroup JointsGroup
+///
+/// @sa World
 ///
 class Joint
 {
@@ -240,21 +246,17 @@ inline void Joint::UnsetIslanded() noexcept
 
 // Free functions...
 
-/// @defgroup JointFreeFunctions Joint free functions.
-/// @details A collection of non-member, non-friend functions that operate on Joint objects.
-/// @sa Joint.
-/// @{
-
 /// @brief Short-cut function to determine if both bodies are enabled.
+/// @relatedalso Joint
 bool IsEnabled(const Joint& j) noexcept;
 
 /// @brief Wakes up the joined bodies.
+/// @relatedalso Joint
 void SetAwake(Joint& j) noexcept;
 
 /// @brief Gets the world index of the given joint.
+/// @relatedalso Joint
 JointCounter GetWorldIndex(const Joint* joint);
-
-/// @}
 
 #ifdef PLAYRHO_PROVIDE_VECTOR_AT
 /// @brief Provides referenced access to the identified element of the given container.
