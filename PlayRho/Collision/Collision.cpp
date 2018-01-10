@@ -22,6 +22,7 @@
 #include <cmath>
 
 namespace playrho {
+namespace d2 {
 
 PointStates GetPointStates(const Manifold& manifold1, const Manifold& manifold2) noexcept
 {
@@ -64,7 +65,7 @@ PointStates GetPointStates(const Manifold& manifold1, const Manifold& manifold2)
     return retval;
 }
 
-ClipList ClipSegmentToLine(const ClipList& vIn, const UnitVec2& normal, Length offset,
+ClipList ClipSegmentToLine(const ClipList& vIn, const UnitVec& normal, Length offset,
                            ContactFeature::Index indexA)
 {
     ClipList vOut;
@@ -83,17 +84,17 @@ ClipList ClipSegmentToLine(const ClipList& vIn, const UnitVec2& normal, Length o
         // calculate. Note that it also helps to avoid changing the contact feature from the
         // given clip vertices. So the code here also accepts distances that are just slightly
         // over zero.
-        if (distance0 <= Length{0} || AlmostZero(StripUnit(distance0)))
+        if (distance0 <= 0_m || AlmostZero(StripUnit(distance0)))
         {
             vOut.push_back(vIn[0]);
         }
-        if (distance1 <= Length{0} || AlmostZero(StripUnit(distance1)))
+        if (distance1 <= 0_m || AlmostZero(StripUnit(distance1)))
         {
             vOut.push_back(vIn[1]);
         }
 
         // If we didn't already find two points & the points are on different sides of the plane...
-        if (vOut.size() < 2 && std::signbit(StripUnit(distance0)) != std::signbit(StripUnit(distance1)))
+        if (vOut.size() < 2 && signbit(StripUnit(distance0)) != signbit(StripUnit(distance1)))
         {
             // Neither distance0 nor distance1 is 0 and either one or the other is negative (but not both).
             // Find intersection point of edge and plane
@@ -107,4 +108,5 @@ ClipList ClipSegmentToLine(const ClipList& vIn, const UnitVec2& normal, Length o
     return vOut;
 }
 
+} // namespace d2
 } // namespace playrho

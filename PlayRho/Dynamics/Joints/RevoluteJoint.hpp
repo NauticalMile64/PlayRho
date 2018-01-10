@@ -23,9 +23,10 @@
 #define PLAYRHO_DYNAMICS_JOINTS_REVOLUTEJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/RevoluteJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/RevoluteJointConf.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Revolute Joint.
 ///
@@ -42,23 +43,26 @@ namespace playrho {
 ///
 /// @image html revoluteJoint.gif
 ///
+/// @sa https://en.wikipedia.org/wiki/Revolute_joint
+///
 class RevoluteJoint : public Joint
 {
 public:
     
     /// @brief Initializing constructor.
-    RevoluteJoint(const RevoluteJointDef& def);
+    RevoluteJoint(const RevoluteJointConf& def);
     
     void Accept(JointVisitor& visitor) const override;
+    void Accept(JointVisitor& visitor) override;
 
-    Length2D GetAnchorA() const override;
-    Length2D GetAnchorB() const override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
 
-    /// The local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const noexcept { return m_localAnchorA; }
+    /// The local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const noexcept { return m_localAnchorA; }
 
-    /// The local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const noexcept { return m_localAnchorB; }
+    /// The local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const noexcept { return m_localAnchorB; }
 
     /// Get the reference angle.
     Angle GetReferenceAngle() const noexcept { return m_referenceAngle; }
@@ -94,16 +98,16 @@ public:
     void SetMaxMotorTorque(Torque torque);
 
     /// @brief Gets the max motor torque.
-    Torque GetMaxMotorTorque() const noexcept { return m_maxMotorTorque; }
+    Torque GetMaxMotorTorque() const noexcept;
 
     /// Get the linear reaction.
-    Momentum2D GetLinearReaction() const override;
+    Momentum2 GetLinearReaction() const override;
 
     /// Get the angular reaction due to the joint limit.
     AngularMomentum GetAngularReaction() const override;
 
-    /// Get the current motor torque given the inverse time step.
-    Torque GetMotorTorque(Frequency inv_dt) const;
+    /// @brief Gets the current motor impulse.
+    AngularMomentum GetMotorImpulse() const noexcept;
     
     /// @brief Gets the current limit state.
     /// @note This will be <code>e_inactiveLimit</code> unless the joint limit has been
@@ -117,27 +121,28 @@ private:
 
     bool SolveVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step) override;
     
-    bool SolvePositionConstraints(BodyConstraintsMap& bodies, const ConstraintSolverConf& conf) const override;
+    bool SolvePositionConstraints(BodyConstraintsMap& bodies,
+                                  const ConstraintSolverConf& conf) const override;
 
     // Solver shared
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    Vec3 m_impulse = Vec3_zero; ///< Impulse. Mofified by: InitVelocityConstraints, SolveVelocityConstraints.
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    Vec3 m_impulse = Vec3{}; ///< Impulse. Modified by: InitVelocityConstraints, SolveVelocityConstraints.
     AngularMomentum m_motorImpulse = 0; ///< Motor impulse. Modified by: InitVelocityConstraints, SolveVelocityConstraints.
 
-    bool m_enableMotor;
-    Torque m_maxMotorTorque;
-    AngularVelocity m_motorSpeed;
+    bool m_enableMotor; ///< Enable motor. <code>true</code> if motor is enabled.
+    Torque m_maxMotorTorque; ///< Max motor torque.
+    AngularVelocity m_motorSpeed; ///< Motor speed.
 
-    bool m_enableLimit;
-    Angle m_referenceAngle;
-    Angle m_lowerAngle;
-    Angle m_upperAngle;
+    bool m_enableLimit; ///< Enable limit. <code>true</code> if limit is enabled.
+    Angle m_referenceAngle; ///< Reference angle.
+    Angle m_lowerAngle; ///< Lower angle.
+    Angle m_upperAngle; ///< Upper angle.
 
     // Solver cached temporary data. Values set by by InitVelocityConstraints.
 
-    Length2D m_rA; ///< Rotated delta of body A's local center from local anchor A.
-    Length2D m_rB; ///< Rotated delta of body B's local center from local anchor B.
+    Length2 m_rA; ///< Rotated delta of body A's local center from local anchor A.
+    Length2 m_rB; ///< Rotated delta of body B's local center from local anchor B.
     Mat33 m_mass; ///< Effective mass for point-to-point constraint.
     RotInertia m_motorMass; ///< Effective mass for motor/limit angular constraint.
     LimitState m_limitState = e_inactiveLimit; ///< Limit state.
@@ -168,9 +173,19 @@ inline AngularVelocity RevoluteJoint::GetMotorSpeed() const noexcept
     return m_motorSpeed;
 }
 
+inline Torque RevoluteJoint::GetMaxMotorTorque() const noexcept
+{
+    return m_maxMotorTorque;
+}
+
 inline Joint::LimitState RevoluteJoint::GetLimitState() const noexcept
 {
     return m_limitState;
+}
+
+inline AngularMomentum RevoluteJoint::GetMotorImpulse() const noexcept
+{
+    return m_motorImpulse;
 }
 
 // Free functions...
@@ -183,6 +198,14 @@ Angle GetJointAngle(const RevoluteJoint& joint);
 /// @relatedalso RevoluteJoint
 AngularVelocity GetAngularVelocity(const RevoluteJoint& joint);
 
+/// @brief Gets the current motor torque for the given joint given the inverse time step.
+/// @relatedalso RevoluteJoint
+inline Torque GetMotorTorque(const RevoluteJoint& joint, Frequency inv_dt) noexcept
+{
+    return joint.GetMotorImpulse() * inv_dt;
+}
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_REVOLUTEJOINT_HPP

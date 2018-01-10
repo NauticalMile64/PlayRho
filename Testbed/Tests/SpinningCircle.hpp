@@ -21,7 +21,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
     
     class SpinningCircle : public Test
     {
@@ -34,33 +34,33 @@ namespace playrho {
         
         SpinningCircle()
         {
-            m_world->SetGravity(Vec2{0, 0} * MeterPerSquareSecond);
+            m_gravity = LinearAcceleration2{};
 
-            auto bodyDef = BodyDef{};
-            bodyDef.type = BodyType::Dynamic;
-            bodyDef.angularVelocity = Real{45.0f} * Degree / Second;
-            bodyDef.linearVelocity = LinearVelocity2D{};
-            bodyDef.linearDamping = Real(0.8f) * Hertz;
-            bodyDef.bullet = true;
+            auto bodyConf = BodyConf{};
+            bodyConf.type = BodyType::Dynamic;
+            bodyConf.angularVelocity = 45_deg / 1_s;
+            bodyConf.linearVelocity = LinearVelocity2{};
+            bodyConf.linearDamping = 0.8_Hz;
+            bodyConf.bullet = true;
 
-            bodyDef.position = Vec2{0, 26} * Meter;
-            const auto body1 = m_world->CreateBody(bodyDef);
-            bodyDef.position = Vec2{0, 14} * Meter;
-            const auto body2 = m_world->CreateBody(bodyDef);
+            bodyConf.location = Vec2{0, 26} * 1_m;
+            const auto body1 = m_world.CreateBody(bodyConf);
+            bodyConf.location = Vec2{0, 14} * 1_m;
+            const auto body2 = m_world.CreateBody(bodyConf);
             
-            auto shapeConf = DiskShape::Conf{};
-            shapeConf.density = Real{10} * KilogramPerSquareMeter;
+            auto shapeConf = DiskShapeConf{};
+            shapeConf.density = 10_kgpm2;
 
-            shapeConf.vertexRadius = Real{2} * Meter;
-            shapeConf.location = Vec2{0, 0} * Meter;
-            auto circle = std::make_shared<DiskShape>(shapeConf);
+            shapeConf.vertexRadius = 2_m;
+            shapeConf.location = Length2{};
+            auto circle = Shape(shapeConf);
 
-            shapeConf.vertexRadius = Real{1.5f} * Meter;
-            shapeConf.location = Vec2{0,  3} * Meter;
-            auto circleA = std::make_shared<DiskShape>(shapeConf);
-            shapeConf.vertexRadius = Real{1.5f} * Meter;
-            shapeConf.location = Vec2{0, -3} * Meter;
-            auto circleB = std::make_shared<DiskShape>(shapeConf);
+            shapeConf.vertexRadius = 1.5_m;
+            shapeConf.location = Vec2{0,  3} * 1_m;
+            auto circleA = Shape(shapeConf);
+            shapeConf.vertexRadius = 1.5_m;
+            shapeConf.location = Vec2{0, -3} * 1_m;
+            auto circleB = Shape(shapeConf);
             
             body1->CreateFixture(circleA);
             body1->CreateFixture(circleB);
@@ -70,6 +70,6 @@ namespace playrho {
         }
     };
     
-} // namespace playrho
+} // namespace testbed
 
 #endif

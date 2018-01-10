@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 /// This stress tests the dynamic tree broad-phase. This also shows that tile
 /// based collision is smooth due to PlayRho knowing about adjacency.
@@ -41,9 +41,9 @@ public:
 
         {
             const auto a = Real{0.5f};
-            BodyDef bd;
-            GetY(bd.position) = -a * Meter;
-            const auto ground = m_world->CreateBody(bd);
+            BodyConf bd;
+            GetY(bd.location) = -a * 1_m;
+            const auto ground = m_world.CreateBody(bd);
 
             const auto N = 200;
             const auto M = 10;
@@ -54,9 +54,7 @@ public:
                 GetX(position) = -N * a;
                 for (auto i = 0; i < N; ++i)
                 {
-                    PolygonShape shape;
-                    SetAsBox(shape, a * Meter, a * Meter, position * Meter, Angle{0});
-                    ground->CreateFixture(std::make_shared<PolygonShape>(shape));
+                    ground->CreateFixture(PolygonShapeConf{}.SetAsBox(a * 1_m, a * 1_m, position * 1_m, 0_deg));
                     ++m_fixtureCount;
                     GetX(position) += 2.0f * a;
                 }
@@ -66,8 +64,7 @@ public:
 
         {
             const auto a = Real{0.5f};
-            const auto shape = std::make_shared<PolygonShape>(a * Meter, a * Meter);
-            shape->SetDensity(Real{5} * KilogramPerSquareMeter);
+            const auto shape = Shape{PolygonShapeConf{}.UseDensity(5_kgpm2).SetAsBox(a * 1_m, a * 1_m)};
 
             Vec2 x(-7.0f, 0.75f);
             Vec2 y;
@@ -80,11 +77,12 @@ public:
 
                 for (auto j = i; j < e_count; ++j)
                 {
-                    BodyDef bd;
+                    BodyConf bd;
                     bd.type = BodyType::Dynamic;
-                    bd.position = y * Meter;
+                    bd.location = y * 1_m;
+                    bd.linearAcceleration = m_gravity;
 
-                    const auto body = m_world->CreateBody(bd);
+                    const auto body = m_world.CreateBody(bd);
                     body->CreateFixture(shape);
                     ++m_fixtureCount;
                     y += deltaY;
@@ -97,49 +95,27 @@ public:
         const auto end = std::chrono::high_resolution_clock::now();
         const auto elapsed_secs = std::chrono::duration<double>{end - start};
         m_createTime = elapsed_secs.count();
+        
+        RegisterForKey(GLFW_KEY_C, GLFW_PRESS, 0, "Make a snapshot.", [&](KeyActionMods) {
+            m_snapshot = m_world;
+        });
+        RegisterForKey(GLFW_KEY_BACKSPACE, GLFW_PRESS, 0, "Restore to snapshot.", [&](KeyActionMods) {
+            if (m_snapshot.GetBodies().size() > 0)
+            {
+                ResetWorld(m_snapshot);
+            }
+        });
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        const auto height = m_world->GetTreeHeight();
-        const auto leafCount = m_world->GetProxyCount();
-        if (leafCount > 0)
-        {
-            const auto minimumNodeCount = 2 * leafCount - 1;
-            const auto minimumHeight = ceilf(logf(float(minimumNodeCount)) / logf(2.0f));
-            drawer.DrawString(5, m_textLine, "dynamic tree height = %d, min = %d",
-                              height, int(minimumHeight));
-            m_textLine += DRAW_STRING_NEW_LINE;
-        }
-
-        drawer.DrawString(5, m_textLine, "create time = %6.2f ms, fixture count = %d",
-            m_createTime * 1000, m_fixtureCount);
-        m_textLine += DRAW_STRING_NEW_LINE;
-
-        //DynamicTree* tree = &m_world->m_contactManager.m_broadPhase.m_tree;
-
-        //if (GetStepCount() == 400)
-        //{
-        //    tree->RebuildBottomUp();
-        //}
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-            case Key_C:
-                m_snapshot = *m_world;
-                break;
-            case Key_Backspace:
-                if (m_snapshot.GetBodies().size() > 0)
-                {
-	                ResetWorld(m_snapshot);
-                }
-                break;
-            default:
-                break;
-        }
+        std::stringstream stream;
+        stream << "Create time = ";
+        stream << m_createTime * 1000;
+        stream << " ms, fixture count = ";
+        stream << m_fixtureCount;
+        stream << ".";
+        m_status = stream.str();
     }
     
     int m_fixtureCount;
@@ -147,6 +123,6 @@ public:
     World m_snapshot;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

@@ -21,14 +21,32 @@
 
 namespace playrho {
 
-Length2D ComputeCentroid(const Span<const Length2D>& vertices)
+Angle GetDelta(Angle a1, Angle a2) noexcept
+{
+    a1 = GetNormalized(a1);
+    a2 = GetNormalized(a2);
+    const auto a12 = a2 - a1;
+    if (a12 > Pi * Radian)
+    {
+        // 190_deg becomes 190_deg - 360_deg = -170_deg
+        return a12 - 2 * Pi * Radian;
+    }
+    if (a12 < -Pi * Radian)
+    {
+        // -200_deg becomes -200_deg + 360_deg = 100_deg
+        return a12 + 2 * Pi * Radian;
+    }
+    return a12;
+}
+
+Length2 ComputeCentroid(const Span<const Length2>& vertices)
 {
     assert(vertices.size() >= 3);
     
-    auto c = Length2D{} * Area{0};
+    auto c = Length2{} * Area{0};
     auto area = Area{0};
     
-    // pRef is the reference point for forming triangles.
+    // <code>pRef</code> is the reference point for forming triangles.
     // It's location doesn't change the result (except for rounding error).
     const auto pRef = Average(vertices);
 
@@ -55,20 +73,20 @@ Length2D ComputeCentroid(const Span<const Length2D>& vertices)
     return c / area;
 }
 
-std::vector<Length2D> GetCircleVertices(Length radius, unsigned slices, Angle start, Real turns)
+std::vector<Length2> GetCircleVertices(Length radius, unsigned slices, Angle start, Real turns)
 {
-    std::vector<Length2D> vertices;
+    std::vector<Length2> vertices;
     if (slices > 0)
     {
         const auto integralTurns = static_cast<long int>(turns);
         const auto wholeNum = (turns == Real(integralTurns * Real(1)));
-        const auto deltaAngle = (Pi * Radian * Real(2) * turns) / Real(slices);
+        const auto deltaAngle = (Pi * 2_rad * turns) / Real(slices);
         auto i = decltype(slices){0};
         while (i < slices)
         {
             const auto angleInRadians = Real{(start + (Real(i) * deltaAngle)) / Radian};
-            const auto x = radius * static_cast<Real>(std::cos(angleInRadians));
-            const auto y = radius * static_cast<Real>(std::sin(angleInRadians));
+            const auto x = radius * cos(angleInRadians);
+            const auto y = radius * sin(angleInRadians);
             vertices.emplace_back(x, y);
             ++i;
         }
@@ -80,8 +98,8 @@ std::vector<Length2D> GetCircleVertices(Length radius, unsigned slices, Angle st
         else
         {
             const auto angleInRadians = Real{(start + (Real(i) * deltaAngle)) / Radian};
-            const auto x = radius * static_cast<Real>(std::cos(angleInRadians));
-            const auto y = radius * static_cast<Real>(std::sin(angleInRadians));
+            const auto x = radius * cos(angleInRadians);
+            const auto y = radius * sin(angleInRadians);
             vertices.emplace_back(x, y);
         }
     }
@@ -93,11 +111,11 @@ NonNegative<Area> GetAreaOfCircle(Length radius)
     return Area{radius * radius * Pi};
 }
 
-NonNegative<Area> GetAreaOfPolygon(Span<const Length2D> vertices)
+NonNegative<Area> GetAreaOfPolygon(Span<const Length2> vertices)
 {
     // Uses the "Shoelace formula".
     // See: https://en.wikipedia.org/wiki/Shoelace_formula
-    auto sum = Real(0) * SquareMeter;
+    auto sum = 0_m2;
     const auto count = vertices.size();
     for (auto i = decltype(count){0}; i < count; ++i)
     {
@@ -112,7 +130,7 @@ NonNegative<Area> GetAreaOfPolygon(Span<const Length2D> vertices)
     return Abs(sum) / Real{2};
 }
 
-SecondMomentOfArea GetPolarMoment(Span<const Length2D> vertices)
+SecondMomentOfArea GetPolarMoment(Span<const Length2> vertices)
 {
     assert(vertices.size() > 2);
     

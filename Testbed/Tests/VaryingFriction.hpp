@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class VaryingFriction : public Test
 {
@@ -30,76 +30,32 @@ public:
 
     VaryingFriction()
     {
-        {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
-        }
-
-        const auto sliderPlank = std::make_shared<PolygonShape>(Real{13.0f} * Meter, Real{0.25f} * Meter);
-        const auto sliderWall = std::make_shared<PolygonShape>(Real{0.25f} * Meter, Real{1.0f} * Meter);
+        m_world.CreateBody()->CreateFixture(Shape(GetGroundEdgeConf()));
         
+        const auto sliderPlank = Shape{PolygonShapeConf{}.SetAsBox(13_m, 0.25_m)};
+        const auto sliderWall = Shape{PolygonShapeConf{}.SetAsBox(0.25_m, 1_m)};
+        
+        m_world.CreateBody(BodyConf{}.UseLocation(Vec2(-4, 22) * 1_m).UseAngle(-0.25_rad))->CreateFixture(sliderPlank);
+        m_world.CreateBody(BodyConf{}.UseLocation(Vec2(10.5f, 19) * 1_m))->CreateFixture(sliderWall);
+        m_world.CreateBody(BodyConf{}.UseLocation(Vec2(4, 14) * 1_m).UseAngle(0.25_rad))->CreateFixture(sliderPlank);
+        m_world.CreateBody(BodyConf{}.UseLocation(Vec2(-10.5f, 11) * 1_m))->CreateFixture(sliderWall);
+        m_world.CreateBody(BodyConf{}.UseLocation(Vec2(-4, 6) * 1_m).UseAngle(-0.25_rad))->CreateFixture(sliderPlank);
+        
+        auto shape = PolygonShapeConf{}.SetAsBox(0.5_m, 0.5_m).UseDensity(25_kgpm2);
+        float friction[5] = {std::sqrt(std::numeric_limits<float>::max()), 0.5f, 0.35f, 0.1f, 0.0f};
+        for (auto i = 0; i < 5; ++i)
         {
-            BodyDef bd;
-            bd.position = Vec2(-4.0f, 22.0f) * Meter;
-            bd.angle = Real{-0.25f} * Radian;
-
-            const auto ground = m_world->CreateBody(bd);
-            ground->CreateFixture(sliderPlank);
-        }
-
-        {
-            BodyDef bd;
-            bd.position = Vec2(10.5f, 19.0f) * Meter;
-
-            const auto ground = m_world->CreateBody(bd);
-            ground->CreateFixture(sliderWall);
-        }
-
-        {
-            BodyDef bd;
-            bd.position = Vec2(4.0f, 14.0f) * Meter;
-            bd.angle = Real{0.25f} * Radian;
-
-            const auto ground = m_world->CreateBody(bd);
-            ground->CreateFixture(sliderPlank);
-        }
-
-        {
-            BodyDef bd;
-            bd.position = Vec2(-10.5f, 11.0f) * Meter;
-
-            const auto ground = m_world->CreateBody(bd);
-            ground->CreateFixture(sliderWall);
-        }
-
-        {
-            BodyDef bd;
-            bd.position = Vec2(-4.0f, 6.0f) * Meter;
-            bd.angle = Real{-0.25f} * Radian;
-
-            const auto ground = m_world->CreateBody(bd);
-            ground->CreateFixture(sliderPlank);
-        }
-
-        {
-            auto shape = PolygonShape(Real{0.5f} * Meter, Real{0.5f} * Meter);
-            shape.SetDensity(Real{25} * KilogramPerSquareMeter);
-
-            float friction[5] = {std::sqrt(std::numeric_limits<float>::max()), 0.5f, 0.35f, 0.1f, 0.0f};
-            for (auto i = 0; i < 5; ++i)
-            {
-                BodyDef bd;
-                bd.type = BodyType::Dynamic;
-                bd.position = Vec2(-15.0f + 4.0f * i, 28.0f) * Meter;
-                const auto body = m_world->CreateBody(bd);
-
-                shape.SetFriction(Real(friction[i]));
-                body->CreateFixture(std::make_shared<PolygonShape>(shape));
-            }
+            auto bd = BodyConf{};
+            bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
+            bd.location = Vec2(-15.0f + 4.0f * i, 28.0f) * 1_m;
+            const auto body = m_world.CreateBody(bd);
+            shape.UseFriction(Real(friction[i]));
+            body->CreateFixture(Shape(shape));
         }
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

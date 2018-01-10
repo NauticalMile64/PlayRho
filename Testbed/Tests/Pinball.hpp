@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 /// This tests bullet collision and provides an example of a gameplay scenario.
 /// This also uses a loop shape.
@@ -32,118 +32,95 @@ public:
     Pinball()
     {
         // Ground body
-        const auto ground = m_world->CreateBody();
+        const auto ground = m_world.CreateBody();
         {
-            auto conf = ChainShape::Conf{};
-            conf.vertices.push_back(Vec2(0.0f, -2.0f) * Meter);
-            conf.vertices.push_back(Vec2(8.0f, 6.0f) * Meter);
-            conf.vertices.push_back(Vec2(8.0f, 20.0f) * Meter);
-            conf.vertices.push_back(Vec2(-8.0f, 20.0f) * Meter);
-            conf.vertices.push_back(Vec2(-8.0f, 6.0f) * Meter);
-            conf.vertices.push_back(conf.vertices[0]); // to loop back around completely.
-            conf.UseDensity(Real(0) * KilogramPerSquareMeter);
-            ground->CreateFixture(std::make_shared<ChainShape>(conf));
+            auto conf = ChainShapeConf{};
+            conf.Add(Vec2(0.0f, -2.0f) * 1_m);
+            conf.Add(Vec2(8.0f, 6.0f) * 1_m);
+            conf.Add(Vec2(8.0f, 20.0f) * 1_m);
+            conf.Add(Vec2(-8.0f, 20.0f) * 1_m);
+            conf.Add(Vec2(-8.0f, 6.0f) * 1_m);
+            conf.Add(conf.GetVertex(0)); // to loop back around completely.
+            conf.UseDensity(0_kgpm2);
+            ground->CreateFixture(Shape(conf));
         }
 
         // Flippers
         {
-            const auto p1 = Vec2(-2.0f, 0.0f) * Meter;
-            const auto p2 = Vec2(+2.0f, 0.0f) * Meter;
+            const auto p1 = Vec2(-2.0f, 0.0f) * 1_m;
+            const auto p2 = Vec2(+2.0f, 0.0f) * 1_m;
 
-            BodyDef bd;
+            BodyConf bd;
             bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
 
-            bd.position = p1;
-            const auto leftFlipper = m_world->CreateBody(bd);
+            bd.location = p1;
+            const auto leftFlipper = m_world.CreateBody(bd);
 
-            bd.position = p2;
-            const auto rightFlipper = m_world->CreateBody(bd);
+            bd.location = p2;
+            const auto rightFlipper = m_world.CreateBody(bd);
 
-            const auto box = std::make_shared<PolygonShape>(Real{1.75f} * Meter, Real{0.1f} * Meter);
-            box->SetDensity(Real{1} * KilogramPerSquareMeter);
-
+            const auto box = Shape(PolygonShapeConf{}.SetAsBox(1.75_m, 0.1_m).UseDensity(1_kgpm2));
             leftFlipper->CreateFixture(box);
             rightFlipper->CreateFixture(box);
 
-            RevoluteJointDef jd;
+            RevoluteJointConf jd;
             jd.bodyA = ground;
-            jd.localAnchorB = Vec2_zero * Meter;
+            jd.localAnchorB = Length2{};
             jd.enableMotor = true;
-            jd.maxMotorTorque = Real{1000.0f} * NewtonMeter;
+            jd.maxMotorTorque = 1000_Nm;
             jd.enableLimit = true;
 
-            jd.motorSpeed = AngularVelocity{0};
+            jd.motorSpeed = 0_rpm;
             jd.localAnchorA = p1;
             jd.bodyB = leftFlipper;
-            jd.lowerAngle = Real{-30.0f} * Degree;
-            jd.upperAngle = Real{5.0f} * Degree;
-            m_leftJoint = static_cast<RevoluteJoint*>(m_world->CreateJoint(jd));
+            jd.lowerAngle = -30_deg;
+            jd.upperAngle = 5_deg;
+            m_leftJoint = static_cast<RevoluteJoint*>(m_world.CreateJoint(jd));
 
-            jd.motorSpeed = AngularVelocity{0};
+            jd.motorSpeed = 0_rpm;
             jd.localAnchorA = p2;
             jd.bodyB = rightFlipper;
-            jd.lowerAngle = Real{-5.0f} * Degree;
-            jd.upperAngle = Real{30.0f} * Degree;
-            m_rightJoint = static_cast<RevoluteJoint*>(m_world->CreateJoint(jd));
+            jd.lowerAngle = -5_deg;
+            jd.upperAngle = 30_deg;
+            m_rightJoint = static_cast<RevoluteJoint*>(m_world.CreateJoint(jd));
         }
 
         // Disk character
         {
-            BodyDef bd;
-            bd.position = Vec2(1.0f, 15.0f) * Meter;
+            BodyConf bd;
+            bd.location = Vec2(1.0f, 15.0f) * 1_m;
             bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
             bd.bullet = true;
 
-            m_ball = m_world->CreateBody(bd);
+            m_ball = m_world.CreateBody(bd);
 
-            auto conf = DiskShape::Conf{};
-            conf.density = Real{1} * KilogramPerSquareMeter;
-            conf.vertexRadius = Real{0.2f} * Meter;
-            m_ball->CreateFixture(std::make_shared<DiskShape>(conf));
+            auto conf = DiskShapeConf{};
+            conf.density = 1_kgpm2;
+            conf.vertexRadius = 0.2_m;
+            m_ball->CreateFixture(Shape(conf));
         }
+        
+        RegisterForKey(GLFW_KEY_A, GLFW_PRESS, 0, "To control the flippers", [&](KeyActionMods) {
+            m_button = true;
+        });
+        RegisterForKey(GLFW_KEY_A, GLFW_RELEASE, 0, "To control the flippers", [&](KeyActionMods) {
+            m_button = false;
+        });
     }
 
     void PreStep(const Settings&, Drawer&) override
     {
         if (m_button)
         {
-            m_leftJoint->SetMotorSpeed(Real{20.0f} * RadianPerSecond);
-            m_rightJoint->SetMotorSpeed(Real{-20.0f} * RadianPerSecond);
+            m_leftJoint->SetMotorSpeed(20_rad / 1_s);
+            m_rightJoint->SetMotorSpeed(-20_rad / 1_s);
         }
         else
         {
-            m_leftJoint->SetMotorSpeed(Real{-10.0f} * RadianPerSecond);
-            m_rightJoint->SetMotorSpeed(Real{10.0f} * RadianPerSecond);
-        }
-    }
-
-    void PostStep(const Settings&, Drawer& drawer) override
-    {
-        drawer.DrawString(5, m_textLine, "Press 'a' to control the flippers");
-        m_textLine += DRAW_STRING_NEW_LINE;
-    }
-    
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_A:
-            m_button = true;
-            break;
-        default:
-            break;
-        }
-    }
-
-    void KeyboardUp(Key key) override
-    {
-        switch (key)
-        {
-        case Key_A:
-            m_button = false;
-            break;
-        default:
-            break;
+            m_leftJoint->SetMotorSpeed(-10_rad / 1_s);
+            m_rightJoint->SetMotorSpeed(10_rad / 1_s);
         }
     }
 
@@ -153,6 +130,6 @@ public:
     bool m_button = false;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

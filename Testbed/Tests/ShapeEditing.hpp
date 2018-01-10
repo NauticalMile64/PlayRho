@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class ShapeEditing : public Test
 {
@@ -30,68 +30,56 @@ public:
 
     ShapeEditing()
     {
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
+        m_world.CreateBody()->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
         
-        BodyDef bd;
+        BodyConf bd;
         bd.type = BodyType::Dynamic;
-        bd.position = Vec2(0.0f, 10.0f) * Meter;
-        m_body = m_world->CreateBody(bd);
+        bd.linearAcceleration = m_gravity;
+        bd.location = Vec2(0.0f, 10.0f) * 1_m;
+        m_body = m_world.CreateBody(bd);
 
-        PolygonShape shape;
-        SetAsBox(shape, Real{4.0f} * Meter, Real{4.0f} * Meter, Vec2(0.0f, 0.0f) * Meter, Angle{0});
-        shape.SetDensity(Real{10} * KilogramPerSquareMeter);
-        m_fixture1 = m_body->CreateFixture(std::make_shared<PolygonShape>(shape));
+        auto shape = PolygonShapeConf{};
+        shape.SetAsBox(4_m, 4_m, Length2{}, 0_deg);
+        shape.UseDensity(10_kgpm2);
+        m_fixture1 = m_body->CreateFixture(Shape(shape));
 
         m_fixture2 = nullptr;
 
         m_sensor = false;
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_C:
+        
+        RegisterForKey(GLFW_KEY_C, GLFW_PRESS, 0, "Create a shape.", [&](KeyActionMods) {
             if (!m_fixture2)
             {
-                auto conf = DiskShape::Conf{};
-                conf.vertexRadius = Real{3.0f} * Meter;
-                conf.location = Vec2(0.5f, -4.0f) * Meter;
-                conf.density = Real{10} * KilogramPerSquareMeter;
-                m_fixture2 = m_body->CreateFixture(std::make_shared<DiskShape>(conf));
+                auto conf = DiskShapeConf{};
+                conf.vertexRadius = 3_m;
+                conf.location = Vec2(0.5f, -4.0f) * 1_m;
+                conf.density = 10_kgpm2;
+                m_fixture2 = m_body->CreateFixture(Shape(conf));
                 m_body->SetAwake();
             }
-            break;
-
-        case Key_D:
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "Destroy a shape.", [&](KeyActionMods) {
             if (m_fixture2)
             {
                 m_body->DestroyFixture(m_fixture2);
                 m_fixture2 = nullptr;
                 m_body->SetAwake();
             }
-            break;
-
-        case Key_S:
+        });
+        RegisterForKey(GLFW_KEY_S, GLFW_PRESS, 0, "Toggle Sensor.", [&](KeyActionMods) {
             if (m_fixture2)
             {
                 m_sensor = !m_sensor;
                 m_fixture2->SetSensor(m_sensor);
             }
-            break;
-
-        default:
-            break;
-        }
+        });
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        drawer.DrawString(5, m_textLine, "Press: (c) create a shape, (d) destroy a shape.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "sensor = %d", m_sensor);
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "Sensor is " << (m_sensor? "on": "off") << ".";
+        m_status = stream.str();
     }
 
     Body* m_body;
@@ -100,6 +88,6 @@ public:
     bool m_sensor;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

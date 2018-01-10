@@ -42,13 +42,13 @@ public:
     using CountType = std::size_t;
 
     /// @brief Gets the initial capacity.
-    static constexpr auto GetInitialCapacity() noexcept
+    static PLAYRHO_CONSTEXPR inline auto GetInitialCapacity() noexcept
     {
         return CountType(N);
     }
     
     /// @brief Gets the buffer growth rate.
-    static constexpr auto GetBufferGrowthRate() noexcept
+    static PLAYRHO_CONSTEXPR inline auto GetBufferGrowthRate() noexcept
     {
         return CountType{2};
     }
@@ -77,7 +77,7 @@ public:
     {
         if (m_count == m_capacity)
         {
-            T* old = m_stack;
+            const auto old = m_stack;
             m_capacity *= GetBufferGrowthRate();
             m_stack = Alloc<T>(m_capacity);
             std::memcpy(m_stack, old, m_count * sizeof(T));
@@ -108,28 +108,28 @@ public:
     }
 
     /// @brief Gets the current size in numbers of elements.
-    constexpr CountType size() const noexcept
+    PLAYRHO_CONSTEXPR inline CountType size() const noexcept
     {
         return m_count;
     }
     
     /// @brief Gets the capacity in number of elements.
-    constexpr CountType capacity() const noexcept
+    PLAYRHO_CONSTEXPR inline CountType capacity() const noexcept
     {
         return m_capacity;
     }
 
     /// @brief Whether this stack is empty.
-    constexpr bool empty() const noexcept
+    PLAYRHO_CONSTEXPR inline bool empty() const noexcept
     {
         return m_count == 0;
     }
 
 private:
-    ElementType m_array[N];
-    ElementType* m_stack = m_array;
-    CountType m_count = 0;
-    CountType m_capacity = N;
+    ElementType m_array[N]; ///< Array data.
+    ElementType* m_stack = m_array; ///< Pointer to array of data.
+    CountType m_count = 0; ///< Count of elements.
+    CountType m_capacity = N; ///< Capacity for storing elements.
 };
 
 } // namespace playrho

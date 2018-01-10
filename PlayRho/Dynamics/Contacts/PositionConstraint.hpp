@@ -24,6 +24,7 @@
 #include <PlayRho/Dynamics/Contacts/BodyConstraint.hpp>
 
 namespace playrho {
+namespace d2 {
 
     /// Contact Position Constraint.
     /// @note This structure is 88-bytes large on at least one 64-bit platform.
@@ -39,15 +40,15 @@ namespace playrho {
         PositionConstraint(const Manifold& m,
                            BodyConstraint& bA, Length rA,
                            BodyConstraint& bB, Length rB):
-            manifold{m}, m_bodyA{&bA}, m_radiusA{rA}, m_bodyB{&bB}, m_radiusB{rB}
+            manifold{m}, m_bodyA{&bA}, m_bodyB{&bB}, m_radiusA{rA}, m_radiusB{rB}
         {
             assert(m.GetPointCount() > 0);
             assert(&bA != &bB);
-            assert(rA >= Length{0});
-            assert(rB >= Length{0});
+            assert(rA >= 0_m);
+            assert(rB >= 0_m);
         }
         
-        Manifold manifold; ///< Copy of contact's manifold with 1 or more contact points (60-bytes).
+        Manifold manifold; ///< Copy of contact's manifold with 1 or more contact points (64-bytes).
 
         /// @brief Gets body A.
         BodyConstraint* GetBodyA() const noexcept { return m_bodyA; }
@@ -76,6 +77,7 @@ namespace playrho {
         Length m_radiusB; // 4-bytes.
     };
 
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_CONTACTS_POSITIONCONSTRAINT_HPP

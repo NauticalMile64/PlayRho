@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class SphereStack : public Test
 {
@@ -35,31 +35,23 @@ public:
 
     SphereStack()
     {
+        m_world.CreateBody()->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
+        const auto shape = Shape{DiskShapeConf{}.UseRadius(1_m).UseDensity(1_kgpm2)};
+        for (auto i = 0; i < e_count; ++i)
         {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
-        }
-
-        {
-            const auto shape = std::make_shared<DiskShape>(Real{1} * Meter);
-            shape->SetDensity(Real{1} * KilogramPerSquareMeter);
-
-            for (auto i = 0; i < e_count; ++i)
-            {
-                BodyDef bd;
-                bd.type = BodyType::Dynamic;
-                bd.position = Vec2(0, 4.0f + 3.0f * i) * Meter;
-
-                m_bodies[i] = m_world->CreateBody(bd);
-                m_bodies[i]->CreateFixture(shape);
-                m_bodies[i]->SetVelocity(Velocity{Vec2(0.0f, -50.0f) * MeterPerSecond, AngularVelocity{0}});
-            }
+            BodyConf bd;
+            bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
+            bd.location = Vec2(0, 4.0f + 3.0f * i) * 1_m;
+            m_bodies[i] = m_world.CreateBody(bd);
+            m_bodies[i]->CreateFixture(shape);
+            m_bodies[i]->SetVelocity(Velocity{Vec2(0.0f, -50.0f) * 1_mps, 0_rpm});
         }
     }
 
     Body* m_bodies[e_count];
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

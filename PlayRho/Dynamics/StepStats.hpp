@@ -1,19 +1,20 @@
 /*
- * Original work Copyright (c) 2006-2011 Erin Catto http://www.box2d.org
- * Modified work Copyright (c) 2017 Louis Langholtz https://github.com/louis-langholtz/PlayRho
+ * Copyright (c) 2017 Louis Langholtz https://github.com/louis-langholtz/PlayRho
  *
  * This software is provided 'as-is', without any express or implied
- * warranty.  In no event will the authors be held liable for any damages
+ * warranty. In no event will the authors be held liable for any damages
  * arising from the use of this software.
+ *
  * Permission is granted to anyone to use this software for any purpose,
  * including commercial applications, and to alter it and redistribute it
  * freely, subject to the following restrictions:
+ *
  * 1. The origin of this software must not be misrepresented; you must not
- * claim that you wrote the original software. If you use this software
- * in a product, an acknowledgment in the product documentation would be
- * appreciated but is not required.
+ *    claim that you wrote the original software. If you use this software
+ *    in a product, an acknowledgment in the product documentation would be
+ *    appreciated but is not required.
  * 2. Altered source versions must be plainly marked as such, and must not be
- * misrepresented as being the original software.
+ *    misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
@@ -25,33 +26,36 @@
 namespace playrho {
     
     /// @brief Pre-phase per-step statistics.
+    /// @note This data structure is 24-bytes large (on at least one 64-bit platform).
     struct PreStepStats
     {
         /// @brief Counter type.
         using counter_type = std::uint32_t;
 
         counter_type proxiesMoved = 0; ///< Proxies moved count.
-        counter_type ignored = 0; ///< Ignored count.
-        counter_type destroyed = 0; ///< Destroyed count.
-        counter_type updated = 0; ///< Updated count.
-        counter_type skipped = 0; ///< Skipped count.
-        counter_type added = 0; ///< Added count.
+        counter_type destroyed = 0; ///< Count of contacts destroyed.
+        counter_type added = 0; ///< Count of contacts added.
+        counter_type ignored = 0; ///< Count of contacts ignored during update processing.
+        counter_type updated = 0; ///< Count of contacts updated (during update processing).
+        counter_type skipped = 0; ///< Count of contacts Skipped (during update processing).
     };
     
     /// @brief Regular-phase per-step statistics.
+    /// @note This data structure is 32-bytes large (on at least one 64-bit platform with
+    ///   4-byte Real type).
     struct RegStepStats
     {
         /// @brief Counter type.
         using counter_type = std::uint32_t;
 
         /// @brief Min separation.
-        Length minSeparation = std::numeric_limits<Real>::infinity() * Meter;
+        Length minSeparation = std::numeric_limits<Length>::infinity();
 
         /// @brief Max incremental impulse.
         Momentum maxIncImpulse = 0;
         
-        counter_type islandsFound = 0; ///< Islands found count.
-        counter_type islandsSolved = 0; ///< Islands solved count.
+        BodyCounter islandsFound = 0; ///< Islands found count.
+        BodyCounter islandsSolved = 0; ///< Islands solved count.
         counter_type contactsAdded = 0; ///< Contacts added count.
         counter_type bodiesSlept = 0; ///< Bodies slept count.
         counter_type proxiesMoved = 0; ///< Proxies moved count.
@@ -60,13 +64,15 @@ namespace playrho {
     };
     
     /// @brief TOI-phase per-step statistics.
+    /// @note This data structure is 60-bytes large (on at least one 64-bit platform with
+    ///   4-byte Real type).
     struct ToiStepStats
     {
         /// @brief Counter type.
         using counter_type = std::uint32_t;
 
         /// @brief Min separation.
-        Length minSeparation = std::numeric_limits<Real>::infinity() * Meter;
+        Length minSeparation = std::numeric_limits<Length>::infinity();
 
         /// @brief Max incremental impulse.
         Momentum maxIncImpulse = 0;
@@ -82,7 +88,7 @@ namespace playrho {
         counter_type proxiesMoved = 0; ///< Proxies moved count.
         counter_type sumPosIters = 0; ///< Sum position iterations count.
         counter_type sumVelIters = 0; ///< Sum velocity iterations count.
-        counter_type maxSimulContacts = 0; ///< Max contacts occuring simultaneously.
+        counter_type maxSimulContacts = 0; ///< Max contacts occurring simultaneously.
         
         /// @brief Distance iteration type.
         using dist_iter_type = std::remove_const<decltype(DefaultMaxDistanceIters)>::type;
@@ -100,11 +106,13 @@ namespace playrho {
     
     /// @brief Per-step statistics.
     ///
-    /// @details These are statistics output from the World::Step method.
+    /// @details These are statistics output from the d2::World::Step method.
+    /// @note This data structure is 116-bytes large (on at least one 64-bit platform with
+    ///   4-byte Real type).
     /// @note Efficient transfer of this data is predicated on compiler support for
-    ///   "return-value-optimization" - a form of "copy elision".
+    ///   "named-return-value-optimization" (NRVO) - a form of "copy elision".
     ///
-    /// @sa World::Step.
+    /// @sa d2::World::Step.
     /// @sa https://en.wikipedia.org/wiki/Return_value_optimization
     /// @sa http://en.cppreference.com/w/cpp/language/copy_elision
     ///

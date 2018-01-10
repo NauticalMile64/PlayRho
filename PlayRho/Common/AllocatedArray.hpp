@@ -67,7 +67,7 @@ public:
     using const_iterator = const_pointer;
 
     /// @brief Initializing constructor.
-    constexpr AllocatedArray(size_type max_size, pointer data, deleter_type deleter = noop_deleter):
+    PLAYRHO_CONSTEXPR inline AllocatedArray(size_type max_size, pointer data, deleter_type deleter = noop_deleter):
         m_max_size{max_size}, m_data{data}, m_deleter{deleter}
     {
         assert(data);
@@ -173,6 +173,8 @@ public:
     }
 
 private:
+    
+    /// @brief No-op deleter method.
     static void noop_deleter(void* /*unused*/) {}
 
     size_type m_max_size = 0; ///< Max size. 8-bytes.

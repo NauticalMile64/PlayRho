@@ -18,11 +18,11 @@
 */
 
 #ifndef PLAYRHO_BREAKABLE_TEST_HPP
-#define  PLAYRHO_BREAKABLE_TEST_HPP
+#define PLAYRHO_BREAKABLE_TEST_HPP
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 // This is used to test sensor shapes.
 class Breakable : public Test
@@ -36,27 +36,26 @@ public:
 
     Breakable()
     {
-        m_shape1->SetDensity(Real{1} * KilogramPerSquareMeter);
-        m_shape2->SetDensity(Real{1} * KilogramPerSquareMeter);
-
         // Ground body
-        {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
-        }
+        m_world.CreateBody()->CreateFixture(Shape(EdgeShapeConf{}.Set(Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m)));
 
         // Breakable dynamic body
         {
-            BodyDef bd;
-            bd.type = BodyType::Dynamic;
-            bd.position = Vec2(0.0f, 40.0f) * Meter;
-            bd.angle = 0.25f * Pi * Radian;
-            m_body1 = m_world->CreateBody(bd);
+            auto conf = PolygonShapeConf{}.UseDensity(1_kgpm2);
 
-            SetAsBox(*m_shape1, Real{0.5f} * Meter, Real{0.5f} * Meter, Vec2(-0.5f, 0.0f) * Meter, Real{0.0f} * Radian);
+            BodyConf bd;
+            bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
+            bd.location = Vec2(0.0f, 40.0f) * 1_m;
+            bd.angle = Pi * 0.25_rad;
+            m_body1 = m_world.CreateBody(bd);
+
+            conf.SetAsBox(0.5_m, 0.5_m, Vec2(-0.5f, 0.0f) * 1_m, 0_rad);
+            m_shape1 = conf;
             m_piece1 = m_body1->CreateFixture(m_shape1);
 
-            SetAsBox(*m_shape2, Real{0.5f} * Meter, Real{0.5f} * Meter, Vec2(0.5f, 0.0f) * Meter, Real{0.0f} * Radian);
+            conf.SetAsBox(0.5_m, 0.5_m, Vec2(0.5f, 0.0f) * 1_m, 0_rad);
+            m_shape2 = conf;
             m_piece2 = m_body1->CreateFixture(m_shape2);
         }
 
@@ -64,7 +63,8 @@ public:
         m_broke = false;
     }
 
-    void PostSolve(Contact&, const ContactImpulsesList& impulse, ContactListener::iteration_type) override
+    void PostSolve(Contact&, const ContactImpulsesList& impulse,
+                   ContactListener::iteration_type) override
     {
         if (m_broke)
         {
@@ -73,7 +73,7 @@ public:
         }
 
         // Should the body break?
-        auto maxImpulse = Momentum(0);
+        auto maxImpulse = 0_Ns;
         {
             const auto count = impulse.GetCount();
             for (auto i = decltype(count){0}; i < count; ++i)
@@ -82,7 +82,7 @@ public:
             }
         }
 
-        if (maxImpulse > Real{40} * Kilogram * MeterPerSecond)
+        if (maxImpulse > 40_Ns)
         {
             // Flag the body for breaking.
             m_break = true;
@@ -90,7 +90,7 @@ public:
     }
 
     void Break()
-    {
+    {        
         // Create two bodies from one.
         const auto body1 = m_piece1->GetBody();
         const auto center = body1->GetWorldCenter();
@@ -98,12 +98,13 @@ public:
         body1->DestroyFixture(m_piece2);
         m_piece2 = nullptr;
 
-        BodyDef bd;
+        BodyConf bd;
         bd.type = BodyType::Dynamic;
-        bd.position = body1->GetLocation();
+        bd.linearAcceleration = m_gravity;
+        bd.location = body1->GetLocation();
         bd.angle = body1->GetAngle();
 
-        const auto body2 = m_world->CreateBody(bd);
+        const auto body2 = m_world.CreateBody(bd);
         m_piece2 = body2->CreateFixture(m_shape2);
 
         // Compute consistent velocities for new bodies based on
@@ -111,8 +112,8 @@ public:
         const auto center1 = body1->GetWorldCenter();
         const auto center2 = body2->GetWorldCenter();
         
-        const auto velocity1 = m_velocity + GetRevPerpendicular(center1 - center) * m_angularVelocity / Radian;
-        const auto velocity2 = m_velocity + GetRevPerpendicular(center2 - center) * m_angularVelocity / Radian;
+        const auto velocity1 = m_velocity + GetRevPerpendicular(center1 - center) * m_angularVelocity / 1_rad;
+        const auto velocity2 = m_velocity + GetRevPerpendicular(center2 - center) * m_angularVelocity / 1_rad;
 
         body1->SetVelocity(Velocity{velocity1, m_angularVelocity});
         body2->SetVelocity(Velocity{velocity2, m_angularVelocity});
@@ -137,10 +138,10 @@ public:
     }
 
     Body* m_body1;
-    LinearVelocity2D m_velocity;
+    LinearVelocity2 m_velocity;
     AngularVelocity m_angularVelocity;
-    std::shared_ptr<PolygonShape> m_shape1 = std::make_shared<PolygonShape>();
-    std::shared_ptr<PolygonShape> m_shape2 = std::make_shared<PolygonShape>();
+    PolygonShapeConf m_shape1;
+    PolygonShapeConf m_shape2;
     Fixture* m_piece1;
     Fixture* m_piece2;
 
@@ -148,6 +149,6 @@ public:
     bool m_break;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

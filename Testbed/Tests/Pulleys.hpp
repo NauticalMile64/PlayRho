@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class Pulleys : public Test
 {
@@ -34,57 +34,61 @@ public:
         const auto a = Real{1.0f};
         const auto b = Real{2.0f};
 
-        const auto ground = m_world->CreateBody();
+        const auto ground = m_world.CreateBody();
         {
-            auto conf = DiskShape::Conf{};
-            conf.vertexRadius = Real{2.0f} * Meter;
-            conf.location = Vec2(-10.0f, y + b + L) * Meter;
-            DiskShape circle(conf);
-            ground->CreateFixture(std::make_shared<DiskShape>(circle));
-
-            circle.SetLocation(Vec2(10.0f, y + b + L) * Meter);
-            ground->CreateFixture(std::make_shared<DiskShape>(circle));
+            auto conf = DiskShapeConf{};
+            conf.vertexRadius = 2_m;
+            conf.location = Vec2(-10.0f, y + b + L) * 1_m;
+            ground->CreateFixture(Shape(conf));
+            conf.location = Vec2(+10.0f, y + b + L) * 1_m;
+            ground->CreateFixture(Shape(conf));
         }
 
         {
-            const auto shape = std::make_shared<PolygonShape>(a * Meter, b * Meter);
-            shape->SetDensity(Real{5} * KilogramPerSquareMeter);
+            const auto shape = Shape{
+                PolygonShapeConf{}.SetAsBox(a * 1_m, b * 1_m).UseDensity(5_kgpm2)};
 
-            BodyDef bd;
+            BodyConf bd;
             bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
 
             //bd.fixedRotation = true;
-            bd.position = Vec2(-10.0f, y) * Meter;
-            const auto body1 = m_world->CreateBody(bd);
+            bd.location = Vec2(-10.0f, y) * 1_m;
+            const auto body1 = m_world.CreateBody(bd);
             body1->CreateFixture(shape);
 
-            bd.position = Vec2(10.0f, y) * Meter;
-            const auto body2 = m_world->CreateBody(bd);
+            bd.location = Vec2(10.0f, y) * 1_m;
+            const auto body2 = m_world.CreateBody(bd);
             body2->CreateFixture(shape);
 
-            const auto anchor1 = Vec2(-10.0f, y + b) * Meter;
-            const auto anchor2 = Vec2(10.0f, y + b) * Meter;
-            const auto groundAnchor1 = Vec2(-10.0f, y + b + L) * Meter;
-            const auto groundAnchor2 = Vec2(10.0f, y + b + L) * Meter;
-            const auto pulleyDef = PulleyJointDef{body1, body2,
+            const auto anchor1 = Vec2(-10.0f, y + b) * 1_m;
+            const auto anchor2 = Vec2(10.0f, y + b) * 1_m;
+            const auto groundAnchor1 = Vec2(-10.0f, y + b + L) * 1_m;
+            const auto groundAnchor2 = Vec2(10.0f, y + b + L) * 1_m;
+            const auto pulleyConf = PulleyJointConf{body1, body2,
                 groundAnchor1, groundAnchor2, anchor1, anchor2}.UseRatio(1.5f);
 
-            m_joint1 = static_cast<PulleyJoint*>(m_world->CreateJoint(pulleyDef));
+            m_joint1 = static_cast<PulleyJoint*>(m_world.CreateJoint(pulleyConf));
         }
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
         const auto ratio = m_joint1->GetRatio();
         const auto L = GetCurrentLengthA(*m_joint1) + ratio * GetCurrentLengthB(*m_joint1);
-        drawer.DrawString(5, m_textLine, "L1 + %4.2f * L2 = %4.2f", (float) ratio,
-                          static_cast<double>(Real{L / Meter}));
-        m_textLine += DRAW_STRING_NEW_LINE;
+
+        std::stringstream stream;
+        stream << "L1 + ";
+        stream << static_cast<float>(ratio);
+        stream << " * L2 = ";
+        stream << static_cast<double>(Real{L / 1_m});
+        stream << "m.";
+        m_status = stream.str();
     }
 
     PulleyJoint* m_joint1;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

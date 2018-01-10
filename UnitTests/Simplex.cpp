@@ -20,8 +20,9 @@
 #include <PlayRho/Collision/Simplex.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
-TEST(SimplexCache, ByteSizeIs_12_16_or_32)
+TEST(SimplexCache, ByteSize)
 {
     switch (sizeof(Real))
     {
@@ -41,19 +42,13 @@ TEST(SimplexCache, DefaultInit)
 {
     {
         Simplex::Cache foo;
-        EXPECT_EQ(std::uint8_t{0}, GetNumIndices(foo.GetIndices()));
-        EXPECT_FALSE(foo.IsMetricSet());
-        
-        // Can't test following cause of undefined behavior (assert's in debug build).
-        //EXPECT_FALSE(IsValid(foo.GetMetric()));
+        EXPECT_EQ(std::uint8_t{0}, GetNumValidIndices(foo.indices));
+        EXPECT_FALSE(IsValid(foo.metric));
     }
     {
         Simplex::Cache foo{};
-        EXPECT_EQ(std::uint8_t{0}, GetNumIndices(foo.GetIndices()));
-        EXPECT_FALSE(foo.IsMetricSet());
-        
-        // Can't test following cause of undefined behavior (assert's in debug build).
-        //EXPECT_FALSE(IsValid(foo.GetMetric()));
+        EXPECT_EQ(std::uint8_t{0}, GetNumValidIndices(foo.indices));
+        EXPECT_FALSE(IsValid(foo.metric));
     }
 }
 
@@ -61,65 +56,60 @@ TEST(SimplexCache, InitializingConstructor)
 {
     {
         const auto metric = Real(.3);
-        const auto indices = IndexPair3{InvalidIndexPair, InvalidIndexPair, InvalidIndexPair};
+        const auto indices = IndexPair3{{InvalidIndexPair, InvalidIndexPair, InvalidIndexPair}};
         Simplex::Cache foo{metric, indices};
         
-        EXPECT_EQ(GetNumIndices(foo.GetIndices()), decltype(GetNumIndices(foo.GetIndices())){0});
-        EXPECT_FALSE(foo.IsMetricSet());
-        //EXPECT_EQ(foo.GetMetric(), metric);
+        EXPECT_EQ(GetNumValidIndices(foo.indices), decltype(GetNumValidIndices(foo.indices)){0});
+        EXPECT_EQ(foo.metric, metric);
     }
     {
         const auto ip0 = IndexPair{0, 0};
         const auto ip1 = IndexPair{1, 0};
         const auto metric = Real(-1.4);
-        Simplex::Cache foo{metric, IndexPair3{ip0, ip1, InvalidIndexPair}};
+        Simplex::Cache foo{metric, IndexPair3{{ip0, ip1, InvalidIndexPair}}};
         
-        EXPECT_EQ(GetNumIndices(foo.GetIndices()), decltype(GetNumIndices(foo.GetIndices())){2});
-        EXPECT_EQ(foo.GetIndexPair(0), ip0);
-        EXPECT_EQ(foo.GetIndexPair(1), ip1);
-        EXPECT_TRUE(foo.IsMetricSet());
-        EXPECT_EQ(foo.GetMetric(), metric);
+        EXPECT_EQ(GetNumValidIndices(foo.indices), decltype(GetNumValidIndices(foo.indices)){2});
+        EXPECT_EQ(std::get<0>(foo.indices), ip0);
+        EXPECT_EQ(std::get<1>(foo.indices), ip1);
+        EXPECT_EQ(foo.metric, metric);
     }
     {
         const auto ip0 = IndexPair{0, 0};
         const auto ip1 = IndexPair{1, 0};
         const auto ip2 = IndexPair{4, 3};
         const auto metric = Real(-1.4);
-        Simplex::Cache foo{metric, IndexPair3{ip0, ip1, ip2}};
+        Simplex::Cache foo{metric, IndexPair3{{ip0, ip1, ip2}}};
         
-        EXPECT_EQ(GetNumIndices(foo.GetIndices()), decltype(GetNumIndices(foo.GetIndices())){3});
-        EXPECT_EQ(foo.GetIndexPair(0), ip0);
-        EXPECT_EQ(foo.GetIndexPair(1), ip1);
-        EXPECT_EQ(foo.GetIndexPair(2), ip2);
-        EXPECT_TRUE(foo.IsMetricSet());
-        EXPECT_EQ(foo.GetMetric(), metric);
+        EXPECT_EQ(GetNumValidIndices(foo.indices), decltype(GetNumValidIndices(foo.indices)){3});
+        EXPECT_EQ(std::get<0>(foo.indices), ip0);
+        EXPECT_EQ(std::get<1>(foo.indices), ip1);
+        EXPECT_EQ(std::get<2>(foo.indices), ip2);
+        EXPECT_EQ(foo.metric, metric);
     }
 }
 
 TEST(SimplexCache, Assignment)
 {
     const auto metric = Real(.3);
-    const auto indices = IndexPair3{InvalidIndexPair, InvalidIndexPair, InvalidIndexPair};
+    const auto indices = IndexPair3{{InvalidIndexPair, InvalidIndexPair, InvalidIndexPair}};
     Simplex::Cache foo{metric, indices};
     
-    ASSERT_EQ(GetNumIndices(foo.GetIndices()), decltype(GetNumIndices(foo.GetIndices())){0});
-    ASSERT_FALSE(foo.IsMetricSet());
-    //ASSERT_EQ(foo.GetMetric(), metric);
+    ASSERT_EQ(GetNumValidIndices(foo.indices), decltype(GetNumValidIndices(foo.indices)){0});
+    ASSERT_EQ(foo.metric, metric);
     
     const auto ip0 = IndexPair{0, 0};
     const auto ip1 = IndexPair{1, 0};
     const auto ip2 = IndexPair{4, 3};
     const auto roo_metric = Real(-1.4);
-    Simplex::Cache roo{roo_metric, IndexPair3{ip0, ip1, ip2}};
+    Simplex::Cache roo{roo_metric, IndexPair3{{ip0, ip1, ip2}}};
     
     foo = roo;
     
-    EXPECT_EQ(GetNumIndices(foo.GetIndices()), decltype(GetNumIndices(foo.GetIndices())){3});
-    EXPECT_EQ(foo.GetIndexPair(0), ip0);
-    EXPECT_EQ(foo.GetIndexPair(1), ip1);
-    EXPECT_EQ(foo.GetIndexPair(2), ip2);
-    EXPECT_TRUE(foo.IsMetricSet());
-    EXPECT_EQ(foo.GetMetric(), roo_metric);
+    EXPECT_EQ(GetNumValidIndices(foo.indices), decltype(GetNumValidIndices(foo.indices)){3});
+    EXPECT_EQ(std::get<0>(foo.indices), ip0);
+    EXPECT_EQ(std::get<1>(foo.indices), ip1);
+    EXPECT_EQ(std::get<2>(foo.indices), ip2);
+    EXPECT_EQ(foo.metric, roo_metric);
 }
 
 TEST(SimplexEdgeList, ByteSize)
@@ -162,10 +152,10 @@ TEST(Simplex, DefaultConstruction)
 
 TEST(Simplex, Get1)
 {
-    const auto va = Length2D{-Real(4) * Meter, Real(33) * Meter};
-    const auto vb = Length2D{Real(901.5) * Meter, Real(0.06) * Meter};
-    const auto ia = SimplexEdge::index_type{2};
-    const auto ib = SimplexEdge::index_type{7};
+    const auto va = Length2{-4_m, 33_m};
+    const auto vb = Length2{901.5_m, 0.06_m};
+    const auto ia = VertexCounter{2};
+    const auto ib = VertexCounter{7};
     const auto sv = SimplexEdge{va, ia, vb, ib};
     
     const auto simplex = Simplex::Get(sv);
@@ -184,10 +174,10 @@ TEST(Simplex, Get1)
 
 TEST(Simplex, Get2_of_same)
 {
-    const auto va = Length2D{-Real(4) * Meter, Real(33) * Meter};
-    const auto vb = Length2D{Real(901.5) * Meter, Real(0.06) * Meter};
-    const auto ia = SimplexEdge::index_type{2};
-    const auto ib = SimplexEdge::index_type{7};
+    const auto va = Length2{-4_m, 33_m};
+    const auto vb = Length2{901.5_m, 0.06_m};
+    const auto ia = VertexCounter{2};
+    const auto ib = VertexCounter{7};
     const auto sv = SimplexEdge{va, ia, vb, ib};
     
     const auto simplex = Simplex::Get(sv, sv);
@@ -207,16 +197,16 @@ TEST(Simplex, Get2_of_same)
 
 TEST(Simplex, Get2_fwd_perp)
 {
-    const auto va0 = Length2D{-Real(4) * Meter, Real(33) * Meter};
-    const auto vb0 = Length2D{Real(901.5) * Meter, Real(0.06) * Meter};
-    const auto ia0 = SimplexEdge::index_type{2};
-    const auto ib0 = SimplexEdge::index_type{7};
+    const auto va0 = Length2{-4_m, 33_m};
+    const auto vb0 = Length2{901.5_m, 0.06_m};
+    const auto ia0 = VertexCounter{2};
+    const auto ib0 = VertexCounter{7};
     const auto sv0 = SimplexEdge{va0, ia0, vb0, ib0};
 
     const auto va1 = GetFwdPerpendicular(va0);
     const auto vb1 = GetFwdPerpendicular(vb0);
-    const auto ia1 = SimplexEdge::index_type{4};
-    const auto ib1 = SimplexEdge::index_type{1};
+    const auto ia1 = VertexCounter{4};
+    const auto ib1 = VertexCounter{1};
     const auto sv1 = SimplexEdge{va1, ia1, vb1, ib1};
     
     const auto simplex = Simplex::Get(sv0, sv1);
@@ -247,16 +237,16 @@ TEST(Simplex, Get2_fwd_perp)
 
 TEST(Simplex, Get2_rev_perp)
 {
-    const auto va0 = Length2D{-Real(4) * Meter, Real(33) * Meter};
-    const auto vb0 = Length2D{Real(901.5) * Meter, Real(0.06) * Meter};
-    const auto ia0 = SimplexEdge::index_type{2};
-    const auto ib0 = SimplexEdge::index_type{7};
+    const auto va0 = Length2{-4_m, 33_m};
+    const auto vb0 = Length2{901.5_m, 0.06_m};
+    const auto ia0 = VertexCounter{2};
+    const auto ib0 = VertexCounter{7};
     const auto sv0 = SimplexEdge{va0, ia0, vb0, ib0};
     
     const auto va1 = GetRevPerpendicular(va0);
     const auto vb1 = GetRevPerpendicular(vb0);
-    const auto ia1 = SimplexEdge::index_type{4};
-    const auto ib1 = SimplexEdge::index_type{1};
+    const auto ia1 = VertexCounter{4};
+    const auto ib1 = VertexCounter{1};
     const auto sv1 = SimplexEdge{va1, ia1, vb1, ib1};
     
     const auto simplex = Simplex::Get(sv0, sv1);
@@ -287,16 +277,16 @@ TEST(Simplex, Get2_rev_perp)
 
 TEST(Simplex, Get2_rot_plus_45)
 {
-    const auto va0 = Length2D{-Real(4) * Meter, Real(33) * Meter};
-    const auto vb0 = Length2D{Real(901.5) * Meter, Real(0.06) * Meter};
-    const auto ia0 = SimplexEdge::index_type{2};
-    const auto ib0 = SimplexEdge::index_type{7};
+    const auto va0 = Length2{-4_m, 33_m};
+    const auto vb0 = Length2{901.5_m, 0.06_m};
+    const auto ia0 = VertexCounter{2};
+    const auto ib0 = VertexCounter{7};
     const auto sv0 = SimplexEdge{va0, ia0, vb0, ib0};
     
-    const auto va1 = Rotate(va0, UnitVec2::Get(Angle{Real{45.0f} * Degree}));
-    const auto vb1 = Rotate(vb0, UnitVec2::Get(Angle{Real{45.0f} * Degree}));
-    const auto ia1 = SimplexEdge::index_type{4};
-    const auto ib1 = SimplexEdge::index_type{1};
+    const auto va1 = Rotate(va0, UnitVec::Get(45_deg));
+    const auto vb1 = Rotate(vb0, UnitVec::Get(45_deg));
+    const auto ia1 = VertexCounter{4};
+    const auto ib1 = VertexCounter{1};
     const auto sv1 = SimplexEdge{va1, ia1, vb1, ib1};
     
     const auto simplex = Simplex::Get(sv0, sv1);
@@ -327,25 +317,25 @@ TEST(Simplex, Get2_rot_plus_45)
 
 TEST(Simplex, Get2_rot45_half)
 {
-    const auto va0 = Length2D{-Real(4) * Meter, Real(33) * Meter}; // upper left
-    const auto vb0 = Length2D{Real(901) * Meter, Real(6) * Meter}; // lower right
-    const auto ia0 = SimplexEdge::index_type{2};
-    const auto ib0 = SimplexEdge::index_type{7};
+    const auto va0 = Length2{-4_m, 33_m}; // upper left
+    const auto vb0 = Length2{901_m, 6_m}; // lower right
+    const auto ia0 = VertexCounter{2};
+    const auto ib0 = VertexCounter{7};
     const auto sv0 = SimplexEdge{va0, ia0, vb0, ib0};
     
-    const auto va1 = Rotate(va0, UnitVec2::Get(Angle{Real{45.0f} * Degree})) / Real{2}; // Vec2{-13.081475, 10.253049}
-    const auto vb1 = Rotate(vb0, UnitVec2::Get(Angle{Real{45.0f} * Degree})) / Real{2}; // Vec2{316.4303, 320.67291}
+    const auto va1 = Rotate(va0, UnitVec::Get(45_deg)) / 2; // Vec2{-13.081475, 10.253049}
+    const auto vb1 = Rotate(vb0, UnitVec::Get(45_deg)) / 2; // Vec2{316.4303, 320.67291}
     EXPECT_NEAR(double(Real{GetX(va1) / Meter}), -13.081475, 0.001);
     EXPECT_NEAR(double(Real{GetY(va1) / Meter}),  10.253049, 0.001);
     EXPECT_NEAR(double(Real{GetX(vb1) / Meter}), 316.4303,   0.001);
     EXPECT_NEAR(double(Real{GetY(vb1) / Meter}), 320.67291,  0.001);
-    const auto ia1 = SimplexEdge::index_type{4};
-    const auto ib1 = SimplexEdge::index_type{1};
+    const auto ia1 = VertexCounter{4};
+    const auto ib1 = VertexCounter{1};
     const auto sv1 = SimplexEdge{va1, ia1, vb1, ib1};
 
     const auto w1 = vb0 - va0; // Vec2{901, 6} - Vec2{-4, 33} = Vec2{905, -27}
-    EXPECT_TRUE(AlmostEqual(GetX(w1) / Meter, Real(905)));
-    EXPECT_TRUE(AlmostEqual(GetY(w1) / Meter, Real(-27)));
+    EXPECT_TRUE(AlmostEqual(Real{GetX(w1) / Meter}, Real(905)));
+    EXPECT_TRUE(AlmostEqual(Real{GetY(w1) / Meter}, Real(-27)));
     const auto w2 = vb1 - va1; // Vec2{316.4303, 320.67291} - Vec2{-13.081475, 10.253049} = Vec2{329.51178, 310.41986}
     EXPECT_NEAR(double(Real{GetX(w2) / Meter}), 329.51178, 0.001);
     EXPECT_NEAR(double(Real{GetY(w2) / Meter}), 310.41986, 0.001);
@@ -379,8 +369,18 @@ TEST(Simplex, Get2_rot45_half)
 TEST(Simplex, GetOfSimplexVertices)
 {
     Simplex foo;
-
     const auto roo = Simplex::Get(foo.GetEdges());
-    
     EXPECT_EQ(foo.GetSize(), roo.GetSize());
+}
+
+TEST(Simplex, CalcSearchDirectionOfEmpty)
+{
+    auto se = SimplexEdges{};
+    EXPECT_EQ(CalcSearchDirection(se), Length2{});
+}
+
+TEST(Simplex, CalcMetricOfEmpty)
+{
+    auto se = SimplexEdges{};
+    EXPECT_EQ(Simplex::CalcMetric(se), Real(0));
 }

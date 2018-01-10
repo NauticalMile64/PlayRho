@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 /// This test shows how a rope joint can be used to stabilize a chain of
 /// bodies with a heavy payload. Notice that the rope joint just prevents
@@ -37,101 +37,84 @@ class RopeJointTest : public Test
 public:
     RopeJointTest()
     {
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
+        const auto ground = m_world.CreateBody();
+        ground->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
 
         {
-            const auto rectangle = std::make_shared<PolygonShape>(Real{0.5f} * Meter, Real{0.125f} * Meter);
-            rectangle->SetDensity(Real{20} * KilogramPerSquareMeter);
-            rectangle->SetFriction(Real(0.2f));
+            const auto rectangle = Shape{
+                PolygonShapeConf{}.UseDensity(20_kgpm2).UseFriction(Real(0.2f)).SetAsBox(0.5_m, 0.125_m)
+            };
+            const auto square = Shape{
+                PolygonShapeConf{}.UseDensity(100_kgpm2).UseFriction(Real(0.2f)).SetAsBox(1.5_m, 1.5_m)
+            };
 
-            const auto square = std::make_shared<PolygonShape>(Real{1.5f} * Meter, Real{1.5f} * Meter);
-            square->SetDensity(Real{100} * KilogramPerSquareMeter);
-            square->SetFriction(Real(0.2f));
-
-            FixtureDef fd;
+            FixtureConf fd;
             fd.filter.categoryBits = 0x0001;
             fd.filter.maskBits = 0xFFFF & ~0x0002;
 
             const auto N = 10;
             const auto y = 15.0f;
-            m_ropeDef.localAnchorA = Vec2(0.0f, y) * Meter;
+            m_ropeConf.localAnchorA = Vec2(0.0f, y) * 1_m;
 
             auto prevBody = ground;
             for (auto i = 0; i < N; ++i)
             {
                 auto shape = rectangle;
-                BodyDef bd;
+                BodyConf bd;
                 bd.type = BodyType::Dynamic;
-                bd.position = Vec2(0.5f + 1.0f * i, y) * Meter;
+                bd.linearAcceleration = m_gravity;
+                bd.location = Vec2(0.5f + 1.0f * i, y) * 1_m;
                 if (i == N - 1)
                 {
                     shape = square;
                     fd.filter.categoryBits = 0x0002;
-                    bd.position = Vec2(1.0f * i, y) * Meter;
-                    bd.angularDamping = Real(0.4f) * Hertz;
+                    bd.location = Vec2(1.0f * i, y) * 1_m;
+                    bd.angularDamping = 0.4_Hz;
                 }
 
-                const auto body = m_world->CreateBody(bd);
+                const auto body = m_world.CreateBody(bd);
 
                 body->CreateFixture(shape, fd);
 
-                m_world->CreateJoint(RevoluteJointDef{prevBody, body, Vec2(Real(i), y) * Meter});
+                m_world.CreateJoint(RevoluteJointConf{prevBody, body, Vec2(Real(i), y) * 1_m});
 
                 prevBody = body;
             }
 
-            m_ropeDef.localAnchorB = Vec2_zero * Meter;
+            m_ropeConf.localAnchorB = Length2{};
 
             const auto extraLength = 0.01f;
-            m_ropeDef.maxLength = Real(N - 1.0f + extraLength) * Meter;
-            m_ropeDef.bodyB = prevBody;
+            m_ropeConf.maxLength = Real(N - 1.0f + extraLength) * 1_m;
+            m_ropeConf.bodyB = prevBody;
         }
 
-        m_ropeDef.bodyA = ground;
-        m_rope = m_world->CreateJoint(m_ropeDef);
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_J:
+        m_ropeConf.bodyA = ground;
+        m_rope = m_world.CreateJoint(m_ropeConf);
+        
+        RegisterForKey(GLFW_KEY_J, GLFW_PRESS, 0, "Toggle the rope joint", [&](KeyActionMods) {
             if (m_rope)
             {
-                m_world->Destroy(m_rope);
+                m_world.Destroy(m_rope);
                 m_rope = nullptr;
             }
             else
             {
-                m_rope = m_world->CreateJoint(m_ropeDef);
+                m_rope = m_world.CreateJoint(m_ropeConf);
             }
-            break;
-
-        default:
-            break;
-        }
+        });
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        drawer.DrawString(5, m_textLine, "Press (j) to toggle the rope joint.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        if (m_rope)
-        {
-            drawer.DrawString(5, m_textLine, "Rope ON");
-        }
-        else
-        {
-            drawer.DrawString(5, m_textLine, "Rope OFF");
-        }
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << (m_rope? "Rope ON.": "Rope OFF.");
+        m_status = stream.str();
     }
 
-    RopeJointDef m_ropeDef;
+    RopeJointConf m_ropeConf;
     Joint* m_rope;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif /* PLAYRHO_TESTS_ROPE_JOINT_HPP */

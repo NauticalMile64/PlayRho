@@ -22,167 +22,156 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 // This tests distance joints, body destruction, and joint destruction.
 class Web : public Test
 {
 public:
-    Web()
+    static Test::Conf GetTestConf()
     {
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
+        auto conf = Test::Conf{};
+        conf.description = "Demonstrates a soft distance joint.";
+        return conf;
+    }
+    
+    Web(): Test(GetTestConf())
+    {
+        const auto ground = m_world.CreateBody();
+        ground->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
 
         {
-            const auto shape = std::make_shared<PolygonShape>(Real{0.5f} * Meter, Real{0.5f} * Meter);
-            shape->SetDensity(Real{5} * KilogramPerSquareMeter);
+            const auto shape = Shape{PolygonShapeConf{}.UseDensity(5_kgpm2).SetAsBox(0.5_m, 0.5_m)};
 
-            BodyDef bd;
+            BodyConf bd;
             bd.type = BodyType::Dynamic;
+            bd.linearAcceleration = m_gravity;
 
-            bd.position = Vec2(-5.0f, 5.0f) * Meter;
-            m_bodies[0] = m_world->CreateBody(bd);
+            bd.location = Vec2(-5.0f, 5.0f) * 1_m;
+            m_bodies[0] = m_world.CreateBody(bd);
             m_bodies[0]->CreateFixture(shape);
 
-            bd.position = Vec2(5.0f, 5.0f) * Meter;
-            m_bodies[1] = m_world->CreateBody(bd);
+            bd.location = Vec2(5.0f, 5.0f) * 1_m;
+            m_bodies[1] = m_world.CreateBody(bd);
             m_bodies[1]->CreateFixture(shape);
 
-            bd.position = Vec2(5.0f, 15.0f) * Meter;
-            m_bodies[2] = m_world->CreateBody(bd);
+            bd.location = Vec2(5.0f, 15.0f) * 1_m;
+            m_bodies[2] = m_world.CreateBody(bd);
             m_bodies[2]->CreateFixture(shape);
 
-            bd.position = Vec2(-5.0f, 15.0f) * Meter;
-            m_bodies[3] = m_world->CreateBody(bd);
+            bd.location = Vec2(-5.0f, 15.0f) * 1_m;
+            m_bodies[3] = m_world.CreateBody(bd);
             m_bodies[3]->CreateFixture(shape);
 
-            DistanceJointDef jd;
-            Length2D p1, p2, d;
+            DistanceJointConf jd;
+            Length2 p1, p2, d;
 
-            jd.frequency = Real{2.0f} * Hertz;
+            jd.frequency = 2_Hz;
             jd.dampingRatio = 0.0f;
 
             jd.bodyA = ground;
             jd.bodyB = m_bodies[0];
-            jd.localAnchorA = Vec2(-10.0f, 0.0f) * Meter;
-            jd.localAnchorB = Vec2(-0.5f, -0.5f) * Meter;
+            jd.localAnchorA = Vec2(-10.0f, 0.0f) * 1_m;
+            jd.localAnchorB = Vec2(-0.5f, -0.5f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[0] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[0] = m_world.CreateJoint(jd);
 
             jd.bodyA = ground;
             jd.bodyB = m_bodies[1];
-            jd.localAnchorA = Vec2(10.0f, 0.0f) * Meter;
-            jd.localAnchorB = Vec2(0.5f, -0.5f) * Meter;
+            jd.localAnchorA = Vec2(10.0f, 0.0f) * 1_m;
+            jd.localAnchorB = Vec2(0.5f, -0.5f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[1] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[1] = m_world.CreateJoint(jd);
 
             jd.bodyA = ground;
             jd.bodyB = m_bodies[2];
-            jd.localAnchorA = Vec2(10.0f, 20.0f) * Meter;
-            jd.localAnchorB = Vec2(0.5f, 0.5f) * Meter;
+            jd.localAnchorA = Vec2(10.0f, 20.0f) * 1_m;
+            jd.localAnchorB = Vec2(0.5f, 0.5f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[2] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[2] = m_world.CreateJoint(jd);
 
             jd.bodyA = ground;
             jd.bodyB = m_bodies[3];
-            jd.localAnchorA = Vec2(-10.0f, 20.0f) * Meter;
-            jd.localAnchorB = Vec2(-0.5f, 0.5f) * Meter;
+            jd.localAnchorA = Vec2(-10.0f, 20.0f) * 1_m;
+            jd.localAnchorB = Vec2(-0.5f, 0.5f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[3] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[3] = m_world.CreateJoint(jd);
 
             jd.bodyA = m_bodies[0];
             jd.bodyB = m_bodies[1];
-            jd.localAnchorA = Vec2(0.5f, 0.0f) * Meter;
-            jd.localAnchorB = Vec2(-0.5f, 0.0f) * Meter;
+            jd.localAnchorA = Vec2(0.5f, 0.0f) * 1_m;
+            jd.localAnchorB = Vec2(-0.5f, 0.0f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[4] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[4] = m_world.CreateJoint(jd);
 
             jd.bodyA = m_bodies[1];
             jd.bodyB = m_bodies[2];
-            jd.localAnchorA = Vec2(0.0f, 0.5f) * Meter;
-            jd.localAnchorB = Vec2(0.0f, -0.5f) * Meter;
+            jd.localAnchorA = Vec2(0.0f, 0.5f) * 1_m;
+            jd.localAnchorB = Vec2(0.0f, -0.5f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[5] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[5] = m_world.CreateJoint(jd);
 
             jd.bodyA = m_bodies[2];
             jd.bodyB = m_bodies[3];
-            jd.localAnchorA = Vec2(-0.5f, 0.0f) * Meter;
-            jd.localAnchorB = Vec2(0.5f, 0.0f) * Meter;
+            jd.localAnchorA = Vec2(-0.5f, 0.0f) * 1_m;
+            jd.localAnchorB = Vec2(0.5f, 0.0f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[6] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[6] = m_world.CreateJoint(jd);
 
             jd.bodyA = m_bodies[3];
             jd.bodyB = m_bodies[0];
-            jd.localAnchorA = Vec2(0.0f, -0.5f) * Meter;
-            jd.localAnchorB = Vec2(0.0f, 0.5f) * Meter;
+            jd.localAnchorA = Vec2(0.0f, -0.5f) * 1_m;
+            jd.localAnchorB = Vec2(0.0f, 0.5f) * 1_m;
             p1 = GetWorldPoint(*jd.bodyA, jd.localAnchorA);
             p2 = GetWorldPoint(*jd.bodyB, jd.localAnchorB);
             d = p2 - p1;
-            jd.length = GetLength(d);
-            m_joints[7] = m_world->CreateJoint(jd);
+            jd.length = GetMagnitude(d);
+            m_joints[7] = m_world.CreateJoint(jd);
         }
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_B:
+        
+        RegisterForKey(GLFW_KEY_B, GLFW_PRESS, 0, "Delete a body.", [&](KeyActionMods) {
             for (auto i = 0; i < 4; ++i)
             {
                 if (m_bodies[i])
                 {
-                    m_world->Destroy(m_bodies[i]);
+                    m_world.Destroy(m_bodies[i]);
                     m_bodies[i] = nullptr;
                     break;
                 }
             }
-            break;
-
-        case Key_J:
+        });
+        RegisterForKey(GLFW_KEY_J, GLFW_PRESS, 0, "Delete a joint.", [&](KeyActionMods) {
             for (auto i = 0; i < 8; ++i)
             {
                 if (m_joints[i])
                 {
-                    m_world->Destroy(m_joints[i]);
+                    m_world.Destroy(m_joints[i]);
                     m_joints[i] = nullptr;
                     break;
                 }
             }
-            break;
-                
-        default:
-            break;
-        }
-    }
-
-    void PostStep(const Settings&, Drawer& drawer) override
-    {
-        drawer.DrawString(5, m_textLine, "This demonstrates a soft distance joint.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "Press: (b) to delete a body, (j) to delete a joint");
-        m_textLine += DRAW_STRING_NEW_LINE;
+        });
     }
 
     void JointDestroyed(Joint* joint) override
@@ -201,6 +190,6 @@ public:
     Joint* m_joints[8];
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

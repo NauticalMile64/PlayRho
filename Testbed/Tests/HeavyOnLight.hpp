@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class HeavyOnLight : public Test
 {
@@ -30,77 +30,69 @@ public:
     
     HeavyOnLight()
     {
-        const auto bd = BodyDef{}.UseType(BodyType::Dynamic);
-        const auto upperBodyDef = BodyDef(bd).UseLocation(Vec2(0.0f, 6.0f) * Meter);
-        const auto lowerBodyDef = BodyDef(bd).UseLocation(Vec2(0.0f, 0.5f) * Meter);
+        const auto bd = BodyConf{}.UseType(BodyType::Dynamic).UseLinearAcceleration(m_gravity);
+        const auto upperBodyConf = BodyConf(bd).UseLocation(Vec2(0.0f, 6.0f) * 1_m);
+        const auto lowerBodyConf = BodyConf(bd).UseLocation(Vec2(0.0f, 0.5f) * 1_m);
         
-        const auto groundConf = EdgeShape::Conf{}
-            .UseVertex1(Vec2(-40.0f, 0.0f) * Meter)
-            .UseVertex2(Vec2(40.0f, 0.0f) * Meter);
+        const auto groundConf = EdgeShapeConf{}
+            .Set(Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m);
         
-        const auto diskConf = DiskShape::Conf{}.UseDensity(Real(10) * KilogramPerSquareMeter);
-        const auto smallerDiskConf = DiskShape::Conf(diskConf).UseVertexRadius(Real{0.5f} * Meter);
-        const auto biggerDiskConf = DiskShape::Conf(diskConf).UseVertexRadius(Real{5.0f} * Meter);
+        const auto diskConf = DiskShapeConf{}.UseDensity(10_kgpm2);
+        const auto smallerDiskConf = DiskShapeConf(diskConf).UseRadius(0.5_m);
+        const auto biggerDiskConf = DiskShapeConf(diskConf).UseRadius(5_m);
 
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(groundConf));
+        m_world.CreateBody()->CreateFixture(Shape(groundConf));
         
-        const auto lowerBody = m_world->CreateBody(lowerBodyDef);
-        const auto upperBody = m_world->CreateBody(upperBodyDef);
+        const auto lowerBody = m_world.CreateBody(lowerBodyConf);
+        const auto upperBody = m_world.CreateBody(upperBodyConf);
 
-        lowerBody->CreateFixture(std::make_shared<DiskShape>(smallerDiskConf));
-        m_top = upperBody->CreateFixture(std::make_shared<DiskShape>(biggerDiskConf));
+        lowerBody->CreateFixture(Shape(smallerDiskConf));
+        m_top = upperBody->CreateFixture(Shape(biggerDiskConf));
+        
+        RegisterForKey(GLFW_KEY_KP_ADD, GLFW_PRESS, 0, "increase density of top shape", [&](KeyActionMods) {
+            ChangeDensity(+1_kgpm2);
+        });
+        RegisterForKey(GLFW_KEY_KP_SUBTRACT, GLFW_PRESS, 0, "decrease density of top shape", [&](KeyActionMods) {
+            ChangeDensity(-1_kgpm2);
+        });
     }
 
-    void ChangeDensity(Density change)
+    void ChangeDensity(AreaDensity change)
     {
-        const auto oldDensity = m_top->GetShape()->GetDensity();
-        const auto newDensity = std::max(oldDensity + change, KilogramPerSquareMeter);
+        const auto oldDensity = m_top->GetDensity();
+        const auto newDensity = std::max(oldDensity + change, 1_kgpm2);
         if (newDensity != oldDensity)
         {
             auto selectedFixtures = GetSelectedFixtures();
-            const auto selectedFixture = selectedFixtures.size() == 1? selectedFixtures[0]: nullptr;
+            const auto selectedFixture = selectedFixtures.size() == 1? *(selectedFixtures.begin()): nullptr;
             const auto wasSelected = selectedFixture == m_top;
             const auto body = m_top->GetBody();
             body->DestroyFixture(m_top);
-            auto conf = DiskShape::Conf{};
-            conf.vertexRadius = Real{5.0f} * Meter;
+            auto conf = DiskShapeConf{};
+            conf.vertexRadius = 5_m;
             conf.density = newDensity;
-            m_top = body->CreateFixture(std::make_shared<DiskShape>(conf));
+            m_top = body->CreateFixture(Shape(conf));
             if (wasSelected)
             {
-                selectedFixtures[0] = m_top;
+                selectedFixtures.erase(selectedFixtures.begin());
+                selectedFixtures.insert(m_top);
                 SetSelectedFixtures(selectedFixtures);
             }
         }
     }
 
-    void KeyboardDown(Key key) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        switch (key)
-        {
-            case Key_Add:
-                ChangeDensity(+KilogramPerSquareMeter);
-                break;
-            case Key_Subtract:
-                ChangeDensity(-KilogramPerSquareMeter);
-                break;
-            default:
-                break;
-        }
-    }
-
-    void PostStep(const Settings&, Drawer& drawer) override
-    {
-        drawer.DrawString(5, m_textLine,
-                          "Press '+'/'-' to increase/decrease density of top shape (%f kg/m^2)",
-                          double(Real{m_top->GetShape()->GetDensity() / KilogramPerSquareMeter}));
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "Area density of top shape: ";
+        stream << double(Real{m_top->GetDensity() / 1_kgpm2});
+        stream << " kg/m^2.";
+        m_status = stream.str();
     }
 
     Fixture* m_top = nullptr;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

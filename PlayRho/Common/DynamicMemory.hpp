@@ -22,6 +22,7 @@
 #ifndef PLAYRHO_COMMON_DYNAMICMEMORY_HPP
 #define PLAYRHO_COMMON_DYNAMICMEMORY_HPP
 
+#include <PlayRho/Defines.hpp>
 #include <cstddef>
 
 namespace playrho
@@ -51,7 +52,7 @@ namespace playrho
     }
     
     /// @brief Frees memory.
-    /// @note If you implement Alloc, you should also implement this function.
+    /// @note If you implement <code>Alloc</code>, you should also implement this function.
     void Free(void* mem);
 
 } // namespace playrho

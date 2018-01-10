@@ -21,46 +21,47 @@
 #include <PlayRho/Dynamics/Contacts/PositionConstraint.hpp>
 #include <PlayRho/Dynamics/Contacts/VelocityConstraint.hpp>
 #include <PlayRho/Dynamics/Contacts/BodyConstraint.hpp>
-#include <PlayRho/Collision/Shapes/PolygonShape.hpp>
+#include <PlayRho/Collision/Shapes/PolygonShapeConf.hpp>
 #include <PlayRho/Collision/Manifold.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
-static constexpr auto Baumgarte = Real{2} / Real{10};
+static PLAYRHO_CONSTEXPR const auto Baumgarte = Real{2} / Real{10};
 
 TEST(ContactSolver, SolvePosConstraintsForHorTouchingDoesntMove)
 {
-    const auto old_pA = Position{Vec2{-2, 0} * (Real(1) * Meter), Angle{0}};
-    const auto old_pB = Position{Vec2{+2, 0} * (Real(1) * Meter), Angle{0}};
-    const auto old_vA = Velocity{LinearVelocity2D{}, Angle{0} / Second};
-    const auto old_vB = Velocity{LinearVelocity2D{}, Angle{0} / Second};
+    const auto old_pA = Position{Vec2{-2, 0} * Meter, 0_deg};
+    const auto old_pB = Position{Vec2{+2, 0} * Meter, 0_deg};
+    const auto old_vA = Velocity{LinearVelocity2{}, 0_deg / 1_s};
+    const auto old_vB = Velocity{LinearVelocity2{}, 0_deg / 1_s};
 
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{old_pA.linear, UnitVec2::Get(old_pA.angular)};
-    const auto xfmB = Transformation{old_pB.linear, UnitVec2::Get(old_pB.angular)};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{old_pA.linear, UnitVec::Get(old_pA.angular)};
+    const auto xfmB = Transformation{old_pB.linear, UnitVec::Get(old_pB.angular)};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_EQ(manifold.GetPointCount(), 2);
 
-    const auto lcA = Length2D{};
-    const auto lcB = Length2D{};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA}
     ;
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
-    const auto pc = PositionConstraint{manifold, bA, Real{0} * Meter, bB, Real{0} * Meter};
+    const auto pc = PositionConstraint{manifold, bA, 0_m, bB, 0_m};
     
     const auto conf = ConstraintSolverConf{};
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
     
-    EXPECT_EQ(solution.min_separation, Length{0});
+    EXPECT_EQ(solution.min_separation, 0_m);
     
     EXPECT_EQ(GetX(old_pA.linear), GetX(solution.pos_a.linear));
     EXPECT_EQ(GetY(old_pA.linear), GetY(solution.pos_a.linear));
@@ -73,29 +74,29 @@ TEST(ContactSolver, SolvePosConstraintsForHorTouchingDoesntMove)
 
 TEST(ContactSolver, SolvePosConstraintsForVerTouchingDoesntMove)
 {
-    const auto old_pA = Position{Vec2{0, -2} * (Real(1) * Meter), Angle{0}};
-    const auto old_pB = Position{Vec2{0, +2} * (Real(1) * Meter), Angle{0}};
+    const auto old_pA = Position{Vec2{0, -2} * Meter, 0_deg};
+    const auto old_pB = Position{Vec2{0, +2} * Meter, 0_deg};
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
     
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{old_pA.linear, UnitVec2::Get(old_pA.angular)};
-    const auto xfmB = Transformation{old_pB.linear, UnitVec2::Get(old_pB.angular)};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{old_pA.linear, UnitVec::Get(old_pA.angular)};
+    const auto xfmB = Transformation{old_pB.linear, UnitVec::Get(old_pB.angular)};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_EQ(manifold.GetPointCount(), 2);
     
-    const auto lcA = Length2D{};
-    const auto lcB = Length2D{};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, 0, bB, 0};
@@ -103,7 +104,7 @@ TEST(ContactSolver, SolvePosConstraintsForVerTouchingDoesntMove)
     const auto conf = ConstraintSolverConf{};
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
     
-    EXPECT_EQ(solution.min_separation, Length{0});
+    EXPECT_EQ(solution.min_separation, 0_m);
     
     EXPECT_EQ(GetX(old_pA.linear), GetX(solution.pos_a.linear));
     EXPECT_EQ(GetY(old_pA.linear), GetY(solution.pos_a.linear));
@@ -116,28 +117,28 @@ TEST(ContactSolver, SolvePosConstraintsForVerTouchingDoesntMove)
 
 TEST(ContactSolver, SolvePosConstraintsForOverlappingZeroRateDoesntMove)
 {
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{Length2D{}, UnitVec2::GetRight()};
-    const auto xfmB = Transformation{Length2D{}, UnitVec2::GetRight()};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{Length2{}, UnitVec::GetRight()};
+    const auto xfmB = Transformation{Length2{}, UnitVec::GetRight()};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_EQ(manifold.GetPointCount(), 2);
     
-    const auto lcA = Vec2{} * (Real(1) * Meter);
-    const auto lcB = Vec2{} * (Real(1) * Meter);
-    const auto old_pA = Position{Length2D{}, Angle{0}};
-    const auto old_pB = Position{Length2D{}, Angle{0}};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
+    const auto old_pA = Position{Length2{}, 0_deg};
+    const auto old_pB = Position{Length2{}, 0_deg};
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, 0, bB, 0};
@@ -147,7 +148,7 @@ TEST(ContactSolver, SolvePosConstraintsForOverlappingZeroRateDoesntMove)
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
 
     EXPECT_NEAR(static_cast<double>(Real{solution.min_separation / Meter}),
-                static_cast<double>(Real{-2} * dim / Meter),
+                static_cast<double>(Real{-2 * dim / Meter}),
                 0.0001);
     
     EXPECT_EQ(GetX(old_pA.linear), GetX(solution.pos_a.linear));
@@ -164,35 +165,35 @@ TEST(ContactSolver, SolvePosConstraintsForHorOverlappingMovesHorOnly1)
     const auto ctr_x = Real(100);
     
     // square A is left of square B
-    const auto old_pA = Position{Vec2{ctr_x - 1, 0} * (Real(1) * Meter), Angle{0}};
-    const auto old_pB = Position{Vec2{ctr_x + 1, 0} * (Real(1) * Meter), Angle{0}};
+    const auto old_pA = Position{Vec2{ctr_x - 1, 0} * Meter, 0_deg};
+    const auto old_pB = Position{Vec2{ctr_x + 1, 0} * Meter, 0_deg};
 
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
     
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{old_pA.linear, UnitVec2::Get(old_pA.angular)};
-    const auto xfmB = Transformation{old_pB.linear, UnitVec2::Get(old_pB.angular)};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{old_pA.linear, UnitVec::Get(old_pA.angular)};
+    const auto xfmB = Transformation{old_pB.linear, UnitVec::Get(old_pB.angular)};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_NEAR(static_cast<double>(GetX(GetVec2(manifold.GetLocalNormal()))), +1.0, 0.00001);
     ASSERT_NEAR(static_cast<double>(GetY(GetVec2(manifold.GetLocalNormal()))), +0.0, 0.00001);
-    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(+2, 0) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(+2, 0) * Meter);
     ASSERT_EQ(manifold.GetPointCount(), 2);
-    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(-2, +2) * (Real(1) * Meter));
-    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(-2, -2) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(-2, +2) * Meter);
+    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(-2, -2) * Meter);
     
-    const auto lcA = Length2D{};
-    const auto lcB = Length2D{};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, 0, bB, 0};
@@ -201,7 +202,7 @@ TEST(ContactSolver, SolvePosConstraintsForHorOverlappingMovesHorOnly1)
     const auto conf = ConstraintSolverConf{}.UseResolutionRate(Baumgarte).UseMaxLinearCorrection(maxLinearCorrection);
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
     
-    EXPECT_TRUE(AlmostEqual(solution.min_separation / Meter, Real(-2))); // -2.002398
+    EXPECT_TRUE(AlmostEqual(Real{solution.min_separation / Meter}, Real(-2))); // -2.002398
         
     // object a just moves left
     EXPECT_LT(GetX(solution.pos_a.linear), GetX(old_pA.linear));
@@ -219,34 +220,34 @@ TEST(ContactSolver, SolvePosConstraintsForHorOverlappingMovesHorOnly2)
     const auto ctr_x = Real(100);
     
     // square A is right of square B
-    const auto old_pA = Position{Vec2{ctr_x + 1, 0} * (Real(1) * Meter), Angle{0}};
-    const auto old_pB = Position{Vec2{ctr_x - 1, 0} * (Real(1) * Meter), Angle{0}};
+    const auto old_pA = Position{Vec2{ctr_x + 1, 0} * Meter, 0_deg};
+    const auto old_pB = Position{Vec2{ctr_x - 1, 0} * Meter, 0_deg};
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
 
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{old_pA.linear, UnitVec2::Get(old_pA.angular)};
-    const auto xfmB = Transformation{old_pB.linear, UnitVec2::Get(old_pB.angular)};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{old_pA.linear, UnitVec::Get(old_pA.angular)};
+    const auto xfmB = Transformation{old_pB.linear, UnitVec::Get(old_pB.angular)};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_NEAR(static_cast<double>(GetX(GetVec2(manifold.GetLocalNormal()))), -1.0, 0.00001);
     ASSERT_NEAR(static_cast<double>(GetY(GetVec2(manifold.GetLocalNormal()))), +0.0, 0.00001);
-    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(-2, 0) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(-2, 0) * Meter);
     ASSERT_EQ(manifold.GetPointCount(), 2);
-    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(+2, -2) * (Real(1) * Meter));
-    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(+2, +2) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(+2, -2) * Meter);
+    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(+2, +2) * Meter);
     
-    const auto lcA = Length2D{};
-    const auto lcB = Length2D{};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, 0, bB, 0};
@@ -255,7 +256,7 @@ TEST(ContactSolver, SolvePosConstraintsForHorOverlappingMovesHorOnly2)
     const auto conf = ConstraintSolverConf{}.UseResolutionRate(Baumgarte).UseMaxLinearCorrection(maxLinearCorrection);
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
     
-    EXPECT_TRUE(AlmostEqual(solution.min_separation / Meter, Real(-2))); // -2.002398
+    EXPECT_TRUE(AlmostEqual(Real{solution.min_separation / Meter}, Real(-2))); // -2.002398
     
     // square A just moves right
     EXPECT_GT(GetX(solution.pos_a.linear), GetX(old_pA.linear));
@@ -273,34 +274,34 @@ TEST(ContactSolver, SolvePosConstraintsForVerOverlappingMovesVerOnly1)
     const auto ctr_y = Real(100);
     
     // square A is below square B
-    const auto old_pA = Position{Vec2{0, ctr_y - 1} * (Real(1) * Meter), Angle{0}};
-    const auto old_pB = Position{Vec2{0, ctr_y + 1} * (Real(1) * Meter), Angle{0}};
+    const auto old_pA = Position{Vec2{0, ctr_y - 1} * Meter, 0_deg};
+    const auto old_pB = Position{Vec2{0, ctr_y + 1} * Meter, 0_deg};
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
 
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{old_pA.linear, UnitVec2::Get(old_pA.angular)};
-    const auto xfmB = Transformation{old_pB.linear, UnitVec2::Get(old_pB.angular)};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{old_pA.linear, UnitVec::Get(old_pA.angular)};
+    const auto xfmB = Transformation{old_pB.linear, UnitVec::Get(old_pB.angular)};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_NEAR(static_cast<double>(GetX(GetVec2(manifold.GetLocalNormal()))), +0.0, 0.00001);
     ASSERT_NEAR(static_cast<double>(GetY(GetVec2(manifold.GetLocalNormal()))), +1.0, 0.00001);
-    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(0, 2) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(0, 2) * Meter);
     ASSERT_EQ(manifold.GetPointCount(), 2);
-    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(-2, -2) * (Real(1) * Meter));
-    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(+2, -2) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(-2, -2) * Meter);
+    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(+2, -2) * Meter);
     
-    const auto lcA = Length2D{};
-    const auto lcB = Length2D{};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, 0, bB, 0};
@@ -309,7 +310,7 @@ TEST(ContactSolver, SolvePosConstraintsForVerOverlappingMovesVerOnly1)
     const auto conf = ConstraintSolverConf{}.UseResolutionRate(Baumgarte).UseMaxLinearCorrection(maxLinearCorrection);
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
     
-    EXPECT_TRUE(AlmostEqual(solution.min_separation / Meter, Real(-2))); // -2.002398
+    EXPECT_TRUE(AlmostEqual(Real{solution.min_separation / Meter}, Real(-2))); // -2.002398
     
     // object a just moves down only
     EXPECT_EQ(GetX(solution.pos_a.linear), GetX(old_pA.linear));
@@ -339,35 +340,35 @@ TEST(ContactSolver, SolvePosConstraintsForVerOverlappingMovesVerOnly2)
     const auto ctr_y = Real(100);
 
     // square A is above square B
-    const auto old_pA = Position{Vec2{0, ctr_y + 1} * (Real(1) * Meter), Angle{0}};
-    const auto old_pB = Position{Vec2{0, ctr_y - 1} * (Real(1) * Meter), Angle{0}};
+    const auto old_pA = Position{Vec2{0, ctr_y + 1} * Meter, 0_deg};
+    const auto old_pB = Position{Vec2{0, ctr_y - 1} * Meter, 0_deg};
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
 
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{old_pA.linear, UnitVec2::Get(old_pA.angular)};
-    const auto xfmB = Transformation{old_pB.linear, UnitVec2::Get(old_pB.angular)};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{old_pA.linear, UnitVec::Get(old_pA.angular)};
+    const auto xfmB = Transformation{old_pB.linear, UnitVec::Get(old_pB.angular)};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_NEAR(static_cast<double>(GetX(GetVec2(manifold.GetLocalNormal()))), +0.0, 0.00001);
     ASSERT_NEAR(static_cast<double>(GetY(GetVec2(manifold.GetLocalNormal()))), -1.0, 0.00001);
-    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(0, -2) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetLocalPoint(), Vec2(0, -2) * Meter);
     ASSERT_EQ(manifold.GetPointCount(), 2);
-    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(+2, +2) * (Real(1) * Meter));
-    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(-2, +2) * (Real(1) * Meter));
+    ASSERT_EQ(manifold.GetPoint(0).localPoint, Vec2(+2, +2) * Meter);
+    ASSERT_EQ(manifold.GetPoint(1).localPoint, Vec2(-2, +2) * Meter);
     
-    const auto lcA = Length2D{};
-    const auto lcB = Length2D{};
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, 0, bB, 0};
@@ -376,7 +377,7 @@ TEST(ContactSolver, SolvePosConstraintsForVerOverlappingMovesVerOnly2)
     const auto conf = ConstraintSolverConf{}.UseResolutionRate(Baumgarte).UseMaxLinearCorrection(maxLinearCorrection);
     const auto solution = GaussSeidel::SolvePositionConstraint(pc, true, true, conf);
     
-    EXPECT_TRUE(AlmostEqual(solution.min_separation / Meter, Real(-2))); // -2.002398
+    EXPECT_TRUE(AlmostEqual(Real{solution.min_separation / Meter}, Real(-2))); // -2.002398
     
     // square A just moves up only
     EXPECT_EQ(GetX(solution.pos_a.linear), GetX(old_pA.linear));
@@ -403,29 +404,29 @@ TEST(ContactSolver, SolvePosConstraintsForVerOverlappingMovesVerOnly2)
 
 TEST(ContactSolver, SolvePosConstraintsForPerfectlyOverlappingSquares)
 {
-    const auto dim = Real(2) * Meter;
-    const auto shape = PolygonShape(dim, dim);
-    const auto xfmA = Transformation{Length2D{}, UnitVec2::GetRight()};
-    const auto xfmB = Transformation{Length2D{}, UnitVec2::GetRight()};
-    const auto manifold = CollideShapes(shape.GetChild(0), xfmA, shape.GetChild(0), xfmB);
+    const auto dim = 2_m;
+    const auto shape = PolygonShapeConf(dim, dim);
+    const auto xfmA = Transformation{Length2{}, UnitVec::GetRight()};
+    const auto xfmB = Transformation{Length2{}, UnitVec::GetRight()};
+    const auto manifold = CollideShapes(GetChild(shape, 0), xfmA, GetChild(shape, 0), xfmB);
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     ASSERT_EQ(manifold.GetPointCount(), 2);
 
-    const auto old_pA = Position{Length2D{}, Angle{0}};
-    const auto old_pB = Position{Length2D{}, Angle{0}};
+    const auto old_pA = Position{Length2{}, 0_deg};
+    const auto old_pB = Position{Length2{}, 0_deg};
     const auto old_vA = Velocity{};
     const auto old_vB = Velocity{};
 
-    const auto lcA = Vec2{} * (Real(1) * Meter);
-    const auto lcB = Vec2{} * (Real(1) * Meter);
+    const auto lcA = Length2{};
+    const auto lcB = Length2{};
     auto bA = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcA, old_pA, old_vA
     };
     auto bB = BodyConstraint{
-        Real(1) / Kilogram,
-        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * Kilogram)},
+        Real(1) / 1_kg,
+        InvRotInertia{Real{1} * SquareRadian / (SquareMeter * 1_kg)},
         lcB, old_pB, old_vB
     };
     const auto pc = PositionConstraint{manifold, bA, GetVertexRadius(shape), bB, GetVertexRadius(shape)};
@@ -454,10 +455,10 @@ TEST(ContactSolver, SolveVelocityConstraint1)
     const auto inverse_mass = inverse_mass_a + inverse_mass_b;
 
     const auto linear_velocity = Vec2{1, 1};
-    const auto angular_velocity = Angle{0};
+    const auto angular_velocity = 0_deg;
 
-    const auto old_pA = Position{Vec2{0, 0}, Angle{0}};
-    const auto old_pB = Position{Vec2{0, 0}, Angle{0}};
+    const auto old_pA = Position{Vec2{0, 0}, 0_deg};
+    const auto old_pB = Position{Vec2{0, 0}, 0_deg};
     const auto vel_a = Velocity{linear_velocity, angular_velocity};
     const auto vel_b = Velocity{linear_velocity, angular_velocity};
     const auto lcA = Vec2{};
@@ -465,7 +466,7 @@ TEST(ContactSolver, SolveVelocityConstraint1)
 
     auto body_data_a = BodyConstraint{0, inverse_mass_a, 0, lcA, old_pA, vel_a};
     auto body_data_b = BodyConstraint{1, inverse_mass_b, 0, lcB, old_pB, vel_b};
-    const auto normal = UnitVec2::GetTop();
+    const auto normal = UnitVec::GetTop();
     const auto friction = Real(1);
     const auto restitution = Real(0.5f);
     const auto tangent_speed = Real(0);
@@ -517,10 +518,10 @@ TEST(ContactSolver, SolveVelocityConstraint1)
 TEST(ContactSolver, SolveVelocityConstraint2)
 {
     const auto linear_velocity = Vec2{1, 1};
-    const auto angular_velocity = Angle{0};
+    const auto angular_velocity = 0_deg;
     
-    const auto old_pA = Position{Vec2{0, 0}, Angle{0}};
-    const auto old_pB = Position{Vec2{0, 0}, Angle{0}};
+    const auto old_pA = Position{Vec2{0, 0}, 0_deg};
+    const auto old_pB = Position{Vec2{0, 0}, 0_deg};
     
     auto vel_a = Velocity{linear_velocity, angular_velocity};
     auto vel_b = Velocity{linear_velocity, angular_velocity};
@@ -533,7 +534,7 @@ TEST(ContactSolver, SolveVelocityConstraint2)
     const auto inverse_mass = inverse_mass_a + inverse_mass_b;
     auto body_data_a = BodyConstraint{0, inverse_mass_a, 0, lcA, old_pA, vel_a};
     auto body_data_b = BodyConstraint{1, inverse_mass_b, 0, lcB, old_pB, vel_b};
-    const auto normal = UnitVec2::GetTop();
+    const auto normal = UnitVec::GetTop();
     const auto friction = Real(1);
     const auto restitution = Real(0.5f);
     const auto tangent_speed = Real(0);

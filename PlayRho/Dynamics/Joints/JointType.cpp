@@ -23,6 +23,7 @@
 #include <PlayRho/Dynamics/Joints/TypeJointVisitor.hpp>
 
 namespace playrho {
+namespace d2 {
 
 JointType GetType(const Joint& joint) noexcept
 {
@@ -31,4 +32,26 @@ JointType GetType(const Joint& joint) noexcept
     return visitor.GetType().value_or(JointType::Unknown);
 }
 
+const char* ToString(JointType type) noexcept
+{
+    switch (type)
+    {
+        case JointType::Revolute: return "Revolute";
+        case JointType::Prismatic: return "Prismatic";
+        case JointType::Distance: return "Distance";
+        case JointType::Pulley: return "Pulley";
+        case JointType::Target: return "Target";
+        case JointType::Gear: return "Gear";
+        case JointType::Wheel: return "Wheel";
+        case JointType::Weld: return "Weld";
+        case JointType::Friction: return "Friction";
+        case JointType::Rope: return "Rope";
+        case JointType::Motor: return "Motor";
+        case JointType::Unknown: break;
+    }
+    assert(type == JointType::Unknown);
+    return "Unknown";
+}
+
+} // namespace d2
 } // namespace playrho

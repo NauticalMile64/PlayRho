@@ -22,117 +22,87 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class BodyTypes : public Test
 {
 public:
     BodyTypes()
     {
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-20.0f, 0.0f) * Meter, Vec2(20.0f, 0.0f) * Meter));
+        const auto ground = m_world.CreateBody();
+        ground->CreateFixture(Shape(EdgeShapeConf{}.Set(Vec2(-20, 0) * 1_m, Vec2(20, 0) * 1_m)));
+
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "Dynamic", [&](KeyActionMods) {
+            m_platform->SetType(BodyType::Dynamic);
+        });
+        RegisterForKey(GLFW_KEY_S, GLFW_PRESS, 0, "Static", [&](KeyActionMods) {
+            m_platform->SetType(BodyType::Static);
+        });
+        RegisterForKey(GLFW_KEY_K, GLFW_PRESS, 0, "Kinematic", [&](KeyActionMods) {
+            m_platform->SetType(BodyType::Kinematic);
+            m_platform->SetVelocity(Velocity{Vec2(-m_speed, 0) * 1_mps, 0_rpm});
+        });
 
         // Define attachment
         {
-            BodyDef bd;
-            bd.type = BodyType::Dynamic;
-            bd.position = Vec2(0.0f, 3.0f) * Meter;
-            m_attachment = m_world->CreateBody(bd);
-            auto conf = PolygonShape::Conf{};
-            conf.density = Real{2} * KilogramPerSquareMeter;
-            m_attachment->CreateFixture(std::make_shared<PolygonShape>(Real{0.5f} * Meter, Real{2.0f} * Meter, conf));
+            const auto bd = BodyConf{}.UseType(BodyType::Dynamic).UseLocation(Vec2(0, 3) * 1_m).UseLinearAcceleration(m_gravity);
+            m_attachment = m_world.CreateBody(bd);
+            const auto conf = PolygonShapeConf{}.UseDensity(2_kgpm2).SetAsBox(0.5_m, 2_m);
+            m_attachment->CreateFixture(Shape(conf));
         }
 
         // Define platform
         {
-            BodyDef bd;
-            bd.type = BodyType::Dynamic;
-            bd.position = Vec2(-4.0f, 5.0f) * Meter;
-            m_platform = m_world->CreateBody(bd);
+            const auto bd = BodyConf{}.UseType(BodyType::Dynamic).UseLocation(Vec2(-4, 5) * 1_m).UseLinearAcceleration(m_gravity);
+            m_platform = m_world.CreateBody(bd);
 
-            auto conf = PolygonShape::Conf{};
-            conf.friction = 0.6f;
-            conf.density = Real{2} * KilogramPerSquareMeter;
-            PolygonShape shape{conf};
-            SetAsBox(shape, Real{0.5f} * Meter, Real{4.0f} * Meter, Vec2(4.0f, 0.0f) * Meter, Real{0.5f} * Pi * Radian);
+            const auto conf = PolygonShapeConf{}.UseFriction(Real(0.6f)).UseDensity(2_kgpm2)
+                .SetAsBox(0.5_m, 4_m, Vec2(4, 0) * 1_m, Pi * 0.5_rad);
+            m_platform->CreateFixture(Shape{conf});
 
-            m_platform->CreateFixture(std::make_shared<PolygonShape>(shape));
-
-            RevoluteJointDef rjd(m_attachment, m_platform, Vec2(0.0f, 5.0f) * Meter);
-            rjd.maxMotorTorque = Torque{Real{50.0f} * NewtonMeter};
+            RevoluteJointConf rjd(m_attachment, m_platform, Vec2(0, 5) * 1_m);
+            rjd.maxMotorTorque = 50_Nm;
             rjd.enableMotor = true;
-            m_world->CreateJoint(rjd);
+            m_world.CreateJoint(rjd);
 
-            PrismaticJointDef pjd(ground, m_platform, Vec2(0.0f, 5.0f) * Meter, UnitVec2::GetRight());
-            pjd.maxMotorForce = Real{1000.0f} * Newton;
+            PrismaticJointConf pjd(ground, m_platform, Vec2(0, 5) * 1_m, UnitVec::GetRight());
+            pjd.maxMotorForce = 1000_N;
             pjd.enableMotor = true;
-            pjd.lowerTranslation = Real{-10.0f} * Meter;
-            pjd.upperTranslation = Real{10.0f} * Meter;
+            pjd.lowerTranslation = -10_m;
+            pjd.upperTranslation = 10_m;
             pjd.enableLimit = true;
-            m_world->CreateJoint(pjd);
+            m_world.CreateJoint(pjd);
 
             m_speed = 3.0f;
         }
 
         // Create a payload
         {
-            BodyDef bd;
-            bd.type = BodyType::Dynamic;
-            bd.position = Vec2(0.0f, 8.0f) * Meter;
-            Body* body = m_world->CreateBody(bd);
+            const auto bd = BodyConf{}.UseType(BodyType::Dynamic).UseLocation(Vec2(0, 8) * 1_m).UseLinearAcceleration(m_gravity);
+            const auto body = m_world.CreateBody(bd);
 
-            auto conf = PolygonShape::Conf{};
-            conf.friction = 0.6f;
-            conf.density = Real{2} * KilogramPerSquareMeter;
-
-            body->CreateFixture(std::make_shared<PolygonShape>(Real{0.75f} * Meter, Real{0.75f} * Meter, conf));
-        }
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_D:
-            m_platform->SetType(BodyType::Dynamic);
-            break;
-
-        case Key_S:
-            m_platform->SetType(BodyType::Static);
-            break;
-
-        case Key_K:
-            m_platform->SetType(BodyType::Kinematic);
-            m_platform->SetVelocity(Velocity{Vec2(-m_speed, 0.0f) * MeterPerSecond, AngularVelocity{0}});
-            break;
-    
-        default:
-            break;
+            const auto conf = PolygonShapeConf{}.UseFriction(Real(0.6f)).UseDensity(2_kgpm2).SetAsBox(0.75_m, 0.75_m);
+            body->CreateFixture(Shape(conf));
         }
     }
 
     void PreStep(const Settings&, Drawer&) override
-    {
+    {        
         // Drive the kinematic body.
         if (m_platform->GetType() == BodyType::Kinematic)
         {
             const auto p = m_platform->GetLocation();
             const auto velocity = m_platform->GetVelocity();
 
-            if ((GetX(p) < Real{-10.0f} * Meter && GetX(velocity.linear) < Real{0.0f} * MeterPerSecond) ||
-                (GetX(p) > Real{10.0f} * Meter && GetX(velocity.linear) > Real{0.0f} * MeterPerSecond))
+            if ((GetX(p) < -10_m && GetX(velocity.linear) < 0_mps) ||
+                (GetX(p) > +10_m && GetX(velocity.linear) > 0_mps))
             {
                 m_platform->SetVelocity(Velocity{
-                    {-GetX(velocity.linear), GetY(velocity.linear)}, velocity.angular
+                    LinearVelocity2{-GetX(velocity.linear), GetY(velocity.linear)},
+                    velocity.angular
                 });
             }
         }
-    }
-
-    void PostStep(const Settings&, Drawer& drawer) override
-    {
-        drawer.DrawString(5, m_textLine, "Keys: (d) dynamic, (s) static, (k) kinematic");
-        m_textLine += DRAW_STRING_NEW_LINE;
     }
 
     Body* m_attachment;
@@ -140,6 +110,6 @@ public:
     Real m_speed;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

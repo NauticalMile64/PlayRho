@@ -22,14 +22,21 @@
 #include <PlayRho/Collision/WorldManifold.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(VelocityConstraint, ByteSize)
 {
     switch (sizeof(Real))
     {
-        case  4: EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(152)); break;
-        case  8: EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(280)); break;
-        case 16: EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(544)); break;
+        case  4:
+#if defined(_WIN32) && !defined(_WIN64)
+            EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(128));
+#else
+            EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(136));
+#endif
+            break;
+        case  8: EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(256)); break;
+        case 16: EXPECT_EQ(sizeof(VelocityConstraint), std::size_t(496)); break;
         default: FAIL(); break;
     }
 }
@@ -74,7 +81,7 @@ TEST(VelocityConstraint, InitializingConstructor)
     
     auto bodyA = BodyConstraint{};
     auto bodyB = BodyConstraint{};
-    const auto normal = UnitVec2::GetTop();
+    const auto normal = UnitVec::GetTop();
 
     const VelocityConstraint vc{contact_index, friction, restitution, tangent_speed, bodyA, bodyB, normal};
 
@@ -95,7 +102,7 @@ TEST(VelocityConstraint, AddPoint)
 
     auto bodyA = BodyConstraint{};
     auto bodyB = BodyConstraint{};
-    const auto normal = UnitVec2::GetTop();
+    const auto normal = UnitVec::GetTop();
 
     VelocityConstraint vc{contact_index, friction, restitution, tangent_speed, bodyA, bodyB, normal};
 
@@ -109,8 +116,8 @@ TEST(VelocityConstraint, AddPoint)
     const auto ni = Real(1.2);
     const auto ti = Real(0.3);
     
-    const auto rA = Vec2{0, 0};
-    const auto rB = Vec2{0, 0};
+    const auto rA = Length2{};
+    const auto rB = Length2{};
     
     vc.AddPoint(ni, ti, rA, rB, VelocityConstraint::Conf{});
     EXPECT_EQ(vc.GetPointCount(), VelocityConstraint::size_type(1));

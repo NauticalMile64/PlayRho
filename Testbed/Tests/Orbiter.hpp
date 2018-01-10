@@ -21,7 +21,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
     
     class Orbiter: public Test
     {
@@ -29,42 +29,37 @@ namespace playrho {
         
         Orbiter()
         {
-            m_world->SetGravity(Vec2{0, 0} * MeterPerSquareSecond);
-
-            BodyDef bd;
+            m_gravity = LinearAcceleration2{};
+            
+            BodyConf bd;
             const auto radius = Real{12.0f};
 
             bd.type = BodyType::Static;
-            bd.position = m_center;
-            const auto ctrBody = m_world->CreateBody(bd);
-            const auto ctrShape = std::make_shared<DiskShape>();
-            ctrShape->SetRadius(Real{3} * Meter);
-            ctrBody->CreateFixture(ctrShape);
+            bd.location = m_center;
+            const auto ctrBody = m_world.CreateBody(bd);
+            ctrBody->CreateFixture(DiskShapeConf{}.UseRadius(3_m));
 
             bd.type = BodyType::Dynamic;
-            bd.position = Length2D{GetX(m_center), GetY(m_center) + radius * Meter};
-            m_orbiter = m_world->CreateBody(bd);
-            const auto ballShape = std::make_shared<DiskShape>();
-            ballShape->SetRadius(Real{0.5f} * Meter);
-            ballShape->SetDensity(Real(1) * KilogramPerSquareMeter);
-            m_orbiter->CreateFixture(ballShape);
+            bd.location = Length2{GetX(m_center), GetY(m_center) + radius * 1_m};
+            m_orbiter = m_world.CreateBody(bd);
+            m_orbiter->CreateFixture(DiskShapeConf{}.UseRadius(0.5_m).UseDensity(1_kgpm2));
             
             const auto velocity = Velocity{
-                Vec2{Pi * radius / Real{2}, 0} * MeterPerSecond,
-                Real{360.0f} * Degree / Second
+                Vec2{Pi * radius / 2, 0} * 1_mps,
+                360_deg / 1_s
             };
             m_orbiter->SetVelocity(velocity);
             
-            auto conf = ChainShape::Conf{};
-            conf.vertices = GetCircleVertices(Real(20.0f) * Meter, 180);
-            conf.UseVertexRadius(Real(0.1) * Meter);
-            conf.UseDensity(Real(1) * KilogramPerSquareMeter);
-            const auto outerCicle = std::make_shared<ChainShape>(conf);
+            auto conf = ChainShapeConf{};
+            conf.Set(GetCircleVertices(20_m, 180));
+            conf.UseVertexRadius(0.1_m);
+            conf.UseDensity(1_kgpm2);
+            const auto outerCicle = Shape(conf);
 
             bd.type = BodyType::Dynamic;
-            bd.position = m_center;
+            bd.location = m_center;
             bd.bullet = true;
-            const auto dysonSphere = m_world->CreateBody(bd);
+            const auto dysonSphere = m_world.CreateBody(bd);
             dysonSphere->CreateFixture(outerCicle);
         }
         
@@ -72,13 +67,13 @@ namespace playrho {
         {
             const auto force = GetCentripetalForce(*m_orbiter, m_center);
             const auto linAccel = force * m_orbiter->GetInvMass();
-            const auto angAccel = Real{0.0f} * RadianPerSquareSecond;
+            const auto angAccel = 0 * RadianPerSquareSecond;
             m_orbiter->SetAcceleration(linAccel, angAccel);
         }
         
     private:
         Body* m_orbiter = nullptr;
-        Length2D const m_center = Vec2{0, 20} * Meter;
+        Length2 const m_center = Vec2{0, 20} * 1_m;
 
     };
     

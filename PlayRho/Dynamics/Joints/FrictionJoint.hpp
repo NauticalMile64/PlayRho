@@ -23,14 +23,15 @@
 #define PLAYRHO_DYNAMICS_JOINTS_FRICTIONJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/FrictionJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/FrictionJointConf.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Friction joint.
 ///
-/// @details This is used for top-down friction. It provides 2D translational friction
+/// @details This is used for top-down friction. It provides 2-D translational friction
 ///   and angular friction.
 ///
 /// @ingroup JointsGroup
@@ -40,21 +41,22 @@ class FrictionJoint : public Joint
 public:
     
     /// @brief Initializing constructor.
-    FrictionJoint(const FrictionJointDef& def);
+    FrictionJoint(const FrictionJointConf& def);
 
     void Accept(JointVisitor& visitor) const override;
+    void Accept(JointVisitor& visitor) override;
 
-    Length2D GetAnchorA() const override;
-    Length2D GetAnchorB() const override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
 
-    Momentum2D GetLinearReaction() const override;
+    Momentum2 GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// The local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const { return m_localAnchorA; }
+    /// The local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const { return m_localAnchorA; }
 
-    /// The local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const  { return m_localAnchorB; }
+    /// The local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const  { return m_localAnchorB; }
 
     /// Set the maximum friction force in N.
     void SetMaxForce(NonNegative<Force> force);
@@ -70,24 +72,26 @@ public:
 
 private:
 
-    void InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step, const ConstraintSolverConf& conf) override;
+    void InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step,
+                                 const ConstraintSolverConf& conf) override;
     bool SolveVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step) override;
-    bool SolvePositionConstraints(BodyConstraintsMap& bodies, const ConstraintSolverConf& conf) const override;
+    bool SolvePositionConstraints(BodyConstraintsMap& bodies,
+                                  const ConstraintSolverConf& conf) const override;
 
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    NonNegative<Force> m_maxForce = NonNegative<Force>{0};
-    NonNegative<Torque> m_maxTorque = NonNegative<Torque>{0};
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    NonNegative<Force> m_maxForce = NonNegative<Force>{0}; ///< Max force.
+    NonNegative<Torque> m_maxTorque = NonNegative<Torque>{0}; ///< Max torque.
 
     // Solver shared data - data saved & updated over multiple InitVelocityConstraints calls.
-    Momentum2D m_linearImpulse = Momentum2D{};
-    AngularMomentum m_angularImpulse = AngularMomentum{0};
+    Momentum2 m_linearImpulse = Momentum2{}; ///< Linear impulse.
+    AngularMomentum m_angularImpulse = AngularMomentum{0}; ///< Angular impulse.
 
     // Solver temp
-    Length2D m_rA;
-    Length2D m_rB;
+    Length2 m_rA; ///< Relative A.
+    Length2 m_rB; ///< Relative B.
     Mass22 m_linearMass; ///< 2x2 linear mass matrix in kilograms.
-    RotInertia m_angularMass;
+    RotInertia m_angularMass; ///< Angular mass.
 };
 
 inline void FrictionJoint::SetMaxForce(NonNegative<Force> force)
@@ -110,6 +114,7 @@ inline NonNegative<Torque> FrictionJoint::GetMaxTorque() const
     return m_maxTorque;
 }
 
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_FRICTIONJOINT_HPP

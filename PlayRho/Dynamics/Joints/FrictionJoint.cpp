@@ -26,6 +26,7 @@
 #include <PlayRho/Dynamics/Contacts/BodyConstraint.hpp>
 
 namespace playrho {
+namespace d2 {
 
 // Point-to-point constraint
 // Cdot = v2 - v1
@@ -39,7 +40,7 @@ namespace playrho {
 // J = [0 0 -1 0 0 1]
 // K = invI1 + invI2
 
-FrictionJoint::FrictionJoint(const FrictionJointDef& def):
+FrictionJoint::FrictionJoint(const FrictionJointConf& def):
     Joint(def),
     m_localAnchorA(def.localAnchorA),
     m_localAnchorB(def.localAnchorB),
@@ -50,6 +51,11 @@ FrictionJoint::FrictionJoint(const FrictionJointDef& def):
 }
 
 void FrictionJoint::Accept(JointVisitor& visitor) const
+{
+    visitor.Visit(*this);
+}
+
+void FrictionJoint::Accept(JointVisitor& visitor)
 {
     visitor.Visit(*this);
 }
@@ -65,8 +71,8 @@ void FrictionJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const St
     auto velB = bodyConstraintB->GetVelocity();
 
     // Compute the effective mass matrix.
-    m_rA = Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), UnitVec2::Get(posA.angular));
-    m_rB = Rotate(m_localAnchorB - bodyConstraintB->GetLocalCenter(), UnitVec2::Get(posB.angular));
+    m_rA = Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), UnitVec::Get(posA.angular));
+    m_rB = Rotate(m_localAnchorB - bodyConstraintB->GetLocalCenter(), UnitVec::Get(posB.angular));
 
     // J = [-I -r1_skew I r2_skew]
     //     [ 0       -1 0       1]
@@ -124,7 +130,7 @@ void FrictionJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const St
     }
     else
     {
-        m_linearImpulse = Momentum2D{};
+        m_linearImpulse = Momentum2{};
         m_angularImpulse = AngularMomentum{0};
     }
 
@@ -169,8 +175,8 @@ bool FrictionJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const S
 
     // Solve linear friction
     {
-        const auto vb = LinearVelocity2D{velB.linear + (GetRevPerpendicular(m_rB) * (velB.angular / Radian))};
-        const auto va = LinearVelocity2D{velA.linear + (GetRevPerpendicular(m_rA) * (velA.angular / Radian))};
+        const auto vb = LinearVelocity2{velB.linear + (GetRevPerpendicular(m_rB) * (velB.angular / Radian))};
+        const auto va = LinearVelocity2{velA.linear + (GetRevPerpendicular(m_rA) * (velA.angular / Radian))};
 
         const auto impulse = -Transform(vb - va, m_linearMass);
         const auto oldImpulse = m_linearImpulse;
@@ -178,16 +184,16 @@ bool FrictionJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const S
 
         const auto maxImpulse = h * m_maxForce;
 
-        if (GetLengthSquared(m_linearImpulse) > Square(maxImpulse))
+        if (GetMagnitudeSquared(m_linearImpulse) > Square(maxImpulse))
         {
-            m_linearImpulse = GetUnitVector(m_linearImpulse, UnitVec2::GetZero()) * maxImpulse;
+            m_linearImpulse = GetUnitVector(m_linearImpulse, UnitVec::GetZero()) * maxImpulse;
         }
 
-        const auto incImpulse = Momentum2D{m_linearImpulse - oldImpulse};
+        const auto incImpulse = Momentum2{m_linearImpulse - oldImpulse};
         const auto angImpulseA = AngularMomentum{Cross(m_rA, incImpulse) / Radian};
         const auto angImpulseB = AngularMomentum{Cross(m_rB, incImpulse) / Radian};
 
-        if (incImpulse != Momentum2D{})
+        if (incImpulse != Momentum2{})
         {
             solved = false;
         }
@@ -202,25 +208,22 @@ bool FrictionJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const S
     return solved;
 }
 
-bool FrictionJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const ConstraintSolverConf& conf) const
+bool FrictionJoint::SolvePositionConstraints(BodyConstraintsMap&, const ConstraintSolverConf&) const
 {
-    NOT_USED(bodies);
-    NOT_USED(conf);
-
     return true;
 }
 
-Length2D FrictionJoint::GetAnchorA() const
+Length2 FrictionJoint::GetAnchorA() const
 {
     return GetWorldPoint(*GetBodyA(), GetLocalAnchorA());
 }
 
-Length2D FrictionJoint::GetAnchorB() const
+Length2 FrictionJoint::GetAnchorB() const
 {
     return GetWorldPoint(*GetBodyB(), GetLocalAnchorB());
 }
 
-Momentum2D FrictionJoint::GetLinearReaction() const
+Momentum2 FrictionJoint::GetLinearReaction() const
 {
     return m_linearImpulse;
 }
@@ -230,4 +233,5 @@ AngularMomentum FrictionJoint::GetAngularReaction() const
     return m_angularImpulse;
 }
 
+} // namespace d2
 } // namespace playrho

@@ -18,42 +18,88 @@
 
 #include "gtest/gtest.h"
 #include <PlayRho/Dynamics/Body.hpp>
-#include <PlayRho/Dynamics/BodyDef.hpp>
+#include <PlayRho/Dynamics/BodyConf.hpp>
 #include <PlayRho/Dynamics/World.hpp>
+#include <PlayRho/Dynamics/StepConf.hpp>
 #include <PlayRho/Dynamics/Fixture.hpp>
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Collision/Shapes/DiskShape.hpp>
+#include <PlayRho/Collision/Shapes/DiskShapeConf.hpp>
 
 #include <chrono>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(Body, ContactsByteSize)
 {
-    // Size is C++ library dependent.
-    // Some platforms it's 24-bytes. Others 16.
-    EXPECT_TRUE(sizeof(Body::Contacts) == std::size_t(24)
-                || sizeof(Body::Contacts) == std::size_t(16));
+#if defined(__APPLE__)
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(24));
+#elif defined(__linux__)
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(24));
+#elif defined(_WIN64)
+#if !defined(NDEBUG)
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(32));
+#else
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(24));
+#endif
+#elif defined(_WIN32)
+#if !defined(NDEBUG)
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(16));
+#else
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(12));
+#endif
+#else
+    // Intentionally fail for unknown platform...
+    EXPECT_EQ(sizeof(Body::Contacts), std::size_t(0));
+#endif
 }
 
 TEST(Body, JointsByteSize)
 {
-    // Size is arch, os, or library dependent.
 #ifdef __APPLE__
     EXPECT_EQ(sizeof(Body::Joints), std::size_t(24));
-#endif
-#ifdef __linux__
+#elif __linux__
     EXPECT_EQ(sizeof(Body::Joints), std::size_t(24));
+#elif _WIN64
+#if defined(NDEBUG)
+    EXPECT_EQ(sizeof(Body::Joints), std::size_t(24));
+#else
+    EXPECT_EQ(sizeof(Body::Joints), std::size_t(32));
+#endif
+#elif _WIN32
+#if defined(NDEBUG)
+    EXPECT_EQ(sizeof(Body::Joints), std::size_t(12));
+#else
+    EXPECT_EQ(sizeof(Body::Joints), std::size_t(16));
+#endif
+#else // !__APPLE__ && !__linux__ && !_WIN64 && !_WIN32
+    // Intentionally fail for unknown platform...
+    EXPECT_EQ(sizeof(Body::Joints), std::size_t(0));
 #endif
 }
 
 TEST(Body, FixturesByteSize)
 {
     // Size is arch, os, or library dependent.
-#ifdef __linux__
+#ifdef __APPLE__
     EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(24));
+#elif __linux__
+    EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(24));
+#elif _WIN64
+#if !defined(NDEBUG)
+    EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(32));
 #else
     EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(24));
+#endif
+#elif _WIN32
+#if !defined(NDEBUG)
+    EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(16));
+#else
+    EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(12));
+#endif
+#else
+    // Intentionally fail for unknown platform...
+    EXPECT_EQ(sizeof(Body::Fixtures), std::size_t(0));
 #endif
 }
 
@@ -64,14 +110,46 @@ TEST(Body, ByteSize)
     const auto fixturesSize = sizeof(Body::Fixtures);
     const auto allSize = contactsSize + jointsSize + fixturesSize;
 
+#if defined(_WIN64)
+#if !defined(NDEBUG)
+    EXPECT_EQ(allSize, std::size_t(96));
+#else
     EXPECT_EQ(allSize, std::size_t(72));
+#endif
+#elif defined(_WIN32)
+#if !defined(NDEBUG)
+    EXPECT_EQ(allSize, std::size_t(48));
+#else
+    EXPECT_EQ(allSize, std::size_t(36));
+#endif
+#else
+    EXPECT_EQ(allSize, std::size_t(72));
+#endif
 
     // architecture dependent...
     switch (sizeof(Real))
     {
-        case  4: EXPECT_EQ(sizeof(Body), std::size_t(120 + allSize)); break;
-        case  8: EXPECT_EQ(sizeof(Body), std::size_t(216 + allSize)); break;
-        case 16: EXPECT_EQ(sizeof(Body), std::size_t(496)); break;
+        case  4:
+#if defined(_WIN64)
+            EXPECT_EQ(sizeof(Body), std::size_t(192));
+#elif defined(_WIN32)
+#if !defined(NDEBUG)
+            // Win32 debug
+            EXPECT_EQ(sizeof(Body), std::size_t(192));
+#else
+            // Win32 release
+            EXPECT_EQ(sizeof(Body), std::size_t(144));
+#endif
+#else
+            EXPECT_EQ(sizeof(Body), std::size_t(192));
+#endif
+            break;
+        case  8:
+            EXPECT_EQ(sizeof(Body), std::size_t(288));
+            break;
+        case 16:
+            EXPECT_EQ(sizeof(Body), std::size_t(496));
+            break;
         default: FAIL(); break;
     }
 }
@@ -101,8 +179,8 @@ TEST(Body, Traits)
 
 TEST(Body, GetFlagsStatic)
 {
-    EXPECT_TRUE(Body::GetFlags(BodyDef{}.UseFixedRotation(true)) & Body::e_fixedRotationFlag);
-    EXPECT_TRUE(Body::GetFlags(BodyDef{}
+    EXPECT_TRUE(Body::GetFlags(BodyConf{}.UseFixedRotation(true)) & Body::e_fixedRotationFlag);
+    EXPECT_TRUE(Body::GetFlags(BodyConf{}
                                .UseAwake(false)
                                .UseAllowSleep(false)
                                .UseType(BodyType::Dynamic)) & Body::e_awakeFlag);
@@ -161,7 +239,7 @@ TEST(Body, WorldCreated)
 TEST(Body, SetVelocityDoesNothingToStatic)
 {
     const auto zeroVelocity = Velocity{
-        LinearVelocity2D{Real(0) * MeterPerSecond, Real(0) * MeterPerSecond},
+        LinearVelocity2{0_mps, 0_mps},
         AngularVelocity{Real(0) * RadianPerSecond}
     };
 
@@ -175,7 +253,7 @@ TEST(Body, SetVelocityDoesNothingToStatic)
     ASSERT_EQ(body->GetVelocity(), zeroVelocity);
     
     const auto velocity = Velocity{
-        LinearVelocity2D{Real(1.1) * MeterPerSecond, Real(1.1) * MeterPerSecond},
+        LinearVelocity2{1.1_mps, 1.1_mps},
         AngularVelocity{Real(1.1) * RadianPerSecond}
     };
     body->SetVelocity(velocity);
@@ -189,34 +267,77 @@ TEST(Body, CreateFixture)
     const auto body = world.CreateBody();
     EXPECT_EQ(GetFixtureCount(*body), std::size_t(0));
 
-    const auto valid_shape = std::make_shared<DiskShape>(Real{1} * Meter);
-    EXPECT_NE(body->CreateFixture(valid_shape, FixtureDef{}), nullptr);
+    const auto valid_shape = DiskShapeConf(1_m);
+    EXPECT_NE(body->CreateFixture(valid_shape, FixtureConf{}), nullptr);
 
     EXPECT_EQ(GetFixtureCount(*body), std::size_t(1));
 }
 
-TEST(Body, SetEnabled)
+TEST(Body, DestroyFixture)
 {
     World world;
+    const auto bodyA = world.CreateBody();
+    const auto bodyB = world.CreateBody();
+    ASSERT_EQ(GetFixtureCount(*bodyA), std::size_t(0));
+    ASSERT_EQ(GetFixtureCount(*bodyB), std::size_t(0));
+
+    const auto fixtureA = bodyA->CreateFixture(DiskShapeConf(1_m), FixtureConf{});
+    ASSERT_NE(fixtureA, nullptr);
+    ASSERT_EQ(GetFixtureCount(*bodyA), std::size_t(1));
+
+    EXPECT_FALSE(bodyB->DestroyFixture(fixtureA));
+    EXPECT_EQ(GetFixtureCount(*bodyA), std::size_t(1));
+    EXPECT_TRUE(bodyA->DestroyFixture(fixtureA));
+    EXPECT_EQ(GetFixtureCount(*bodyA), std::size_t(0));
+}
+
+TEST(Body, SetEnabled)
+{
+    auto stepConf = StepConf{};
+    World world;
     const auto body = world.CreateBody();
-    const auto valid_shape = std::make_shared<DiskShape>(Real{1} * Meter);
-    ASSERT_NE(body->CreateFixture(valid_shape, FixtureDef{}), nullptr);
-    
-    EXPECT_TRUE(body->IsEnabled());
-    body->SetEnabled(false);
-    EXPECT_FALSE(body->IsEnabled());
+    const auto valid_shape = DiskShapeConf(1_m);
+
+    const auto fixture = body->CreateFixture(valid_shape, FixtureConf{});
+    ASSERT_NE(fixture, nullptr);
+    ASSERT_TRUE(body->IsEnabled());
+    ASSERT_EQ(fixture->GetProxyCount(), 0u);
+
+    world.Step(stepConf);
+    EXPECT_EQ(fixture->GetProxyCount(), 1u);
+
+    // Test that set enabled to flag already set is not a toggle
     body->SetEnabled(true);
     EXPECT_TRUE(body->IsEnabled());
+    EXPECT_EQ(fixture->GetProxyCount(), 1u);
+
+    body->SetEnabled(false);
+    EXPECT_FALSE(body->IsEnabled());
+    EXPECT_EQ(fixture->GetProxyCount(), 1u);
+
+    world.Step(stepConf);
+    EXPECT_EQ(fixture->GetProxyCount(), 0u);
+    
+    body->SetEnabled(true);
+    EXPECT_TRUE(body->IsEnabled());
+
+    world.Step(stepConf);
+    EXPECT_EQ(fixture->GetProxyCount(), 1u);
 }
 
 TEST(Body, SetFixedRotation)
 {
     World world;
     const auto body = world.CreateBody();
-    const auto valid_shape = std::make_shared<DiskShape>(Real{1} * Meter);
-    ASSERT_NE(body->CreateFixture(valid_shape, FixtureDef{}), nullptr);
-    
+    const auto valid_shape = DiskShapeConf(1_m);
+
+    ASSERT_NE(body->CreateFixture(valid_shape, FixtureConf{}), nullptr);
+    ASSERT_FALSE(body->IsFixedRotation());
+
+    // Test that set fixed rotation to flag already set is not a toggle
+    body->SetFixedRotation(false);
     EXPECT_FALSE(body->IsFixedRotation());
+
     body->SetFixedRotation(true);
     EXPECT_TRUE(body->IsFixedRotation());
     body->SetFixedRotation(false);
@@ -232,19 +353,17 @@ TEST(Body, CreateAndDestroyFixture)
     EXPECT_TRUE(body->GetFixtures().empty());
     EXPECT_FALSE(body->IsMassDataDirty());
 
-    auto conf = DiskShape::Conf{};
-    conf.vertexRadius = Real{2.871f} * Meter;
-    conf.location = Vec2{1.912f, -77.31f} * (Real(1) * Meter);
-    conf.density = Real{1} * KilogramPerSquareMeter;
-    const auto shape = std::make_shared<DiskShape>(conf);
+    auto conf = DiskShapeConf{};
+    conf.vertexRadius = 2.871_m;
+    conf.location = Vec2{1.912f, -77.31f} * 1_m;
+    conf.density = 1_kgpm2;
+    const auto shape = Shape(conf);
     
     {
-        auto fixture = body->CreateFixture(shape, FixtureDef{}, false);
+        auto fixture = body->CreateFixture(shape, FixtureConf{}, false);
         const auto fshape = fixture->GetShape();
-        ASSERT_NE(fshape, nullptr);
-        EXPECT_EQ(typeid(fshape.get()), typeid(const Shape*));
-        EXPECT_EQ(GetVertexRadius(*fshape), GetVertexRadius(*shape));
-        EXPECT_EQ(static_cast<const DiskShape*>(fshape.get())->GetLocation(), shape->GetLocation());
+        EXPECT_EQ(GetVertexRadius(fshape), GetVertexRadius(shape));
+        EXPECT_EQ(static_cast<const DiskShapeConf*>(GetData(fshape))->GetLocation(), conf.GetLocation());
         EXPECT_FALSE(body->GetFixtures().empty());
         {
             int i = 0;
@@ -271,12 +390,10 @@ TEST(Body, CreateAndDestroyFixture)
     }
     
     {
-        auto fixture = body->CreateFixture(shape, FixtureDef{}, false);
+        auto fixture = body->CreateFixture(shape, FixtureConf{}, false);
         const auto fshape = fixture->GetShape();
-        ASSERT_NE(fshape, nullptr);
-        EXPECT_EQ(typeid(fshape.get()), typeid(const Shape*));
-        EXPECT_EQ(GetVertexRadius(*fshape), GetVertexRadius(*shape));
-        EXPECT_EQ(static_cast<const DiskShape*>(fshape.get())->GetLocation(), shape->GetLocation());
+        EXPECT_EQ(GetVertexRadius(fshape), GetVertexRadius(shape));
+        EXPECT_EQ(static_cast<const DiskShapeConf*>(GetData(fshape))->GetLocation(), conf.GetLocation());
         EXPECT_FALSE(body->GetFixtures().empty());
         {
             int i = 0;
@@ -300,9 +417,9 @@ TEST(Body, CreateAndDestroyFixture)
 
 TEST(Body, SetType)
 {
-    BodyDef bd;
+    BodyConf bd;
     bd.type = BodyType::Dynamic;
-    World world;
+    auto world = World{};
     const auto body = world.CreateBody(bd);
     ASSERT_EQ(body->GetType(), BodyType::Dynamic);
     body->SetType(BodyType::Static);
@@ -313,15 +430,84 @@ TEST(Body, SetType)
     EXPECT_EQ(body->GetType(), BodyType::Dynamic);
 }
 
+TEST(Body, StaticIsExpected)
+{
+    auto world = World{};
+    const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Static));
+    EXPECT_FALSE(body->IsAccelerable());
+    EXPECT_FALSE(body->IsSpeedable());
+    EXPECT_TRUE( body->IsImpenetrable());
+}
+
+TEST(Body, KinematicIsExpected)
+{
+    auto world = World{};
+    const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Kinematic));
+    EXPECT_FALSE(body->IsAccelerable());
+    EXPECT_TRUE( body->IsSpeedable());
+    EXPECT_TRUE( body->IsImpenetrable());
+}
+
+TEST(Body, DynamicIsExpected)
+{
+    auto world = World{};
+    const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic));
+    EXPECT_TRUE(body->IsAccelerable());
+    EXPECT_TRUE(body->IsSpeedable());
+    EXPECT_FALSE(body->IsImpenetrable());
+}
+
+TEST(Body, SetMassData)
+{
+    const auto center = Length2{0_m, 0_m};
+    const auto mass = 32_kg;
+    const auto rotInertiaUnits = SquareMeter * Kilogram / SquareRadian;
+    const auto rotInertia = 3 * rotInertiaUnits; // L^2 M QP^-2
+    const auto massData = MassData{center, mass, rotInertia};
+    
+    // has effect on dynamic bodies...
+    {
+        auto world = World{};
+        const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic));
+        EXPECT_EQ(GetMass(*body), 1_kg);
+        EXPECT_EQ(GetRotInertia(*body), std::numeric_limits<Real>::infinity() * rotInertiaUnits);
+        body->SetMassData(massData);
+        EXPECT_EQ(GetMass(*body), mass);
+        EXPECT_EQ(GetRotInertia(*body), rotInertia);
+    }
+    
+    // has no rotational effect on fixed rotation dynamic bodies...
+    {
+        auto world = World{};
+        const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseFixedRotation(true));
+        EXPECT_EQ(GetMass(*body), 1_kg);
+        EXPECT_EQ(GetRotInertia(*body), std::numeric_limits<Real>::infinity() * rotInertiaUnits);
+        body->SetMassData(massData);
+        EXPECT_EQ(GetMass(*body), mass);
+        EXPECT_EQ(GetRotInertia(*body), std::numeric_limits<Real>::infinity() * rotInertiaUnits);
+    }
+
+    // has no effect on static bodies...
+    {
+        auto world = World{};
+        const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Static));
+        EXPECT_EQ(GetMass(*body), 0_kg);
+        EXPECT_EQ(GetRotInertia(*body), std::numeric_limits<Real>::infinity() * rotInertiaUnits);
+        body->SetMassData(massData);
+        EXPECT_EQ(GetMass(*body), 0_kg);
+        EXPECT_EQ(GetRotInertia(*body), std::numeric_limits<Real>::infinity() * rotInertiaUnits);
+    }
+}
+
 TEST(Body, SetTransform)
 {
-    BodyDef bd;
+    BodyConf bd;
     bd.type = BodyType::Dynamic;
     World world;
     const auto body = world.CreateBody(bd);
-    const auto xfm1 = Transformation{Vec2_zero * (Real(1) * Meter), UnitVec2::GetRight()};
+    const auto xfm1 = Transformation{Length2{}, UnitVec::GetRight()};
     ASSERT_EQ(body->GetTransformation(), xfm1);
-    const auto xfm2 = Transformation{Vec2(10, -12) * (Real(1) * Meter), UnitVec2::GetLeft()};
+    const auto xfm2 = Transformation{Vec2(10, -12) * 1_m, UnitVec::GetLeft()};
     body->SetTransform(xfm2.p, GetAngle(xfm2.q));
     EXPECT_EQ(body->GetTransformation().p, xfm2.p);
     EXPECT_NEAR(static_cast<double>(GetX(body->GetTransformation().q)),
@@ -332,15 +518,143 @@ TEST(Body, SetTransform)
                 0.001);
 }
 
+TEST(Body, SetAcceleration)
+{
+    const auto someLinearAccel = LinearAcceleration2{2 * MeterPerSquareSecond, 3 * MeterPerSquareSecond};
+    const auto someAngularAccel = 2 * RadianPerSquareSecond;
+
+    {
+        auto world = World{};
+        const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Static));
+        ASSERT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        ASSERT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        ASSERT_FALSE(body->IsAwake());
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        
+        body->SetAcceleration(LinearAcceleration2{}, AngularAcceleration{});
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+
+        body->SetAcceleration(LinearAcceleration2{}, someAngularAccel);
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+
+        body->SetAcceleration(someLinearAccel, AngularAcceleration{});
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+    }
+    
+    // Kinematic and dynamic bodies awake at creation...
+    {
+        auto world = World{};
+        const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Kinematic));
+        ASSERT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        ASSERT_TRUE(body->IsAwake());
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        
+        body->SetAcceleration(LinearAcceleration2{}, AngularAcceleration{});
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+        
+        body->SetAcceleration(LinearAcceleration2{}, someAngularAccel);
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+        
+        body->SetAcceleration(someLinearAccel, AngularAcceleration{});
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+    }
+    
+    // Dynamic bodies take a non-zero linear or angular acceleration.
+    {
+        auto world = World{};
+        const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic));
+        ASSERT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        ASSERT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        ASSERT_TRUE(body->IsAwake());
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        
+        body->SetAcceleration(LinearAcceleration2{}, AngularAcceleration{});
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_FALSE(body->IsAwake());
+        
+        body->SetAcceleration(LinearAcceleration2{}, someAngularAccel);
+        EXPECT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel);
+        EXPECT_TRUE(body->IsAwake());
+        
+        body->SetAcceleration(someLinearAccel, AngularAcceleration{});
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel);
+        EXPECT_EQ(body->GetAngularAcceleration(), 0 * RadianPerSquareSecond);
+        EXPECT_TRUE(body->IsAwake());
+        
+        body->SetAcceleration(someLinearAccel, someAngularAccel);
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel);
+        EXPECT_TRUE(body->IsAwake());
+
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel);
+        
+        // Reseting to same acceleration shouldn't change asleep status...
+        body->SetAcceleration(someLinearAccel, someAngularAccel);
+        EXPECT_FALSE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel);
+        
+        // Seting to lower acceleration shouldn't change asleep status...
+        body->SetAcceleration(someLinearAccel * 0.5f, someAngularAccel * 0.9f);
+        EXPECT_FALSE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel * 0.5f);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel * 0.9f);
+
+        // Seting to higher acceleration or new direction should awaken...
+        body->SetAcceleration(someLinearAccel * 1.5f, someAngularAccel * 1.9f);
+        EXPECT_TRUE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel * 1.5f);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel * 1.9f);
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        body->SetAcceleration(someLinearAccel * 1.5f, someAngularAccel * 2.0f);
+        EXPECT_TRUE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel * 1.5f);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel * 2.0f);
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        body->SetAcceleration(someLinearAccel * 2.0f, someAngularAccel * 2.0f);
+        EXPECT_TRUE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel * 2.0f);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel * 2.0f);
+        body->UnsetAwake();
+        ASSERT_FALSE(body->IsAwake());
+        body->SetAcceleration(someLinearAccel * -1.0f, someAngularAccel * 2.0f);
+        EXPECT_TRUE(body->IsAwake());
+        EXPECT_EQ(body->GetLinearAcceleration(), someLinearAccel * -1.0f);
+        EXPECT_EQ(body->GetAngularAcceleration(), someAngularAccel * 2.0f);
+    }
+}
+
 TEST(Body, CreateLotsOfFixtures)
 {
-    BodyDef bd;
+    BodyConf bd;
     bd.type = BodyType::Dynamic;
-    auto conf = DiskShape::Conf{};
-    conf.vertexRadius = Real{2.871f} * Meter;
-    conf.location = Vec2{1.912f, -77.31f} * (Real(1) * Meter);
-    conf.density = Real{1.3f} * KilogramPerSquareMeter;
-    const auto shape = std::make_shared<DiskShape>(conf);
+    auto conf = DiskShapeConf{};
+    conf.vertexRadius = 2.871_m;
+    conf.location = Vec2{1.912f, -77.31f} * 1_m;
+    conf.density = 1.3_kgpm2;
+    const auto shape = Shape(conf);
     const auto num = 5000;
     std::chrono::time_point<std::chrono::system_clock> start, end;
     
@@ -354,7 +668,7 @@ TEST(Body, CreateLotsOfFixtures)
         
         for (auto i = decltype(num){0}; i < num; ++i)
         {
-            auto fixture = body->CreateFixture(shape, FixtureDef{}, false);
+            auto fixture = body->CreateFixture(shape, FixtureConf{}, false);
             ASSERT_NE(fixture, nullptr);
         }
         body->ResetMassData();
@@ -383,7 +697,7 @@ TEST(Body, CreateLotsOfFixtures)
         
         for (auto i = decltype(num){0}; i < num; ++i)
         {
-            auto fixture = body->CreateFixture(shape, FixtureDef{}, true);
+            auto fixture = body->CreateFixture(shape, FixtureConf{}, true);
             ASSERT_NE(fixture, nullptr);
         }
         
@@ -430,13 +744,105 @@ TEST(Body, ApplyLinearAccelDoesNothingToStatic)
     ASSERT_FALSE(body->IsSpeedable());
     ASSERT_FALSE(body->IsAccelerable());
     
-    const auto zeroAccel = LinearAcceleration2D{
+    const auto zeroAccel = LinearAcceleration2{
         Real(0) * MeterPerSquareSecond, Real(0) * MeterPerSquareSecond
     };
-    const auto linAccel = LinearAcceleration2D{
+    const auto linAccel = LinearAcceleration2{
         Real(2) * MeterPerSquareSecond, Real(2) * MeterPerSquareSecond
     };
     ApplyLinearAcceleration(*body, linAccel);
     EXPECT_NE(body->GetLinearAcceleration(), linAccel);
     EXPECT_EQ(body->GetLinearAcceleration(), zeroAccel);
+}
+
+TEST(Body, GetAccelerationFF)
+{
+    World world;
+    const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic));
+    body->SetAcceleration(LinearAcceleration2{}, AngularAcceleration{});
+    
+    ASSERT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+    ASSERT_EQ(body->GetAngularAcceleration(), AngularAcceleration{});
+    
+    EXPECT_EQ(GetAcceleration(*body), Acceleration{});
+}
+
+TEST(Body, SetAccelerationFF)
+{
+    World world;
+    const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic));
+    body->SetAcceleration(LinearAcceleration2{}, AngularAcceleration{});
+    
+    ASSERT_EQ(body->GetLinearAcceleration(), LinearAcceleration2{});
+    ASSERT_EQ(body->GetAngularAcceleration(), AngularAcceleration{});
+ 
+    const auto newAccel = Acceleration{
+        LinearAcceleration2{2_mps2, 3_mps2}, AngularAcceleration{1.2f * RadianPerSquareSecond}
+    };
+    SetAcceleration(*body, newAccel);
+    EXPECT_EQ(GetAcceleration(*body), newAccel);
+}
+
+TEST(Body, CalcGravitationalAcceleration)
+{
+    auto world = World{};
+
+    const auto l1 = Length2{-8_m, 0_m};
+    const auto l2 = Length2{+8_m, 0_m};
+    const auto l3 = Length2{+16_m, 0_m};
+    const auto shape = DiskShapeConf{}.UseRadius(2_m).UseDensity(1e10_kgpm2);
+    
+    const auto b1 = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseLocation(l1));
+    b1->CreateFixture(shape);
+    EXPECT_EQ(CalcGravitationalAcceleration(*b1), Acceleration{});
+    
+    const auto b2 = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseLocation(l2));
+    b2->CreateFixture(shape);
+    const auto accel = CalcGravitationalAcceleration(*b1);
+    EXPECT_NEAR(static_cast<double>(Real(GetX(accel.linear)/MeterPerSquareSecond)),
+                0.032761313021183014, 0.032761313021183014/100);
+    EXPECT_EQ(GetY(accel.linear), 0 * MeterPerSquareSecond);
+    EXPECT_EQ(accel.angular, 0 * RadianPerSquareSecond);
+    
+    const auto b3 = world.CreateBody(BodyConf{}.UseType(BodyType::Static).UseLocation(l3));
+    EXPECT_EQ(CalcGravitationalAcceleration(*b3), Acceleration{});
+}
+
+TEST(Body, RotateAboutWorldPointFF)
+{
+    auto world = World{};
+    const auto body = world.CreateBody();
+    const auto locationA = body->GetLocation();
+    ASSERT_EQ(locationA, Length2(0_m, 0_m));
+    RotateAboutWorldPoint(*body, 90_deg, Length2{2_m, 0_m});
+    const auto locationB = body->GetLocation();
+    EXPECT_NEAR(static_cast<double>(Real(GetX(locationB)/Meter)), +2.0, 0.001);
+    EXPECT_NEAR(static_cast<double>(Real(GetY(locationB)/Meter)), -2.0, 0.001);
+}
+
+TEST(Body, RotateAboutLocalPointFF)
+{
+    auto world = World{};
+    const auto body = world.CreateBody();
+    const auto locationA = body->GetLocation();
+    ASSERT_EQ(locationA, Length2(0_m, 0_m));
+    RotateAboutLocalPoint(*body, 90_deg, Length2{2_m, 0_m});
+    const auto locationB = body->GetLocation();
+    EXPECT_NEAR(static_cast<double>(Real(GetX(locationB)/Meter)), +2.0, 0.001);
+    EXPECT_NEAR(static_cast<double>(Real(GetY(locationB)/Meter)), -2.0, 0.001);
+}
+
+TEST(Body, GetCentripetalForce)
+{
+    const auto l1 = Length2{-8_m, 0_m};
+    auto world = World{};
+    const auto body = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseLocation(l1));
+    const auto shape = DiskShapeConf{}.UseRadius(2_m).UseDensity(1_kgpm2);
+    body->CreateFixture(shape);
+    SetLinearVelocity(*body, LinearVelocity2{2_mps, 3_mps});
+    EXPECT_EQ(GetLinearVelocity(*body), LinearVelocity2(2_mps, 3_mps));
+    
+    const auto force = GetCentripetalForce(*body, Length2{1_m, 10_m});
+    EXPECT_NEAR(static_cast<double>(Real(GetX(force)/Newton)), 8.1230141222476959, 0.01);
+    EXPECT_NEAR(static_cast<double>(Real(GetY(force)/Newton)), 9.0255714952945709, 0.01);
 }

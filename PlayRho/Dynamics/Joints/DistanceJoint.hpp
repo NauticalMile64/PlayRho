@@ -23,9 +23,10 @@
 #define PLAYRHO_DYNAMICS_JOINTS_DISTANCEJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/DistanceJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/DistanceJointConf.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Distance Joint.
 ///
@@ -41,29 +42,23 @@ class DistanceJoint : public Joint
 public:
     
     /// @brief Is the given definition okay.
-    static bool IsOkay(const DistanceJointDef& data) noexcept;
+    static bool IsOkay(const DistanceJointConf& data) noexcept;
 
     /// @brief Initializing constructor.
-    DistanceJoint(const DistanceJointDef& data);
+    DistanceJoint(const DistanceJointConf& data);
 
     void Accept(JointVisitor& visitor) const override;
-
-    Length2D GetAnchorA() const override;
-
-    Length2D GetAnchorB() const override;
-
-    /// @brief Get the linear reaction.
-    Momentum2D GetLinearReaction() const override;
-
-    /// @brief Gets the angular reaction.
-    /// @note This is always zero for a distance joint.
+    void Accept(JointVisitor& visitor) override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
+    Momentum2 GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// @brief Gets the local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const noexcept { return m_localAnchorA; }
+    /// @brief Gets the local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const noexcept { return m_localAnchorA; }
 
-    /// @brief Gets the local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const noexcept { return m_localAnchorB; }
+    /// @brief Gets the local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const noexcept { return m_localAnchorB; }
 
     /// @brief Sets the natural length.
     /// @note Manipulating the length can lead to non-physical behavior when the frequency is zero.
@@ -86,28 +81,28 @@ public:
 
 private:
 
-    void InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step, const
-                                 ConstraintSolverConf&) override;
-    bool SolveVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step) override;
+    void InitVelocityConstraints(BodyConstraintsMap& bodies, const playrho::StepConf& step,
+                                 const ConstraintSolverConf&) override;
+    bool SolveVelocityConstraints(BodyConstraintsMap& bodies, const playrho::StepConf& step) override;
     bool SolvePositionConstraints(BodyConstraintsMap& bodies,
                                   const ConstraintSolverConf& conf) const override;
 
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    Length m_length;
-    NonNegative<Frequency> m_frequency = NonNegative<Frequency>{0};
-    Real m_dampingRatio;
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    Length m_length; ///< Length.
+    NonNegative<Frequency> m_frequency = NonNegative<Frequency>{0}; ///< Frequency.
+    Real m_dampingRatio; ///< Damping ratio.
 
     // Solver shared
-    Momentum m_impulse = Momentum{0};
+    Momentum m_impulse = 0_Ns; ///< Impulse.
 
     // Solver temp
-    InvMass m_invGamma;
-    LinearVelocity m_bias;
-    Mass m_mass;
-    UnitVec2 m_u;
-    Length2D m_rA;
-    Length2D m_rB;
+    InvMass m_invGamma; ///< Inverse gamma.
+    LinearVelocity m_bias; ///< Bias.
+    Mass m_mass; ///< Mass.
+    UnitVec m_u; ///< "u" directional.
+    Length2 m_rA; ///< Relative A position.
+    Length2 m_rB; ///< Relative B position.
 };
 
 inline void DistanceJoint::SetLength(Length length) noexcept
@@ -140,6 +135,7 @@ inline Real DistanceJoint::GetDampingRatio() const noexcept
     return m_dampingRatio;
 }
 
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_DISTANCEJOINT_HPP

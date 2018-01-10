@@ -30,42 +30,51 @@
 #include <PlayRho/Dynamics/StepConf.hpp>
 
 namespace playrho {
+namespace d2 {
 
-namespace
+namespace {
+
+inline Manifold::Conf GetManifoldConf(const playrho::StepConf& conf)
 {
-    inline Manifold::Conf GetManifoldConf(const StepConf& conf)
-    {
-        auto manifoldConf = Manifold::Conf{};
-        manifoldConf.linearSlop = conf.linearSlop;
-        manifoldConf.tolerance = conf.tolerance;
-        manifoldConf.targetDepth = conf.targetDepth;
-        manifoldConf.maxCirclesRatio = conf.maxCirclesRatio;
-        return manifoldConf;
-    }
-    
-    inline DistanceConf GetDistanceConf(const StepConf& conf)
-    {
-        DistanceConf distanceConf;
-        distanceConf.maxIterations = conf.maxDistanceIters;
-        return distanceConf;
-    }
+    auto manifoldConf = Manifold::Conf{};
+    manifoldConf.linearSlop = conf.linearSlop;
+    manifoldConf.tolerance = conf.tolerance;
+    manifoldConf.targetDepth = conf.targetDepth;
+    manifoldConf.maxCirclesRatio = conf.maxCirclesRatio;
+    return manifoldConf;
+}
+
+inline DistanceConf GetDistanceConf(const playrho::StepConf& conf)
+{
+    DistanceConf distanceConf;
+    distanceConf.maxIterations = conf.maxDistanceIters;
+    return distanceConf;
+}
 } // namespace
 
-Contact::UpdateConf Contact::GetUpdateConf(const StepConf& conf) noexcept
+Contact::UpdateConf Contact::GetUpdateConf(const playrho::StepConf& conf) noexcept
 {
     return UpdateConf{GetDistanceConf(conf), GetManifoldConf(conf)};
 }
 
 Contact::Contact(Fixture* fA, ChildCounter iA, Fixture* fB, ChildCounter iB):
-    m_fixtureA{fA}, m_fixtureB{fB}, m_indexA{iA}, m_indexB{iB},
+    m_fixtureA{fA}, m_fixtureB{fB},
+    m_indexA{iA}, m_indexB{iB},
     m_friction{MixFriction(fA->GetFriction(), fB->GetFriction())},
     m_restitution{MixRestitution(fA->GetRestitution(), fB->GetRestitution())}
 {
-    assert(fA && fB);
     assert(fA != fB);
-    assert(fA->GetShape());
-    assert(fB->GetShape());
     assert(fA->GetBody() != fB->GetBody());
+}
+
+ChildCounter Contact::GetChildIndexA() const noexcept
+{
+    return m_indexA;
+}
+
+ChildCounter Contact::GetChildIndexB() const noexcept
+{
+    return m_indexB;
 }
 
 void Contact::Update(const UpdateConf& conf, ContactListener* listener)
@@ -84,14 +93,14 @@ void Contact::Update(const UpdateConf& conf, ContactListener* listener)
     const auto xfA = fixtureA->GetBody()->GetTransformation();
     const auto shapeB = fixtureB->GetShape();
     const auto xfB = fixtureB->GetBody()->GetTransformation();
-    const auto childA = shapeA->GetChild(indexA);
-    const auto childB = shapeB->GetChild(indexB);
+    const auto childA = GetChild(shapeA, indexA);
+    const auto childB = GetChild(shapeB, indexB);
 
     // NOTE: Ideally, the touching state returned by the TestOverlap function
     //   agrees 100% of the time with that returned from the CollideShapes function.
     //   This is not always the case however especially as the separation or overlap
     //   approaches zero.
-#define OVERLAP_TOLERANCE (SquareMeter / Real(1e3))
+#define OVERLAP_TOLERANCE (SquareMeter / Real(20))
 
     const auto sensor = fixtureA->IsSensor() || fixtureB->IsSensor();
     if (sensor)
@@ -152,12 +161,12 @@ void Contact::Update(const UpdateConf& conf, ContactListener* listener)
         {
             if (!found[i])
             {
-                auto leastSquareDiff = std::numeric_limits<Real>::infinity() * SquareMeter;
+                auto leastSquareDiff = std::numeric_limits<Area>::infinity();
                 const auto newPt = newManifold.GetPoint(i);
                 for (auto j = decltype(old_point_count){0}; j < old_point_count; ++j)
                 {
                     const auto oldPt = oldManifold.GetPoint(j);
-                    const auto squareDiff = GetLengthSquared(oldPt.localPoint - newPt.localPoint);
+                    const auto squareDiff = GetMagnitudeSquared(oldPt.localPoint - newPt.localPoint);
                     if (leastSquareDiff > squareDiff)
                     {
                         leastSquareDiff = squareDiff;
@@ -225,6 +234,16 @@ void Contact::Update(const UpdateConf& conf, ContactListener* listener)
 
 // Free functions...
 
+Body* GetBodyA(const Contact& contact) noexcept
+{
+    return contact.GetFixtureA()->GetBody();
+}
+
+Body* GetBodyB(const Contact& contact) noexcept
+{
+    return contact.GetFixtureB()->GetBody();
+}
+
 bool HasSensor(const Contact& contact) noexcept
 {
     return contact.GetFixtureA()->IsSensor() || contact.GetFixtureB()->IsSensor();
@@ -279,12 +298,12 @@ TOIOutput CalcToi(const Contact& contact, ToiConf conf)
     const auto bA = fA->GetBody();
     const auto bB = fB->GetBody();
 
-    const auto proxyA = fA->GetShape()->GetChild(contact.GetChildIndexA());
-    const auto proxyB = fB->GetShape()->GetChild(contact.GetChildIndexB());
+    const auto proxyA = GetChild(fA->GetShape(), contact.GetChildIndexA());
+    const auto proxyB = GetChild(fB->GetShape(), contact.GetChildIndexB());
 
     // Large rotations can make the root finder of TimeOfImpact fail, so normalize sweep angles.
-    const auto sweepA = GetAnglesNormalized(bA->GetSweep());
-    const auto sweepB = GetAnglesNormalized(bB->GetSweep());
+    const auto sweepA = GetNormalized(bA->GetSweep());
+    const auto sweepB = GetNormalized(bB->GetSweep());
 
     // Compute the TOI for this contact (one or both bodies are active and impenetrable).
     // Computes the time of impact in interval [0, 1]
@@ -292,4 +311,5 @@ TOIOutput CalcToi(const Contact& contact, ToiConf conf)
     return GetToiViaSat(proxyA, sweepA, proxyB, sweepB, conf);
 }
 
+} // namespace d2
 } // namespace playrho

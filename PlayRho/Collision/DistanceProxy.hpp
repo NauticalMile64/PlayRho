@@ -21,18 +21,27 @@
 #define PLAYRHO_COLLISION_DISTANCEPROXY_HPP
 
 #include <PlayRho/Common/Math.hpp>
+#include <PlayRho/Common/Range.hpp>
 #include <vector>
+#include <algorithm>
 
-namespace playrho
-{
+// Define IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS to implement the DistanceProxy class
+// using buffers instead of pointers. Note that timing tests suggest implementing with
+// buffers is significantly slower. Using buffers could make defining new shapes
+// easier though so a buffering code alternative is kept in the source code for now.
+// #define IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS
+
+namespace playrho {
+namespace d2 {
+
     class Shape;
 
     /// @brief Distance Proxy.
     ///
-    /// @details A distance proxy aggragates a convex set of vertices and a vertexRadius
-    ///   of those vertices. This can be visualized as a convex N-gon with rounded corners.
+    /// @details A distance proxy aggregates a convex set of vertices and a vertex radius of
+    ///   those vertices. This can be visualized as a convex N-sided polygon with rounded corners.
     ///   It's meant to represent any single portion of a shape identified by its child-index.
-    ///   These are used by the GJK algorithm: "a method for determining the minimium distance
+    ///   These are used by the G.J.K. algorithm: "a method for determining the minimum distance
     ///   between two convex sets".
     ///
     /// @note This data structure is 24-bytes.
@@ -42,26 +51,39 @@ namespace playrho
     class DistanceProxy
     {
     public:
-        /// @brief Size type.
-        /// @details Must be big enough to hold max posible count of vertices.
-        using size_type = std::remove_const<decltype(MaxShapeVertices)>::type;
+        /// @brief Constant vertex pointer.
+        using ConstVertexPointer = const Length2*;
         
-        /// @brief Invalid index.
-        static constexpr size_type InvalidIndex = static_cast<size_type>(-1);
+        /// @brief Constant vertex iterator.
+        using ConstVertexIterator = ConstVertexPointer;
         
+        /// @brief Constant normal pointer.
+        using ConstNormalPointer = const UnitVec*;
+        
+        /// @brief Constant normal iterator.
+        using ConstNormalIterator = ConstNormalPointer;
+
         DistanceProxy() = default;
         
         /// @brief Copy constructor.
-        constexpr DistanceProxy(const DistanceProxy& copy) noexcept:
+        DistanceProxy(const DistanceProxy& copy) noexcept:
+#ifndef IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS
             m_vertices{copy.m_vertices},
             m_normals{copy.m_normals},
+#endif
             m_count{copy.m_count},
             m_vertexRadius{copy.m_vertexRadius}
         {
+#ifdef IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS
+            const auto count = copy.m_count;
+            std::copy(copy.m_vertices, copy.m_vertices + count, m_vertices);
+            std::copy(copy.m_normals, copy.m_normals + count, m_normals);
+#else
             // Intentionall empty.
-        }
+#endif
+       }
 
-        /// Initializing constructor.
+        /// @brief Initializing constructor.
         ///
         /// @details Constructs a distance proxy for n-point shape (like a polygon).
         ///
@@ -74,24 +96,52 @@ namespace playrho
         ///    <code>MaxShapeVertices</code> elements.
         /// @warning Behavior is undefined if the vertices collection has less than one element or
         ///   more than <code>MaxShapeVertices</code> elements.
+        /// @warning Behavior is undefined if the vertices are not in counter-clockwise order.
+        /// @warning Behavior is undefined if the shape defined by the vertices is not convex.
+        /// @warning Behavior is undefined if the normals aren't normals for adjacent vertices.
+        /// @warning Behavior is undefined if any normal is not unique.
         ///
-        constexpr DistanceProxy(const Length vertexRadius, const size_type count,
-                                const Length2D* vertices, const UnitVec2* normals) noexcept:
+        DistanceProxy(const NonNegative<Length> vertexRadius, const VertexCounter count,
+                      const Length2* vertices, const UnitVec* normals) noexcept:
+#ifndef IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS
             m_vertices{vertices},
             m_normals{normals},
+#endif
             m_count{count},
             m_vertexRadius{vertexRadius}
         {
-            assert(vertexRadius >= Length{0});
+            assert(vertexRadius >= 0_m);
             assert(count >= 0);
             assert(count < 1 || vertices);
             assert(count < 2 || normals);
+#ifdef IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS
+            if (vertices)
+            {
+                std::copy(vertices, vertices + count, m_vertices);
+            }
+            if (normals)
+            {
+                std::copy(normals, normals + count, m_normals);
+            }
+#endif
         }
         
-        /// Gets the vertexRadius of the vertices of the associated shape.
+        /// Gets the vertex radius of the vertices of the associated shape.
         /// @return Non-negative distance.
         auto GetVertexRadius() const noexcept { return m_vertexRadius; }
         
+        /// @brief Gets the range of vertices.
+        Range<ConstVertexIterator> GetVertices() const noexcept
+        {
+            return {m_vertices, m_vertices + m_count};
+        }
+        
+        /// @brief Gets the range of normal.
+        Range<ConstNormalIterator> GetNormals() const noexcept
+        {
+            return {m_normals, m_normals + m_count};
+        }
+
         /// Gets the vertex count.
         /// @details This is the count of valid vertex elements that this object provides.
         /// @return Value between 0 and <code>MaxShapeVertices</code>.
@@ -102,36 +152,43 @@ namespace playrho
         ///
         /// @param index Index value less than the count of vertices represented by this proxy.
         ///
-        /// @warning Behavior is undefined if the index given is not less than the count of vertices
-        ///   represented by this proxy.
-        /// @warning Behavior is undefined if InvalidIndex is given as the index value.
+        /// @warning Behavior is undefined if the index given is not less than the count of
+        ///   vertices represented by this proxy.
+        /// @warning Behavior is undefined if <code>InvalidVertex</code> is given as the index
+        ///   value.
         ///
-        /// @return 2D vector position (relative to the shape's origin) at the given index.
+        /// @return Vertex linear position (relative to the shape's origin) at the given index.
         ///
         /// @sa Distance.
         ///
-        auto GetVertex(size_type index) const noexcept
+        auto GetVertex(VertexCounter index) const noexcept
         {
-            assert(index != InvalidIndex);
+            assert(index != InvalidVertex);
             assert(index < m_count);
             return *(m_vertices + index);
         }
         
         /// @brief Gets the normal for the given index.
-        auto GetNormal(size_type index) const noexcept
+        auto GetNormal(VertexCounter index) const noexcept
         {
-            assert(index != InvalidIndex);
+            assert(index != InvalidVertex);
             assert(index < m_count);
             return *(m_normals + index);
         }
 
     private:
-    
-        const Length2D* m_vertices = nullptr;
-        const UnitVec2* m_normals = nullptr;
-        size_type m_count = 0; ///< Count of valid elements of m_vertices.
-        Length m_vertexRadius = Length{0}; ///< Radius of the vertices of the associated shape.
+#ifdef IMPLEMENT_DISTANCEPROXY_WITH_BUFFERS
+        Length2 m_vertices[MaxShapeVertices]; ///< Vertices.
+        UnitVec m_normals[MaxShapeVertices]; ///< Normals.
+#else
+        const Length2* m_vertices = nullptr; ///< Vertices.
+        const UnitVec* m_normals = nullptr; ///< Normals.
+#endif
+        VertexCounter m_count = 0; ///< Count of valid elements of m_vertices.
+        NonNegative<Length> m_vertexRadius = 0_m; ///< Radius of the vertices of the associated shape.
     };
+    
+    // Free functions...
     
     /// @brief Determines with the two given distance proxies are equal.
     /// @relatedalso DistanceProxy
@@ -144,23 +201,49 @@ namespace playrho
         return !(lhs == rhs);
     }
     
+    /// @brief Gets the vertex radius property of a given distance proxy.
+    inline NonNegative<Length> GetVertexRadius(const DistanceProxy& arg) noexcept
+    {
+        return arg.GetVertexRadius();
+    }
+    
     /// @brief Gets the supporting vertex index in the given direction for the given distance proxy.
     /// @details This finds the vertex that's most significantly in the direction of the given
     ///   vector and returns its index.
     /// @note 0 is returned for a given zero length direction vector.
     /// @param proxy Distance proxy object to find index in if a valid index exists for it.
-    /// @param d Direction vector to find index for.
-    /// @return InvalidIndex if d is invalid or the count of vertices is zero, otherwise a
-    ///   value from 0 to one less than count.
+    /// @param dir Direction vector to find index for.
+    /// @return <code>InvalidVertex</code> if d is invalid or the count of vertices is zero,
+    ///   otherwise a value from 0 to one less than count.
     /// @sa GetVertexCount().
     /// @relatedalso DistanceProxy
-    DistanceProxy::size_type GetSupportIndex(const DistanceProxy& proxy, Vec2 d) noexcept;
+    template <class T>
+    inline VertexCounter GetSupportIndex(const DistanceProxy& proxy, T dir) noexcept
+    {
+        using VT = typename T::value_type;
+        using OT = decltype(VT{} * 0_m);
+
+        auto index = InvalidVertex; // Index of vertex that when dotted with dir has the max value.
+        auto maxValue = -std::numeric_limits<OT>::infinity(); // Max dot value.
+        auto i = VertexCounter{0};
+        for (const auto& vertex: proxy.GetVertices())
+        {
+            const auto value = Dot(vertex, dir);
+            if (maxValue < value)
+            {
+                maxValue = value;
+                index = i;
+            }
+            ++i;
+        }
+        return index;
+    }
 
     /// @brief Finds the lowest right most vertex in the given collection.
-    std::size_t FindLowestRightMostVertex(Span<const Length2D> vertices);
+    std::size_t FindLowestRightMostVertex(Span<const Length2> vertices);
     
     /// @brief Gets the convex hull for the given collection of vertices as a vector.
-    std::vector<Length2D> GetConvexHullAsVector(Span<const Length2D> vertices);
+    std::vector<Length2> GetConvexHullAsVector(Span<const Length2> vertices);
 
     /// @brief Tests a point for containment in the given distance proxy.
     /// @param proxy Distance proxy to check if point is within.
@@ -168,8 +251,9 @@ namespace playrho
     /// @return <code>true</code> if point is contained in the proxy, <code>false</code> otherwise.
     /// @relatedalso DistanceProxy
     /// @ingroup TestPointGroup
-    bool TestPoint(const DistanceProxy& proxy, Length2D point) noexcept;
+    bool TestPoint(const DistanceProxy& proxy, Length2 point) noexcept;
     
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_COLLISION_DISTANCEPROXY_HPP

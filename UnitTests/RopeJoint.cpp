@@ -21,27 +21,35 @@
 #include "gtest/gtest.h"
 
 #include <PlayRho/Dynamics/Joints/RopeJoint.hpp>
+#include <PlayRho/Dynamics/Joints/TypeJointVisitor.hpp>
 #include <PlayRho/Dynamics/Body.hpp>
-#include <PlayRho/Dynamics/BodyDef.hpp>
+#include <PlayRho/Dynamics/BodyConf.hpp>
 #include <PlayRho/Dynamics/World.hpp>
-#include <PlayRho/Collision/Shapes/DiskShape.hpp>
+#include <PlayRho/Collision/Shapes/DiskShapeConf.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
-TEST(RopeJointDef, ByteSize)
+TEST(RopeJointConf, ByteSize)
 {
     switch (sizeof(Real))
     {
-        case  4: EXPECT_EQ(sizeof(RopeJointDef), std::size_t(64)); break;
-        case  8: EXPECT_EQ(sizeof(RopeJointDef), std::size_t(80)); break;
-        case 16: EXPECT_EQ(sizeof(RopeJointDef), std::size_t(128)); break;
+        case  4:
+#if defined(_WIN32) && !defined(_WIN64)
+            EXPECT_EQ(sizeof(RopeJointConf), std::size_t(40));
+#else
+            EXPECT_EQ(sizeof(RopeJointConf), std::size_t(64));
+#endif
+            break;
+        case  8: EXPECT_EQ(sizeof(RopeJointConf), std::size_t(80)); break;
+        case 16: EXPECT_EQ(sizeof(RopeJointConf), std::size_t(128)); break;
         default: FAIL(); break;
     }
 }
 
-TEST(RopeJointDef, DefaultConstruction)
+TEST(RopeJointConf, DefaultConstruction)
 {
-    RopeJointDef def{};
+    RopeJointConf def{};
     
     EXPECT_EQ(def.type, JointType::Rope);
     EXPECT_EQ(def.bodyA, nullptr);
@@ -49,16 +57,24 @@ TEST(RopeJointDef, DefaultConstruction)
     EXPECT_EQ(def.collideConnected, false);
     EXPECT_EQ(def.userData, nullptr);
     
-    EXPECT_EQ(def.localAnchorA, Length2D(-Real(1) * Meter, Real(0) * Meter));
-    EXPECT_EQ(def.localAnchorB, Length2D(+Real(1) * Meter, Real(0) * Meter));
-    EXPECT_EQ(def.maxLength, Length{0});
+    EXPECT_EQ(def.localAnchorA, Length2(-1_m, 0_m));
+    EXPECT_EQ(def.localAnchorB, Length2(+1_m, 0_m));
+    EXPECT_EQ(def.maxLength, 0_m);
 }
 
 TEST(RopeJoint, ByteSize)
 {
     switch (sizeof(Real))
     {
-        case  4: EXPECT_EQ(sizeof(RopeJoint), std::size_t(96)); break;
+        case  4:
+#if defined(_WIN64)
+            EXPECT_EQ(sizeof(RopeJoint), std::size_t(104));
+#elif defined(_WIN32)
+            EXPECT_EQ(sizeof(RopeJoint), std::size_t(80));
+#else
+            EXPECT_EQ(sizeof(RopeJoint), std::size_t(96));
+#endif
+            break;
         case  8: EXPECT_EQ(sizeof(RopeJoint), std::size_t(160)); break;
         case 16: EXPECT_EQ(sizeof(RopeJoint), std::size_t(288)); break;
         default: FAIL(); break;
@@ -67,7 +83,11 @@ TEST(RopeJoint, ByteSize)
 
 TEST(RopeJoint, Construction)
 {
-    RopeJointDef def;
+    World world;
+    const auto b0 = world.CreateBody();
+    const auto b1 = world.CreateBody();
+
+    auto def = RopeJointConf{b0, b1};
     RopeJoint joint{def};
     
     EXPECT_EQ(GetType(joint), def.type);
@@ -75,19 +95,28 @@ TEST(RopeJoint, Construction)
     EXPECT_EQ(joint.GetBodyB(), def.bodyB);
     EXPECT_EQ(joint.GetCollideConnected(), def.collideConnected);
     EXPECT_EQ(joint.GetUserData(), def.userData);
-    
+    EXPECT_EQ(joint.GetLinearReaction(), Momentum2{});
+    EXPECT_EQ(joint.GetAngularReaction(), AngularMomentum{0});
+
     EXPECT_EQ(joint.GetLocalAnchorA(), def.localAnchorA);
     EXPECT_EQ(joint.GetLocalAnchorB(), def.localAnchorB);
+    EXPECT_EQ(joint.GetAnchorA(), Length2(-1_m, 0_m));
+    EXPECT_EQ(joint.GetAnchorB(), Length2(+1_m, 0_m));
     EXPECT_EQ(joint.GetMaxLength(), def.maxLength);
+    EXPECT_EQ(joint.GetLimitState(), Joint::e_inactiveLimit);
+    
+    TypeJointVisitor visitor;
+    joint.Accept(visitor);
+    EXPECT_EQ(visitor.GetType().value(), JointType::Rope);
 }
 
-TEST(RopeJoint, GetRopeJointDef)
+TEST(RopeJoint, GetRopeJointConf)
 {
-    auto bodyA = Body{nullptr, BodyDef{}};
-    auto bodyB = Body{nullptr, BodyDef{}};
-    RopeJointDef def{&bodyA, &bodyB};
-    const auto localAnchorA = Length2D{-Real(2) * Meter, Real(0) * Meter};
-    const auto localAnchorB = Length2D{+Real(2) * Meter, Real(0) * Meter};
+    auto bodyA = Body{nullptr, BodyConf{}};
+    auto bodyB = Body{nullptr, BodyConf{}};
+    RopeJointConf def{&bodyA, &bodyB};
+    const auto localAnchorA = Length2{-2_m, 0_m};
+    const auto localAnchorB = Length2{+2_m, 0_m};
     def.localAnchorA = localAnchorA;
     def.localAnchorB = localAnchorB;
     RopeJoint joint{def};
@@ -102,7 +131,7 @@ TEST(RopeJoint, GetRopeJointDef)
     ASSERT_EQ(joint.GetLocalAnchorB(), def.localAnchorB);
     ASSERT_EQ(joint.GetMaxLength(), def.maxLength);
     
-    const auto cdef = GetRopeJointDef(joint);
+    const auto cdef = GetRopeJointConf(joint);
     EXPECT_EQ(cdef.type, JointType::Rope);
     EXPECT_EQ(cdef.bodyA, &bodyA);
     EXPECT_EQ(cdef.bodyB, &bodyB);
@@ -111,27 +140,27 @@ TEST(RopeJoint, GetRopeJointDef)
     
     EXPECT_EQ(cdef.localAnchorA, localAnchorA);
     EXPECT_EQ(cdef.localAnchorB, localAnchorB);
-    EXPECT_EQ(cdef.maxLength, Length{0});
+    EXPECT_EQ(cdef.maxLength, 0_m);
 }
 
 TEST(RopeJoint, WithDynamicCircles)
 {
-    const auto circle = std::make_shared<DiskShape>(Real{0.2f} * Meter);
-    auto world = World{WorldDef{}.UseGravity(LinearAcceleration2D{})};
-    const auto p1 = Length2D{-Real(1) * Meter, Real(0) * Meter};
-    const auto p2 = Length2D{+Real(1) * Meter, Real(0) * Meter};
-    const auto b1 = world.CreateBody(BodyDef{}.UseType(BodyType::Dynamic).UseLocation(p1));
-    const auto b2 = world.CreateBody(BodyDef{}.UseType(BodyType::Dynamic).UseLocation(p2));
+    const auto circle = DiskShapeConf{}.UseRadius(0.2_m);
+    auto world = World{};
+    const auto p1 = Length2{-1_m, 0_m};
+    const auto p2 = Length2{+1_m, 0_m};
+    const auto b1 = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseLocation(p1));
+    const auto b2 = world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseLocation(p2));
     b1->CreateFixture(circle);
     b2->CreateFixture(circle);
-    const auto jd = RopeJointDef{b1, b2};
+    const auto jd = RopeJointConf{b1, b2};
     world.CreateJoint(jd);
-    Step(world, Time{Second * Real{1}});
-    EXPECT_GT(GetX(b1->GetLocation()), Real(-1) * Meter);
-    EXPECT_EQ(GetY(b1->GetLocation()), Real(0) * Meter);
-    EXPECT_LT(GetX(b2->GetLocation()), Real(+1) * Meter);
-    EXPECT_EQ(GetY(b2->GetLocation()), Real(0) * Meter);
-    EXPECT_EQ(b1->GetAngle(), Angle{0});
-    EXPECT_EQ(b2->GetAngle(), Angle{0});
+    Step(world, 1_s);
+    EXPECT_GT(GetX(b1->GetLocation()), -1_m);
+    EXPECT_EQ(GetY(b1->GetLocation()), 0_m);
+    EXPECT_LT(GetX(b2->GetLocation()), +1_m);
+    EXPECT_EQ(GetY(b2->GetLocation()), 0_m);
+    EXPECT_EQ(b1->GetAngle(), 0_deg);
+    EXPECT_EQ(b2->GetAngle(), 0_deg);
 }
 

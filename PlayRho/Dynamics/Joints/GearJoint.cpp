@@ -29,6 +29,7 @@
 #include <PlayRho/Dynamics/Contacts/BodyConstraint.hpp>
 
 namespace playrho {
+namespace d2 {
 
 // Gear Joint:
 // C0 = (coordinate1 + ratio * coordinate2)_initial
@@ -49,7 +50,31 @@ namespace playrho {
 // J = [ug cross(r, ug)]
 // K = J * invM * JT = invMass + invI * cross(r, ug)^2
 
-GearJoint::GearJoint(const GearJointDef& def):
+namespace {
+
+inline bool IsValidType(JointType t) noexcept
+{
+    return (t == JointType::Revolute) || (t == JointType::Prismatic);
+}
+
+} // unnamed namespace
+
+bool GearJoint::IsOkay(const GearJointConf& def) noexcept
+{
+    const auto t1 = GetType(*def.joint1);
+    const auto t2 = GetType(*def.joint2);
+    if (!IsValidType(t1) || !IsValidType(t2))
+    {
+        return false;
+    }
+    if (!Joint::IsOkay(def))
+    {
+        return false;
+    }
+    return true;
+}
+
+GearJoint::GearJoint(const GearJointConf& def):
     Joint(def),
     m_joint1(def.joint1),
     m_joint2(def.joint2),
@@ -57,9 +82,9 @@ GearJoint::GearJoint(const GearJointDef& def):
     m_typeB(GetType(*def.joint2)),
     m_ratio(def.ratio)
 {
-    assert(m_typeA == JointType::Revolute || m_typeA == JointType::Prismatic);
-    assert(m_typeB == JointType::Revolute || m_typeB == JointType::Prismatic);
-
+    assert(IsValidType(m_typeA));
+    assert(IsValidType(m_typeB));
+    
     // TODO_ERIN there might be some problem with the joint edges in Joint.
 
     m_bodyC = m_joint1->GetBodyA();
@@ -77,7 +102,7 @@ GearJoint::GearJoint(const GearJointDef& def):
         m_localAnchorC = revolute->GetLocalAnchorA();
         m_localAnchorA = revolute->GetLocalAnchorB();
         m_referenceAngleA = revolute->GetReferenceAngle();
-        m_localAxisC = UnitVec2::GetZero();
+        m_localAxisC = UnitVec::GetZero();
         coordinateA = (aA - aC - m_referenceAngleA) / Radian;
     }
     else // if (m_typeA != JointType::Revolute)
@@ -108,7 +133,7 @@ GearJoint::GearJoint(const GearJointDef& def):
         m_localAnchorD = revolute->GetLocalAnchorA();
         m_localAnchorB = revolute->GetLocalAnchorB();
         m_referenceAngleB = revolute->GetReferenceAngle();
-        m_localAxisD = UnitVec2::GetZero();
+        m_localAxisD = UnitVec::GetZero();
         coordinateB = (aB - aD - m_referenceAngleB) / Radian;
     }
     else
@@ -128,6 +153,11 @@ GearJoint::GearJoint(const GearJointDef& def):
 }
 
 void GearJoint::Accept(JointVisitor& visitor) const
+{
+    visitor.Visit(*this);
+}
+
+void GearJoint::Accept(JointVisitor& visitor)
 {
     visitor.Visit(*this);
 }
@@ -152,26 +182,26 @@ void GearJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const StepCo
     auto velD = bodyConstraintD->GetVelocity();
     const auto aD = bodyConstraintD->GetPosition().angular;
 
-    const auto qA = UnitVec2::Get(aA);
-    const auto qB = UnitVec2::Get(aB);
-    const auto qC = UnitVec2::Get(aC);
-    const auto qD = UnitVec2::Get(aD);
+    const auto qA = UnitVec::Get(aA);
+    const auto qB = UnitVec::Get(aB);
+    const auto qC = UnitVec::Get(aC);
+    const auto qD = UnitVec::Get(aD);
 
     auto invMass = Real{0}; // Unitless to double for either linear mass or angular mass.
 
     if (m_typeA == JointType::Revolute)
     {
-        m_JvAC = Vec2_zero;
-        m_JwA = Real{1} * Meter;
-        m_JwC = Real{1} * Meter;
+        m_JvAC = Vec2{};
+        m_JwA = 1_m;
+        m_JwC = 1_m;
         const auto invAngMass = bodyConstraintA->GetInvRotInertia() + bodyConstraintC->GetInvRotInertia();
         invMass += StripUnit(invAngMass);
     }
     else
     {
         const auto u = Rotate(m_localAxisC, qC);
-        const auto rC = Length2D{Rotate(m_localAnchorC - bodyConstraintC->GetLocalCenter(), qC)};
-        const auto rA = Length2D{Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), qA)};
+        const auto rC = Length2{Rotate(m_localAnchorC - bodyConstraintC->GetLocalCenter(), qC)};
+        const auto rA = Length2{Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), qA)};
         m_JvAC = Real{1} * u;
         m_JwC = Cross(rC, u);
         m_JwA = Cross(rA, u);
@@ -183,7 +213,7 @@ void GearJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const StepCo
 
     if (m_typeB == JointType::Revolute)
     {
-        m_JvBD = Vec2_zero;
+        m_JvBD = Vec2{};
         m_JwB = m_ratio * Meter;
         m_JwD = m_ratio * Meter;
         const auto invAngMass = InvRotInertia{Square(m_ratio) * (bodyConstraintB->GetInvRotInertia() + bodyConstraintD->GetInvRotInertia())};
@@ -230,7 +260,7 @@ void GearJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const StepCo
     }
     else
     {
-        m_impulse = Momentum{0};
+        m_impulse = 0_Ns;
     }
 
     bodyConstraintA->SetVelocity(velA);
@@ -282,7 +312,7 @@ bool GearJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const StepC
     bodyConstraintC->SetVelocity(velC);
     bodyConstraintD->SetVelocity(velD);
     
-    return impulse == Momentum(0);
+    return impulse == 0_Ns;
 }
 
 bool GearJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const ConstraintSolverConf& conf) const
@@ -297,12 +327,12 @@ bool GearJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const Const
     auto posC = bodyConstraintC->GetPosition();
     auto posD = bodyConstraintD->GetPosition();
 
-    const auto qA = UnitVec2::Get(posA.angular);
-    const auto qB = UnitVec2::Get(posB.angular);
-    const auto qC = UnitVec2::Get(posC.angular);
-    const auto qD = UnitVec2::Get(posD.angular);
+    const auto qA = UnitVec::Get(posA.angular);
+    const auto qB = UnitVec::Get(posB.angular);
+    const auto qC = UnitVec::Get(posC.angular);
+    const auto qD = UnitVec::Get(posD.angular);
 
-    const auto linearError = Length{0};
+    const auto linearError = 0_m;
 
     Vec2 JvAC, JvBD;
     Real JwA, JwB, JwC, JwD;
@@ -313,7 +343,7 @@ bool GearJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const Const
 
     if (m_typeA == JointType::Revolute)
     {
-        JvAC = Vec2_zero;
+        JvAC = Vec2{};
         JwA = 1;
         JwC = 1;
         const auto invAngMass = bodyConstraintA->GetInvRotInertia() + bodyConstraintC->GetInvRotInertia();
@@ -339,7 +369,7 @@ bool GearJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const Const
 
     if (m_typeB == JointType::Revolute)
     {
-        JvBD = Vec2_zero;
+        JvBD = Vec2{};
         JwB = m_ratio;
         JwD = m_ratio;
         const auto invAngMass = InvRotInertia{
@@ -395,17 +425,17 @@ bool GearJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const Const
     return linearError < conf.linearSlop;
 }
 
-Length2D GearJoint::GetAnchorA() const
+Length2 GearJoint::GetAnchorA() const
 {
     return GetWorldPoint(*GetBodyA(), GetLocalAnchorA());
 }
 
-Length2D GearJoint::GetAnchorB() const
+Length2 GearJoint::GetAnchorB() const
 {
     return GetWorldPoint(*GetBodyB(), GetLocalAnchorB());
 }
 
-Momentum2D GearJoint::GetLinearReaction() const
+Momentum2 GearJoint::GetLinearReaction() const
 {
     return m_impulse * m_JvAC;
 }
@@ -421,4 +451,5 @@ void GearJoint::SetRatio(Real ratio)
     m_ratio = ratio;
 }
 
+} // namespace d2
 } // namespace playrho

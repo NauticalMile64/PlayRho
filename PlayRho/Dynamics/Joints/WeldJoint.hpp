@@ -23,9 +23,10 @@
 #define PLAYRHO_DYNAMICS_JOINTS_WELDJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/WeldJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/WeldJointConf.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Weld joint.
 ///
@@ -39,21 +40,22 @@ class WeldJoint : public Joint
 public:
     
     /// @brief Initializing constructor.
-    WeldJoint(const WeldJointDef& def);
+    WeldJoint(const WeldJointConf& def);
     
     void Accept(JointVisitor& visitor) const override;
+    void Accept(JointVisitor& visitor) override;
 
-    Length2D GetAnchorA() const override;
-    Length2D GetAnchorB() const override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
 
-    Momentum2D GetLinearReaction() const override;
+    Momentum2 GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// The local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const { return m_localAnchorA; }
+    /// The local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const { return m_localAnchorA; }
 
-    /// The local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const  { return m_localAnchorB; }
+    /// The local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const  { return m_localAnchorB; }
 
     /// Get the reference angle.
     Angle GetReferenceAngle() const { return m_referenceAngle; }
@@ -78,23 +80,24 @@ private:
     bool SolvePositionConstraints(BodyConstraintsMap& bodies,
                                   const ConstraintSolverConf& conf) const override;
 
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    Angle m_referenceAngle;
-    Frequency m_frequency;
-    Real m_dampingRatio;
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    Angle m_referenceAngle; ///< Reference angle.
+    Frequency m_frequency; ///< Frequency.
+    Real m_dampingRatio; ///< Damping ratio.
 
     // Solver shared
-    Vec3 m_impulse = Vec3_zero;
+    Vec3 m_impulse = Vec3{}; ///< Impulse.
 
     // Solver temp
-    InvRotInertia m_gamma;
-    AngularVelocity m_bias;
-    Length2D m_rA;
-    Length2D m_rB;
-    Mat33 m_mass;
+    InvRotInertia m_gamma; ///< Gamma.
+    AngularVelocity m_bias; ///< Bias.
+    Length2 m_rA; ///< Relative A.
+    Length2 m_rB; ///< Relative B.
+    Mat33 m_mass; ///< Mass.
 };
 
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_WELDJOINT_HPP

@@ -22,84 +22,78 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class MobileBalanced : public Test
 {
 public:
 
-    enum
-    {
-        e_depth = 4
-    };
+    static constexpr int MaxDepth = 4;
 
-    const Density density = Real{20} * KilogramPerSquareMeter;
+    const AreaDensity density = 20_kgpm2;
 
     MobileBalanced()
     {
-        const auto ground = m_world->CreateBody(BodyDef{}.UseLocation(Vec2(0.0f, 20.0f) * Meter));
+        const auto ground = m_world.CreateBody(BodyConf{}.UseLocation(Vec2(0.0f, 20.0f) * 1_m));
 
-        const auto a = Real{0.5f};
-        const auto h = Vec2(0.0f, a) * Meter;
+        const auto a = 0.5_m;
+        const auto h = Length2{0_m, a};
+        const auto root = AddNode(ground, Length2{}, 0, 3.0f, a,
+                                  PolygonShapeConf{}.UseDensity(density).SetAsBox(a / 4, a));
 
-        auto conf = PolygonShape::Conf{};
-        conf.density = density;
-        const auto shape = std::make_shared<const PolygonShape>(Real{0.25f} * a * Meter, a * Meter, conf);
-        const auto root = AddNode(ground, Vec2_zero * Meter, 0, 3.0f, a, shape);
-
-        RevoluteJointDef jointDef;
-        jointDef.bodyA = ground;
-        jointDef.bodyB = root;
-        jointDef.localAnchorA = Vec2_zero * Meter;
-        jointDef.localAnchorB = h;
-        m_world->CreateJoint(jointDef);
+        auto jointConf = RevoluteJointConf{};
+        jointConf.bodyA = ground;
+        jointConf.bodyB = root;
+        jointConf.localAnchorA = Length2{};
+        jointConf.localAnchorB = h;
+        m_world.CreateJoint(jointConf);
     }
 
-    Body* AddNode(const Body* parent, const Length2D localAnchor, const int depth,
-                  const Real offset, const Real a, std::shared_ptr<const Shape> shape)
+    Body* AddNode(const Body* parent, const Length2 localAnchor, const int depth,
+                  const Real offset, const Length a, Shape shape)
     {
-        const auto h = Vec2(0.0f, a) * Meter;
-
+        const auto h = Length2{0_m, a};
         const auto p = parent->GetLocation() + localAnchor - h;
 
-        BodyDef bodyDef;
-        bodyDef.type = BodyType::Dynamic;
-        bodyDef.position = p;
-        const auto body = m_world->CreateBody(bodyDef);
+        BodyConf bodyConf;
+        bodyConf.type = BodyType::Dynamic;
+        bodyConf.linearAcceleration = m_gravity;
+        bodyConf.location = p;
+        const auto body = m_world.CreateBody(bodyConf);
 
         body->CreateFixture(shape);
 
-        if (depth == e_depth)
+        if (depth == MaxDepth)
         {
             return body;
         }
 
-        PolygonShape shape2(Real{0.25f} * a * Meter, Real{a} * Meter);
-        shape2.SetDensity(density);
-        SetAsBox(shape2, offset * Meter, Real{0.25f} * a * Meter, Vec2(0, -a) * Meter, Real{0.0f} * Radian);
-        body->CreateFixture(std::make_shared<PolygonShape>(shape2));
+        auto shape2 = PolygonShapeConf{};
+        shape2.UseDensity(density);
+        shape2.SetAsBox(offset * 1_m, a / 4, Length2{0_m, -a}, 0_rad);
+        body->CreateFixture(Shape(shape2));
 
-        const auto a1 = Vec2(offset, -a) * Meter;
-        const auto a2 = Vec2(-offset, -a) * Meter;
-        const auto body1 = AddNode(body, a1, depth + 1, 0.5f * offset, a, shape);
-        const auto body2 = AddNode(body, a2, depth + 1, 0.5f * offset, a, shape);
+        const auto a1 = Length2{offset * 1_m, -a};
+        const auto a2 = Length2{-offset * 1_m, -a};
+        const auto body1 = AddNode(body, a1, depth + 1, offset / 2, a, shape);
+        const auto body2 = AddNode(body, a2, depth + 1, offset / 2, a, shape);
 
-        RevoluteJointDef jointDef;
-        jointDef.bodyA = body;
-        jointDef.localAnchorB = h;
+        RevoluteJointConf jointConf;
+        jointConf.bodyA = body;
+        jointConf.localAnchorB = h;
 
-        jointDef.localAnchorA = a1;
-        jointDef.bodyB = body1;
-        m_world->CreateJoint(jointDef);
+        jointConf.localAnchorA = a1;
+        jointConf.bodyB = body1;
+        m_world.CreateJoint(jointConf);
 
-        jointDef.localAnchorA = a2;
-        jointDef.bodyB = body2;
-        m_world->CreateJoint(jointDef);
+        jointConf.localAnchorA = a2;
+        jointConf.bodyB = body2;
+        m_world.CreateJoint(jointConf);
 
         return body;
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

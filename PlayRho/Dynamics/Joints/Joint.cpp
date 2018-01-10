@@ -20,9 +20,10 @@
  */
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
+#include <PlayRho/Dynamics/Joints/JointConf.hpp>
 #include <PlayRho/Dynamics/Joints/DistanceJoint.hpp>
 #include <PlayRho/Dynamics/Joints/WheelJoint.hpp>
-#include <PlayRho/Dynamics/Joints/MouseJoint.hpp>
+#include <PlayRho/Dynamics/Joints/TargetJoint.hpp>
 #include <PlayRho/Dynamics/Joints/RevoluteJoint.hpp>
 #include <PlayRho/Dynamics/Joints/PrismaticJoint.hpp>
 #include <PlayRho/Dynamics/Joints/PulleyJoint.hpp>
@@ -39,40 +40,54 @@
 #include <algorithm>
 
 namespace playrho {
+namespace d2 {
 
-Joint* Joint::Create(const JointDef& def)
+Joint* Joint::Create(const JointConf& def)
 {
-    assert(def.type != JointType::Unknown);
-
     switch (def.type)
     {
         case JointType::Distance:
-            return Create<DistanceJoint>(static_cast<const DistanceJointDef&>(def));
-        case JointType::Mouse:
-            return Create<MouseJoint>(static_cast<const MouseJointDef&>(def));
+            return Create<DistanceJoint>(static_cast<const DistanceJointConf&>(def));
+        case JointType::Target:
+            return Create<TargetJoint>(static_cast<const TargetJointConf&>(def));
         case JointType::Prismatic:
-            return Create<PrismaticJoint>(static_cast<const PrismaticJointDef&>(def));
+            return Create<PrismaticJoint>(static_cast<const PrismaticJointConf&>(def));
         case JointType::Revolute:
-            return Create<RevoluteJoint>(static_cast<const RevoluteJointDef&>(def));
+            return Create<RevoluteJoint>(static_cast<const RevoluteJointConf&>(def));
         case JointType::Pulley:
-            return Create<PulleyJoint>(static_cast<const PulleyJointDef&>(def));
+            return Create<PulleyJoint>(static_cast<const PulleyJointConf&>(def));
         case JointType::Gear:
-            return Create<GearJoint>(static_cast<const GearJointDef&>(def));
+            return Create<GearJoint>(static_cast<const GearJointConf&>(def));
         case JointType::Wheel:
-            return Create<WheelJoint>(static_cast<const WheelJointDef&>(def));
+            return Create<WheelJoint>(static_cast<const WheelJointConf&>(def));
         case JointType::Weld:
-            return Create<WeldJoint>(static_cast<const WeldJointDef&>(def));
+            return Create<WeldJoint>(static_cast<const WeldJointConf&>(def));
         case JointType::Friction:
-            return Create<FrictionJoint>(static_cast<const FrictionJointDef&>(def));
+            return Create<FrictionJoint>(static_cast<const FrictionJointConf&>(def));
         case JointType::Rope:
-            return Create<RopeJoint>(static_cast<const RopeJointDef&>(def));
+            return Create<RopeJoint>(static_cast<const RopeJointConf&>(def));
         case JointType::Motor:
-            return Create<MotorJoint>(static_cast<const MotorJointDef&>(def));
+            return Create<MotorJoint>(static_cast<const MotorJointConf&>(def));
         case JointType::Unknown:
-            throw InvalidArgument("Joint::Create: Unknown joint type");
+            break;
     }
+    throw InvalidArgument("Joint::Create: Unknown joint type");
+}
 
-    PLAYRHO_UNREACHABLE;
+Joint::FlagsType Joint::GetFlags(const JointConf& def) noexcept
+{
+    auto flags = Joint::FlagsType(0);
+    if (def.collideConnected)
+    {
+        flags |= e_collideConnectedFlag;
+    }
+    return flags;
+}
+
+Joint::Joint(const JointConf& def):
+    m_bodyA{def.bodyA}, m_bodyB{def.bodyB}, m_userData{def.userData}, m_flags{GetFlags(def)}
+{
+    // Intentionally empty.
 }
 
 void Joint::Destroy(const Joint* joint)
@@ -80,7 +95,7 @@ void Joint::Destroy(const Joint* joint)
     delete joint;
 }
 
-bool Joint::IsOkay(const JointDef& def) noexcept
+bool Joint::IsOkay(const JointConf& def) noexcept
 {
     return def.bodyA != def.bodyB;
 }
@@ -121,7 +136,7 @@ JointCounter GetWorldIndex(const Joint* joint)
             auto i = JointCounter{0};
             const auto joints = world->GetJoints();
             const auto it = std::find_if(std::cbegin(joints), std::cend(joints), [&](const Joint *j) {
-                return (j == joint) || (++i, false);
+                return (j == joint) || ((void) ++i, false);
             });
             if (it != std::end(joints))
             {
@@ -138,13 +153,13 @@ BodyConstraintPtr& At(std::vector<BodyConstraintPair>& container, const Body* ke
     auto last = std::end(container);
     auto first = std::begin(container);
     first = std::lower_bound(first, last, key, [](const BodyConstraintPair &a, const Body* b){
-        return a.first < b;
+        return std::get<const Body*>(a) < b;
     });
-    if (first == last || key != (*first).first)
+    if ((first == last) || (key != std::get<const Body*>(*first)))
     {
         throw std::out_of_range{"invalid key"};
     }
-    return (*first).second;
+    return std::get<BodyConstraintPtr>(*first);
 }
 #endif
 
@@ -154,4 +169,18 @@ BodyConstraintPtr& At(std::unordered_map<const Body*, BodyConstraint*>& containe
     return container.at(key);
 }
 
+const char* ToString(Joint::LimitState val) noexcept
+{
+    switch (val)
+    {
+        case Joint::e_atLowerLimit: return "at lower";
+        case Joint::e_atUpperLimit: return "at upper";
+        case Joint::e_equalLimits: return "equal";
+        case Joint::e_inactiveLimit: break;
+    }
+    assert(val == Joint::e_inactiveLimit);
+    return "inactive";
+}
+
+} // namespace d2
 } // namespace playrho

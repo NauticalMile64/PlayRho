@@ -28,25 +28,34 @@ project(PlayRho)
 # however and it'd be nice to use an option that works for both compilers. So use '-O3'.
 # For Visual Studio Compilers, the speed optimization flag is /O2, which is the default setting for release builds
 if(MSVC)
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+  add_definitions(-D_SCL_SECURE_NO_WARNINGS)
 else()
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 endif()
 
 # Provide options that user can optionally select.
 # Details at: https://cmake.org/cmake/help/v3.1/command/option.html
-option(PLAYRHO_BUILD_STATIC "Build PlayRho static libraries" ON)
-option(PLAYRHO_BUILD_SHARED "Build PlayRho shared libraries" OFF)
-option(PLAYRHO_INSTALL "Install PlayRho libs, includes, and CMake scripts" OFF)
-option(PLAYRHO_INSTALL_DOC "Install PlayRho documentation" OFF)
-option(PLAYRHO_BUILD_HELLOWORLD "Build PlayRho HelloWorld console application" OFF)
-option(PLAYRHO_BUILD_UNIT_TESTS "Build PlayRho Unit Tests console application" OFF)
-option(PLAYRHO_BUILD_BENCHMARK "Build PlayRho Benchmark console application" OFF)
-option(PLAYRHO_BUILD_TESTBED "Build PlayRho Testbed GUI application" OFF)
-option(PLAYRHO_ENABLE_COVERAGE "Enable code coverage generation" OFF)
+option(PLAYRHO_BUILD_STATIC "Build PlayRho static libraries." ON)
+option(PLAYRHO_BUILD_SHARED "Build PlayRho shared libraries." OFF)
+option(PLAYRHO_INSTALL "Enable installation of PlayRho libs, includes, and CMake scripts." OFF)
+option(PLAYRHO_INSTALL_DOC "Enable installation of PlayRho documentation." OFF)
+option(PLAYRHO_BUILD_HELLOWORLD "Build PlayRho HelloWorld console application." OFF)
+option(PLAYRHO_BUILD_UNIT_TESTS "Build PlayRho Unit Tests console application." OFF)
+option(PLAYRHO_BUILD_BENCHMARK "Build PlayRho Benchmark console application." OFF)
+option(PLAYRHO_BUILD_TESTBED "Build PlayRho Testbed GUI application." OFF)
+option(PLAYRHO_ENABLE_COVERAGE "Enable code coverage generation." OFF)
 
 set(PLAYRHO_VERSION 0.9.0)
 set(LIB_INSTALL_DIR lib${LIB_SUFFIX})
+
+# Tell Microsoft Visual C (MSVC) to enable unwind semantics since it doesn't by default.
+# For info on MSVC Exception Handling Model see:
+#   https://msdn.microsoft.com/en-us/library/1deeycx5.aspx
+# Perhaps this should be a build option for all platforms?
+if(MSVC)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -EHsc")
+endif()
 
 # The PlayRho library.
 add_subdirectory(PlayRho)
@@ -63,6 +72,12 @@ endif(PLAYRHO_BUILD_TESTBED)
 
 # Unit tests console application.
 if(PLAYRHO_BUILD_UNIT_TESTS)
+
+  # Have CMake produce a "test" make target.
+  # From https://cmake.org/cmake/help/v3.4/command/enable_testing.html :
+  #   "Enable testing for current directory and below".
+  enable_testing()
+
   add_subdirectory(UnitTests)
 endif(PLAYRHO_BUILD_UNIT_TESTS)
 

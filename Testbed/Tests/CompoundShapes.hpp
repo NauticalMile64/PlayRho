@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 // TODO_ERIN test joints on compounds.
 class CompoundShapes : public Test
@@ -30,49 +30,45 @@ class CompoundShapes : public Test
 public:
     CompoundShapes()
     {
+        m_world.CreateBody()->CreateFixture(Shape{EdgeShapeConf{Vec2(50.0f, 0.0f) * 1_m, Vec2(-50.0f, 0.0f) * 1_m}});
+        
         {
-            BodyDef bd;
-            bd.position = Vec2(0.0f, 0.0f) * Meter;
-            const auto body = m_world->CreateBody(bd);
-            body->CreateFixture(std::make_shared<EdgeShape>(Vec2(50.0f, 0.0f) * Meter, Vec2(-50.0f, 0.0f) * Meter));
-        }
-
-        {
-            auto conf = DiskShape::Conf{};
-            conf.vertexRadius = Real{0.5f} * Meter;
+            auto conf = DiskShapeConf{};
+            conf.vertexRadius = 0.5_m;
             
-            conf.location = Vec2{-0.5f, 0.5f} * Meter;
-            const auto circle1 = std::make_shared<DiskShape>(conf);
-            circle1->SetDensity(Real{2} * KilogramPerSquareMeter);
-            conf.location = Vec2{0.5f, 0.5f} * Meter;
-            const auto circle2 = std::make_shared<DiskShape>(conf);
+            conf.location = Vec2{-0.5f, 0.5f} * 1_m;
+            const auto circle1 = Shape{DiskShapeConf(conf).UseDensity(2_kgpm2)};
+            conf.location = Vec2{0.5f, 0.5f} * 1_m;
+            const auto circle2 = Shape(conf);
             for (auto i = 0; i < 10; ++i)
             {
                 const auto x = RandomFloat(-0.1f, 0.1f);
-                BodyDef bd;
+                BodyConf bd;
                 bd.type = BodyType::Dynamic;
-                bd.position = Vec2(x + 5.0f, 1.05f + 2.5f * i) * Meter;
-                bd.angle = Radian * RandomFloat(-Pi, Pi);
-                const auto body = m_world->CreateBody(bd);
+                bd.location = Vec2(x + 5.0f, 1.05f + 2.5f * i) * 1_m;
+                bd.angle = 1_rad * RandomFloat(-Pi, Pi);
+                const auto body = m_world.CreateBody(bd);
                 body->CreateFixture(circle1);
                 body->CreateFixture(circle2);
             }
         }
 
         {
-            const auto polygon1 = std::make_shared<PolygonShape>(Real{0.25f} * Meter, Real{0.5f} * Meter);
-            polygon1->SetDensity(Real{2} * KilogramPerSquareMeter);
-            auto polygon2 = std::make_shared<PolygonShape>();
-            polygon2->SetDensity(Real{2} * KilogramPerSquareMeter);
-            SetAsBox(*polygon2, Real{0.25f} * Meter, Real{0.5f} * Meter, Vec2(0.0f, -0.5f) * Meter, Real{0.5f} * Radian * Pi);
+            auto conf = PolygonShapeConf{};
+            conf.UseDensity(2_kgpm2);
+            conf.SetAsBox(0.25_m, 0.5_m);
+            const auto polygon1 = Shape{conf};
+            conf.UseDensity(2_kgpm2);
+            conf.SetAsBox(0.25_m, 0.5_m, Vec2(0.0f, -0.5f) * 1_m, 0.5_rad * Pi);
+            const auto polygon2 = Shape{conf};
             for (int i = 0; i < 10; ++i)
             {
                 const auto x = RandomFloat(-0.1f, 0.1f);
-                BodyDef bd;
+                BodyConf bd;
                 bd.type = BodyType::Dynamic;
-                bd.position = Vec2(x - 5.0f, 1.05f + 2.5f * i) * Meter;
-                bd.angle = Radian * RandomFloat(-Pi, Pi);
-                const auto body = m_world->CreateBody(bd);
+                bd.location = Vec2(x - 5.0f, 1.05f + 2.5f * i) * 1_m;
+                bd.angle = 1_rad * RandomFloat(-Pi, Pi);
+                const auto body = m_world.CreateBody(bd);
                 body->CreateFixture(polygon1);
                 body->CreateFixture(polygon2);
             }
@@ -80,65 +76,68 @@ public:
 
         {
             Transformation xf1;
-            xf1.q = UnitVec2::Get(Real{0.3524f} * Radian * Pi);
-            xf1.p = GetVec2(GetXAxis(xf1.q)) * Meter;
+            xf1.q = UnitVec::Get(0.3524_rad * Pi);
+            xf1.p = GetVec2(GetXAxis(xf1.q)) * 1_m;
 
-            auto triangle1 = std::make_shared<PolygonShape>();
-            triangle1->Set(Span<const Length2D>{
-                Transform(Vec2(-1.0f, 0.0f) * Meter, xf1),
-                Transform(Vec2(1.0f, 0.0f) * Meter, xf1),
-                Transform(Vec2(0.0f, 0.5f) * Meter, xf1)
+            auto triangleConf1 = PolygonShapeConf{};
+            triangleConf1.Set(Span<const Length2>{
+                Transform(Vec2(-1.0f, 0.0f) * 1_m, xf1),
+                Transform(Vec2(1.0f, 0.0f) * 1_m, xf1),
+                Transform(Vec2(0.0f, 0.5f) * 1_m, xf1)
             });
-            triangle1->SetDensity(Real{2} * KilogramPerSquareMeter);
+            triangleConf1.UseDensity(2_kgpm2);
+            const auto triangle1 = Shape(triangleConf1);
 
             Transformation xf2;
-            xf2.q = UnitVec2::Get(Real{-0.3524f} * Radian * Pi);
-            xf2.p = -GetVec2(GetXAxis(xf2.q)) * Meter;
+            xf2.q = UnitVec::Get(-0.3524_rad * Pi);
+            xf2.p = -GetVec2(GetXAxis(xf2.q)) * 1_m;
 
-            auto triangle2 = std::make_shared<PolygonShape>();
-            triangle2->Set(Span<const Length2D>{
-                Transform(Vec2(-1.0f, 0.0f) * Meter, xf2),
-                Transform(Vec2(1.0f, 0.0f) * Meter, xf2),
-                Transform(Vec2(0.0f, 0.5f) * Meter, xf2)
+            auto trianglConf2 = PolygonShapeConf{};
+            trianglConf2.Set(Span<const Length2>{
+                Transform(Vec2(-1.0f, 0.0f) * 1_m, xf2),
+                Transform(Vec2(1.0f, 0.0f) * 1_m, xf2),
+                Transform(Vec2(0.0f, 0.5f) * 1_m, xf2)
             });
-            triangle2->SetDensity(Real{2} * KilogramPerSquareMeter);
-            
+            trianglConf2.UseDensity(2_kgpm2);
+            const auto triangle2 = Shape(trianglConf2);
+
             for (auto i = 0; i < 10; ++i)
             {
                 const auto x = RandomFloat(-0.1f, 0.1f);
-                BodyDef bd;
+                BodyConf bd;
                 bd.type = BodyType::Dynamic;
-                bd.position = Vec2(x, 2.05f + 2.5f * i) * Meter;
-                bd.angle = Real{0.0f} * Radian;
-                const auto body = m_world->CreateBody(bd);
+                bd.location = Vec2(x, 2.05f + 2.5f * i) * 1_m;
+                bd.angle = 0_rad;
+                const auto body = m_world.CreateBody(bd);
                 body->CreateFixture(triangle1);
                 body->CreateFixture(triangle2);
             }
         }
 
         {
-            const auto bottom = std::make_shared<PolygonShape>(Real{1.5f} * Meter, Real{0.15f} * Meter);
-            bottom->SetDensity(Real{4} * KilogramPerSquareMeter);
+            auto conf = PolygonShapeConf{};
+            conf.UseDensity(4_kgpm2);
+            conf.SetAsBox(1.5_m, 0.15_m);
+            const auto bottom = Shape{conf};
+            conf.SetAsBox(0.15_m, 2.7_m, Vec2(-1.45f, 2.35f) * 1_m, +0.2_rad);
+            const auto left = Shape{conf};
+            conf.UseDensity(4_kgpm2);
+            conf.SetAsBox(0.15_m, 2.7_m, Vec2(1.45f, 2.35f) * 1_m, -0.2_rad);
+            const auto right = Shape{conf};
 
-            auto left = std::make_shared<PolygonShape>();
-            left->SetDensity(Real{4} * KilogramPerSquareMeter);
-            SetAsBox(*left, Real{0.15f} * Meter, Real{2.7f} * Meter, Vec2(-1.45f, 2.35f) * Meter, Real{+0.2f} * Radian);
-
-            auto right = std::make_shared<PolygonShape>();
-            right->SetDensity(Real{4} * KilogramPerSquareMeter);
-            SetAsBox(*right, Real{0.15f} * Meter, Real{2.7f} * Meter, Vec2(1.45f, 2.35f) * Meter, Real{-0.2f} * Radian);
-
-            BodyDef bd;
+            BodyConf bd;
             bd.type = BodyType::Dynamic;
-            bd.position = Vec2( 0.0f, 2.0f ) * Meter;
-            const auto body = m_world->CreateBody(bd);
+            bd.location = Vec2( 0.0f, 2.0f ) * 1_m;
+            const auto body = m_world.CreateBody(bd);
             body->CreateFixture(bottom);
             body->CreateFixture(left);
             body->CreateFixture(right);
         }
+        
+        SetAccelerations(m_world, m_gravity);
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

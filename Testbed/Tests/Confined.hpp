@@ -21,13 +21,14 @@
 #define  PLAYRHO_CONFINED_HPP
 
 #include "../Framework/Test.hpp"
+#include <sstream>
 
-namespace playrho {
+namespace testbed {
 
 class Confined : public Test
 {
 public:
-    const Length wall_length = Real(0.15f) * Meter; // DefaultLinearSlop * 1000
+    const Length wall_length = DefaultLinearSlop * 80;
     const Length vertexRadiusIncrement = wall_length / Real{40};
     
     enum
@@ -38,104 +39,107 @@ public:
 
     Confined()
     {
+        m_gravity = LinearAcceleration2{};
         m_enclosure = CreateEnclosure(m_enclosureVertexRadius, wall_length);
 
-        const auto radius = Real{0.5f} * Meter;
-        auto conf = DiskShape::Conf{};
+        RegisterForKey(GLFW_KEY_C, GLFW_PRESS, 0, "Create Circle", [&](KeyActionMods) {
+            CreateCircle();
+        });
+        RegisterForKey(GLFW_KEY_B, GLFW_PRESS, 0, "Create Box", [&](KeyActionMods) {
+            CreateBox();
+        });
+        RegisterForKey(GLFW_KEY_I, GLFW_PRESS, 0, "Impart Impulse", [&](KeyActionMods) {
+            ImpartRandomImpulses();
+        });
+        RegisterForKey(GLFW_KEY_PERIOD, GLFW_PRESS, 0, "Toggle Bullet Mode", [&](KeyActionMods) {
+            ToggleBulletMode();
+        });
+        RegisterForKey(GLFW_KEY_KP_ADD, GLFW_PRESS, 0, "Thicken The Walls", [&](KeyActionMods) {
+            m_world.Destroy(m_enclosure);
+            m_enclosureVertexRadius += vertexRadiusIncrement;
+            m_enclosure = CreateEnclosure(m_enclosureVertexRadius, wall_length);
+        });
+        RegisterForKey(GLFW_KEY_KP_SUBTRACT, GLFW_PRESS, 0, "Thin The Walls", [&](KeyActionMods) {
+            m_world.Destroy(m_enclosure);
+            m_enclosureVertexRadius -= vertexRadiusIncrement;
+            if (m_enclosureVertexRadius < 0_m)
+            {
+                m_enclosureVertexRadius = 0_m;
+            }
+            m_enclosure = CreateEnclosure(m_enclosureVertexRadius, wall_length);
+        });
+        
+        const auto radius = 0.5_m;
+        auto conf = DiskShapeConf{};
         conf.vertexRadius = radius;
-        conf.density = Real{1} * KilogramPerSquareMeter;
+        conf.density = 1_kgpm2;
         conf.friction = 0.1f;
-        const auto shape = std::make_shared<DiskShape>(conf);
+        const auto shape = Shape(conf);
 
         for (auto j = 0; j < e_columnCount; ++j)
         {
             for (auto i = 0; i < e_rowCount; ++i)
             {
-                BodyDef bd;
+                BodyConf bd;
                 bd.type = BodyType::Dynamic;
-                bd.position = Vec2{
-                    -10.0f + (2.1f * j + 1.0f + 0.01f * i) * (radius / Meter),
-                    (2.0f * i + 1.0f) * (radius/ Meter)
-                } * Meter;
-                const auto body = m_world->CreateBody(bd);
+                bd.location = Vec2{
+                    -10.0f + (2.1f * j + 1.0f + 0.01f * i) * (radius / 1_m),
+                    (2.0f * i + 1.0f) * (radius/ 1_m)
+                } * 1_m;
+                const auto body = m_world.CreateBody(bd);
                 body->CreateFixture(shape);
             }
         }
-
-        m_world->SetGravity(Vec2(0.0f, 0.0f) * MeterPerSquareSecond);
     }
-
+    
     Body* CreateEnclosure(Length vertexRadius, Length wallLength)
     {
-        const auto ground = m_world->CreateBody();
-        
-        auto conf = ChainShape::Conf{};
-        conf.restitution = 0; // originally 0.9
-        conf.vertexRadius = vertexRadius;
-        
-        const auto btmLeft = Length2D(-wallLength / Real{2}, Real{0} * Meter);
-        const auto btmRight = Length2D(wallLength / Real{2}, Real{0} * Meter);
-        const auto topLeft = Length2D(-wallLength / Real{2}, wallLength);
-        const auto topRight = Length2D(wallLength / Real{2}, wallLength);
-        
-        conf.vertices.push_back(btmRight);
-        conf.vertices.push_back(topRight);
-        conf.vertices.push_back(topLeft);
-        conf.vertices.push_back(btmLeft);
-        conf.vertices.push_back(conf.vertices[0]);
+        const auto body = CreateSquareEnclosingBody(m_world, wallLength, ShapeConf{
+            }.UseVertexRadius(vertexRadius).UseRestitution(Finite<Real>(0)));
+        SetLocation(*body, Length2{0_m, 20_m});
+        return body;
+    }
 
-        ground->CreateFixture(std::make_shared<ChainShape>(conf));
-        
-        return ground;
+    Length2 GetRandomOffset() const
+    {
+        const auto halfWL = StripUnit(wall_length) / 2;
+        return Vec2{RandomFloat(-halfWL, +halfWL), RandomFloat(-halfWL, +halfWL)} * 1_m;
     }
     
     void CreateCircle()
     {
-        const auto radius = wall_length/Real{10}; // 2
+        const auto radius = wall_length/ 10; // 2
 
-        BodyDef bd;
+        BodyConf bd;
         bd.type = BodyType::Dynamic;
         bd.bullet = m_bullet_mode;
-        const auto wl = StripUnit(wall_length);
-        bd.position = Vec2(RandomFloat(-wl / Real{2}, +wl / Real{2}), RandomFloat(0, wl)) * Meter;
-        bd.userData = reinterpret_cast<void*>(m_sequence);
+        bd.location = Vec2{0, 20} * 1_m + GetRandomOffset();
         //bd.allowSleep = false;
-
-        const auto body = m_world->CreateBody(bd);
         
-        auto conf = DiskShape::Conf{};
-        conf.density = Real{1} * KilogramPerSquareMeter;
+        auto conf = DiskShapeConf{};
+        conf.density = 1_kgpm2;
         conf.restitution = 0.8f;
         conf.vertexRadius = radius;
-        body->CreateFixture(std::make_shared<DiskShape>(conf));
-
-        ++m_sequence;
+        m_world.CreateBody(bd)->CreateFixture(Shape(conf));
     }
 
     void CreateBox()
     {
         const auto side_length = wall_length / Real{5}; // 4
-
-        auto conf = PolygonShape::Conf{};
-        conf.density = Real{1} * KilogramPerSquareMeter;
-        conf.restitution = 0; // originally 0.8
-        
-        BodyDef bd;
+        // originally restitution was 0.8f
+        BodyConf bd;
         bd.type = BodyType::Dynamic;
         bd.bullet = m_bullet_mode;
-        const auto wl = StripUnit(wall_length);
-        bd.position = Vec2(RandomFloat(-wl / Real{2}, +wl / Real{2}), RandomFloat(0, wl)) * Meter;
-        bd.userData = reinterpret_cast<void*>(m_sequence);
-        const auto body = m_world->CreateBody(bd);
-        body->CreateFixture(std::make_shared<PolygonShape>(side_length/Real{2}, side_length/Real{2}, conf));
-
-        ++m_sequence;
+        bd.location = Vec2{0, 20} * 1_m + GetRandomOffset();
+        m_world.CreateBody(bd)->CreateFixture(Shape{
+            PolygonShapeConf{}.UseDensity(1_kgpm2).UseRestitution(Finite<Real>(0)).SetAsBox(side_length/2, side_length/2)
+        });
     }
 
     void ToggleBulletMode()
     {
         m_bullet_mode = !m_bullet_mode;
-        for (auto&& body: m_world->GetBodies())
+        for (auto&& body: m_world.GetBodies())
         {
             auto& b = GetRef(body);
             if (b.GetType() == BodyType::Dynamic)
@@ -147,64 +151,29 @@ public:
 
     void ImpartRandomImpulses()
     {
-        for (auto&& body: m_world->GetBodies())
+        for (auto&& body: m_world.GetBodies())
         {
             auto& b = GetRef(body);
             if (b.GetType() == BodyType::Dynamic)
             {
                 const auto position = b.GetLocation();
-                const auto centerPos = Length2D{
+                const auto centerPos = Length2{
                     GetX(position), GetY(position) - (wall_length / Real{2})
                 };
                 const auto angle_from_center = GetAngle(centerPos);
-                const auto direction = angle_from_center + Pi * Radian;
-                const auto magnitude = Sqrt(Square(StripUnit(wall_length)) * Real{2}) *
-                	GetMass(b) * Real{20} * MeterPerSecond;
-                const auto impulse = Momentum2D{magnitude * UnitVec2::Get(direction)};
+                const auto direction = angle_from_center + Pi * 1_rad;
+                const auto magnitude = sqrt(Square(StripUnit(wall_length)) * 2) *
+                	GetMass(b) * 20_mps;
+                const auto impulse = Momentum2{magnitude * UnitVec::Get(direction)};
                 ApplyLinearImpulse(b, impulse, b.GetWorldCenter());
             }
         }        
     }
 
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_C:
-            CreateCircle();
-            break;
-        case Key_B:
-            CreateBox();
-            break;
-        case Key_I:
-            ImpartRandomImpulses();
-            break;
-        case Key_Period:
-            ToggleBulletMode();
-            break;
-        case Key_Add:
-            m_world->Destroy(m_enclosure);
-            m_enclosureVertexRadius += vertexRadiusIncrement;
-            m_enclosure = CreateEnclosure(m_enclosureVertexRadius, wall_length);
-            break;
-        case Key_Subtract:
-            m_world->Destroy(m_enclosure);
-            m_enclosureVertexRadius -= vertexRadiusIncrement;
-            if (m_enclosureVertexRadius < Length{0})
-            {
-                m_enclosureVertexRadius = 0;
-            }
-            m_enclosure = CreateEnclosure(m_enclosureVertexRadius, wall_length);
-            break;
-        default:
-            break;
-        }
-    }
-
     void PreStep(const Settings&, Drawer&) override
     {
         auto sleeping = true;
-        for (auto&& body: m_world->GetBodies())
+        for (auto&& body: m_world.GetBodies())
         {
             auto& b = GetRef(body);
 
@@ -225,37 +194,18 @@ public:
         //}
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        for (auto& body: m_world->GetBodies())
-        {
-            auto& b = GetRef(body);
-            if (b.GetType() != BodyType::Dynamic)
-            {
-                continue;
-            }
-            
-            const auto location = b.GetLocation();
-            const auto userData = b.GetUserData();
-            drawer.DrawString(location, "B%d", reinterpret_cast<decltype(m_sequence)>(userData));
-        }
-        
-        drawer.DrawString(5, m_textLine, "Press 'c' to create a circle.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "Press 'b' to create a box.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "Press '.' to toggle bullet mode (currently %s).", m_bullet_mode? "on": "off");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "Press 'i' to impart impulses.");
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "Bullet mode currently " << (m_bullet_mode? "on": "off") << ".";
+        m_status = stream.str();
     }
     
     bool m_bullet_mode = false;
     Length m_enclosureVertexRadius = vertexRadiusIncrement;
     Body* m_enclosure = nullptr;
-    std::size_t m_sequence = 0;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

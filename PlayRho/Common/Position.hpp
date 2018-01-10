@@ -24,121 +24,136 @@
 
 #include <PlayRho/Common/Templates.hpp>
 #include <PlayRho/Common/Settings.hpp>
-#include <PlayRho/Common/Vector2D.hpp>
+#include <PlayRho/Common/Vector2.hpp>
 
-namespace playrho
+namespace playrho {
+namespace d2 {
+
+/// @brief 2-D positional data structure.
+/// @details A 2-element length and angle pair suitable for representing a linear and
+///   angular position in 2-D.
+/// @note This structure is likely to be 12-bytes large (at least on 64-bit platforms).
+struct Position
 {
-    
-    /// @brief Positional data structure.
-    /// @note This structure is likely to be 12-bytes large (at least on 64-bit platforms).
-    struct Position
-    {
-        Length2D linear; ///< Linear position.
-        Angle angular; ///< Angular position.
-    };
-    
-    /// @brief Determines if the given value is valid.
-    /// @relatedalso Position
-    template <>
-    constexpr inline bool IsValid(const Position& value) noexcept
-    {
-        return IsValid(value.linear) && IsValid(value.angular);
-    }
-    
-    /// @brief Equality operator.
-    /// @relatedalso Position
-    constexpr inline bool operator==(const Position& lhs, const Position& rhs)
-    {
-        return (lhs.linear == rhs.linear) && (lhs.angular == rhs.angular);
-    }
-    
-    /// @brief Inequality operator.
-    /// @relatedalso Position
-    constexpr inline bool operator!=(const Position& lhs, const Position& rhs)
-    {
-        return (lhs.linear != rhs.linear) || (lhs.angular != rhs.angular);
-    }
-    
-    /// @brief Negation operator.
-    /// @relatedalso Position
-    constexpr inline Position operator- (const Position& value)
-    {
-        return Position{-value.linear, -value.angular};
-    }
-    
-    /// @brief Positive operator.
-    /// @relatedalso Position
-    constexpr inline Position operator+ (const Position& value)
-    {
-        return value;
-    }
-    
-    /// @brief Addition assignment operator.
-    /// @relatedalso Position
-    constexpr inline Position& operator+= (Position& lhs, const Position& rhs)
-    {
-        lhs.linear += rhs.linear;
-        lhs.angular += rhs.angular;
-        return lhs;
-    }
-    
-    /// @brief Addition operator.
-    /// @relatedalso Position
-    constexpr inline Position operator+ (const Position& lhs, const Position& rhs)
-    {
-        return Position{lhs.linear + rhs.linear, lhs.angular + rhs.angular};
-    }
-    
-    /// @brief Subtraction assignment operator.
-    /// @relatedalso Position
-    constexpr inline Position& operator-= (Position& lhs, const Position& rhs)
-    {
-        lhs.linear -= rhs.linear;
-        lhs.angular -= rhs.angular;
-        return lhs;
-    }
-    
-    /// @brief Subtraction operator.
-    /// @relatedalso Position
-    constexpr inline Position operator- (const Position& lhs, const Position& rhs)
-    {
-        return Position{lhs.linear - rhs.linear, lhs.angular - rhs.angular};
-    }
-    
-    /// @brief Multiplication operator.
-    constexpr inline Position operator* (const Position& pos, const Real scalar)
-    {
-        return Position{pos.linear * scalar, pos.angular * scalar};
-    }
-    
-    /// @brief Multiplication operator.
-    /// @relatedalso Position
-    constexpr inline Position operator* (const Real scalar, const Position& pos)
-    {
-        return Position{pos.linear * scalar, pos.angular * scalar};
-    }
-    
-    /// Gets the position between two positions at a given unit interval.
-    /// @param pos0 Position at unit interval value of 0.
-    /// @param pos1 Position at unit interval value of 1.
-    /// @param beta Unit interval (value between 0 and 1) of travel between pos0 and pos1.
-    /// @return pos0 if pos0 == pos1 or beta == 0, pos1 if beta == 1, or at the given
-    ///   unit interval value between pos0 and pos1.
-    /// @relatedalso Position
-    inline Position GetPosition(const Position pos0, const Position pos1, const Real beta) noexcept
-    {
-        // Note: have to be careful how this is done.
-        //   If pos0 == pos1 then return value should always be equal to pos0 too.
-        //   But if Real is float, pos0 * (1 - beta) + pos1 * beta can fail this requirement.
-        //   Meanwhile, pos0 + (pos1 - pos0) * beta always works.
-        
-        // pos0 * (1 - beta) + pos1 * beta
-        // pos0 - pos0 * beta + pos1 * beta
-        // pos0 + (pos1 * beta - pos0 * beta)
-        // pos0 + (pos1 - pos0) * beta
-        return pos0 + (pos1 - pos0) * beta;
-    }
+    Length2 linear; ///< Linear position.
+    Angle angular; ///< Angular position.
+};
 
+/// @brief Equality operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline bool operator==(const Position& lhs, const Position& rhs)
+{
+    return (lhs.linear == rhs.linear) && (lhs.angular == rhs.angular);
+}
+
+/// @brief Inequality operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline bool operator!=(const Position& lhs, const Position& rhs)
+{
+    return (lhs.linear != rhs.linear) || (lhs.angular != rhs.angular);
+}
+
+/// @brief Negation operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position operator- (const Position& value)
+{
+    return Position{-value.linear, -value.angular};
+}
+
+/// @brief Positive operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position operator+ (const Position& value)
+{
+    return value;
+}
+
+/// @brief Addition assignment operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position& operator+= (Position& lhs, const Position& rhs)
+{
+    lhs.linear += rhs.linear;
+    lhs.angular += rhs.angular;
+    return lhs;
+}
+
+/// @brief Addition operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position operator+ (const Position& lhs, const Position& rhs)
+{
+    return Position{lhs.linear + rhs.linear, lhs.angular + rhs.angular};
+}
+
+/// @brief Subtraction assignment operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position& operator-= (Position& lhs, const Position& rhs)
+{
+    lhs.linear -= rhs.linear;
+    lhs.angular -= rhs.angular;
+    return lhs;
+}
+
+/// @brief Subtraction operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position operator- (const Position& lhs, const Position& rhs)
+{
+    return Position{lhs.linear - rhs.linear, lhs.angular - rhs.angular};
+}
+
+/// @brief Multiplication operator.
+PLAYRHO_CONSTEXPR inline Position operator* (const Position& pos, const Real scalar)
+{
+    return Position{pos.linear * scalar, pos.angular * scalar};
+}
+
+/// @brief Multiplication operator.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position operator* (const Real scalar, const Position& pos)
+{
+    return Position{pos.linear * scalar, pos.angular * scalar};
+}
+
+} // namespace d2
+
+/// @brief Determines if the given value is valid.
+/// @relatedalso d2::Position
+template <>
+PLAYRHO_CONSTEXPR inline
+bool IsValid(const d2::Position& value) noexcept
+{
+    return IsValid(value.linear) && IsValid(value.angular);
+}
+
+namespace d2 {
+
+/// Gets the position between two positions at a given unit interval.
+/// @param pos0 Position at unit interval value of 0.
+/// @param pos1 Position at unit interval value of 1.
+/// @param beta Unit interval (value between 0 and 1) of travel between position 0 and
+///   position 1.
+/// @return position 0 if <code>pos0 == pos1</code> or <code>beta == 0</code>,
+///   position 1 if <code>beta == 1</code>, or at the given unit interval value
+///   between position 0 and position 1.
+/// @relatedalso Position
+PLAYRHO_CONSTEXPR inline Position GetPosition(const Position pos0, const Position pos1,
+                                              const Real beta) noexcept
+{
+    assert(IsValid(pos0));
+    assert(IsValid(pos1));
+    assert(IsValid(beta));
+
+    // Note: have to be careful how this is done.
+    //   If pos0 == pos1 then return value should always be equal to pos0 too.
+    //   But if Real is float, pos0 * (1 - beta) + pos1 * beta can fail this requirement.
+    //   Meanwhile, pos0 + (pos1 - pos0) * beta always works.
+    
+    // pos0 * (1 - beta) + pos1 * beta
+    // pos0 - pos0 * beta + pos1 * beta
+    // pos0 + (pos1 * beta - pos0 * beta)
+    // pos0 + (pos1 - pos0) * beta
+    return pos0 + (pos1 - pos0) * beta;
+}
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_COMMON_POSITION_HPP

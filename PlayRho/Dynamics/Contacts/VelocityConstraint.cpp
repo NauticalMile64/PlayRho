@@ -18,16 +18,18 @@
  */
 
 #include <PlayRho/Dynamics/Contacts/VelocityConstraint.hpp>
+#include <PlayRho/Dynamics/StepConf.hpp>
 #include <PlayRho/Collision/WorldManifold.hpp>
 #include <PlayRho/Collision/Manifold.hpp>
 
 #define PLAYRHO_MAGIC(x) (x)
 
 namespace playrho {
+namespace d2 {
 
 namespace {
 
-inline InvMass22 ComputeK(const VelocityConstraint& vc) noexcept
+inline InvMass3 ComputeK(const VelocityConstraint& vc) noexcept
 {
     assert(vc.GetPointCount() == 2);
 
@@ -65,7 +67,7 @@ inline InvMass22 ComputeK(const VelocityConstraint& vc) noexcept
     const auto k11 = invMass + invRotMassA1 + invRotMassB1;
     const auto k01 = invMass + invRotMassA + invRotMassB;
     
-    return InvMass22{Vector2D<InvMass>{k00, k01}, Vector2D<InvMass>{k01, k11}};
+    return InvMass3{k00, k11, k01};
 }
 
 } // anonymous namespace
@@ -76,10 +78,9 @@ VelocityConstraint::VelocityConstraint(Real friction, Real restitution,
                                        BodyConstraint& bA,
                                        BodyConstraint& bB,
                                        Conf conf):
-    m_friction{friction}, m_restitution{restitution}, m_tangentSpeed{tangentSpeed},
     m_bodyA{&bA}, m_bodyB{&bB},
-    m_invMass{bA.GetInvMass() + bB.GetInvMass()},
-    m_normal{worldManifold.GetNormal()}
+    m_normal{worldManifold.GetNormal()},
+    m_friction{friction}, m_restitution{restitution}, m_tangentSpeed{tangentSpeed}
 {
     assert(IsValid(friction));
     assert(IsValid(restitution));
@@ -94,7 +95,7 @@ VelocityConstraint::VelocityConstraint(Real friction, Real restitution,
         const auto worldPoint = worldManifold.GetPoint(j);
         const auto relA = worldPoint - bA.GetPosition().linear;
         const auto relB = worldPoint - bB.GetPosition().linear;
-        AddPoint(ci.m_normal, ci.m_tangent, relA, relB, conf);
+        AddPoint(Get<0>(ci), Get<1>(ci), relA, relB, conf);
     }
     
     if (conf.blockSolve && (pointCount == 2))
@@ -102,17 +103,18 @@ VelocityConstraint::VelocityConstraint(Real friction, Real restitution,
         const auto k = ComputeK(*this);
         
         // Ensure a reasonable condition number.
-        const auto k00_squared = Square(Get<0>(Get<0>(k)));
-        const auto k00_times_k11 = Get<0>(Get<0>(k)) * Get<1>(Get<1>(k));
-        const auto k01_squared = Square(Get<1>(Get<0>(k)));
+        const auto k00_squared = Square(Get<0>(k));
+        const auto k00_times_k11 = Get<0>(k) * Get<1>(k);
+        const auto k01_squared = Square(Get<2>(k));
         const auto k_diff = k00_times_k11 - k01_squared;
-        constexpr auto maxCondNum = PLAYRHO_MAGIC(Real(1000.0f));
+        PLAYRHO_CONSTEXPR const auto maxCondNum = PLAYRHO_MAGIC(Real(1000.0f));
         if (k00_squared < maxCondNum * k_diff)
         {
             // K is safe to invert.
             // Prepare the block solver.
             m_K = k;
-            m_normalMass = Invert(k);
+            const auto normalMass = Invert(InvMass22{InvMass2{Get<0>(k), Get<2>(k)}, InvMass2{Get<2>(k), Get<1>(k)}});
+            m_normalMass = Mass3{Get<0>(Get<0>(normalMass)), Get<1>(Get<1>(normalMass)), Get<1>(Get<0>(normalMass))};
         }
         else
         {
@@ -125,7 +127,7 @@ VelocityConstraint::VelocityConstraint(Real friction, Real restitution,
 
 VelocityConstraint::Point
 VelocityConstraint::GetPoint(Momentum normalImpulse, Momentum tangentImpulse,
-                             Length2D relA, Length2D relB, Conf conf) const noexcept
+                             Length2 relA, Length2 relB, Conf conf) const noexcept
 {
     assert(IsValid(normalImpulse));
     assert(IsValid(tangentImpulse));
@@ -135,10 +137,12 @@ VelocityConstraint::GetPoint(Momentum normalImpulse, Momentum tangentImpulse,
     const auto bodyA = GetBodyA();
     const auto bodyB = GetBodyB();
     
-    const auto invMass = GetInvMass();
     const auto invRotInertiaA = bodyA->GetInvRotInertia();
+    const auto invMassA = bodyA->GetInvMass();
     const auto invRotInertiaB = bodyB->GetInvRotInertia();
-    
+    const auto invMassB = bodyB->GetInvMass();
+    const auto invMass = invMassA + invMassB;
+
     Point point;
     point.normalImpulse = normalImpulse;
     point.tangentImpulse = tangentImpulse;
@@ -151,7 +155,7 @@ VelocityConstraint::GetPoint(Momentum normalImpulse, Momentum tangentImpulse,
         const auto dv = GetContactRelVelocity(bodyA->GetVelocity(), relA,
                                               bodyB->GetVelocity(), relB);
         const auto vn = LinearVelocity{Dot(dv, GetNormal())};
-        return (vn < -conf.velocityThreshold)? -GetRestitution() * vn: LinearVelocity{0};
+        return (vn < -conf.velocityThreshold)? -GetRestitution() * vn: 0_mps;
     }();
     point.relA = relA;
     point.relB = relB;
@@ -159,20 +163,20 @@ VelocityConstraint::GetPoint(Momentum normalImpulse, Momentum tangentImpulse,
         const auto invRotMassA = invRotInertiaA * Square(Cross(relA, GetNormal())) / SquareRadian;
         const auto invRotMassB = invRotInertiaB * Square(Cross(relB, GetNormal())) / SquareRadian;
         const auto value = invMass + invRotMassA + invRotMassB;
-        return (value != InvMass{0})? Real{1} / value : Mass{0};
+        return (value != InvMass{0})? Real{1} / value : 0_kg;
     }();
     point.tangentMass = [&]() {
         const auto invRotMassA = invRotInertiaA * Square(Cross(relA, GetTangent())) / SquareRadian;
         const auto invRotMassB = invRotInertiaB * Square(Cross(relB, GetTangent())) / SquareRadian;
         const auto value = invMass + invRotMassA + invRotMassB;
-        return (value != InvMass{0})? Real{1} / value : Mass{0};
+        return (value != InvMass{0})? Real{1} / value : 0_kg;
     }();
 
     return point;
 }
 
 void VelocityConstraint::AddPoint(Momentum normalImpulse, Momentum tangentImpulse,
-                                  Length2D relA, Length2D relB, Conf conf)
+                                  Length2 relA, Length2 relB, Conf conf)
 {
     assert(m_pointCount < MaxManifoldPoints);
     m_points[m_pointCount] = GetPoint(normalImpulse * conf.dtRatio, tangentImpulse * conf.dtRatio,
@@ -180,4 +184,19 @@ void VelocityConstraint::AddPoint(Momentum normalImpulse, Momentum tangentImpuls
     ++m_pointCount;
 }
 
+VelocityConstraint::Conf GetRegVelocityConstraintConf(const StepConf& conf) noexcept
+{
+    return VelocityConstraint::Conf{
+        conf.doWarmStart? conf.dtRatio: 0,
+        conf.velocityThreshold,
+        conf.doBlocksolve
+    };
+}
+
+VelocityConstraint::Conf GetToiVelocityConstraintConf(const StepConf& conf) noexcept
+{
+    return VelocityConstraint::Conf{0, conf.velocityThreshold, conf.doBlocksolve};
+}
+
+} // namespace d2
 } // namespace playrho

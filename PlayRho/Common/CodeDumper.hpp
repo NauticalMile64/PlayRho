@@ -22,8 +22,9 @@
 
 #include <PlayRho/Common/Settings.hpp>
 
-namespace playrho
-{
+namespace playrho {
+namespace d2 {
+
     class World;
     class Body;
     class Joint;
@@ -32,7 +33,7 @@ namespace playrho
     class FrictionJoint;
     class GearJoint;
     class MotorJoint;
-    class MouseJoint;
+    class TargetJoint;
     class PrismaticJoint;
     class PulleyJoint;
     class RevoluteJoint;
@@ -44,7 +45,7 @@ namespace playrho
     /// @warning this should be called outside of a time step.
     void Dump(const World& world);
     
-    /// Dump body to a log file
+    /// Dump body to a log file.
     void Dump(const Body& body, std::size_t bodyIndex);
     
     /// Dump joint to the log file.
@@ -53,7 +54,7 @@ namespace playrho
     /// Dump fixture to log file.
     void Dump(const Fixture& fixture, std::size_t bodyIndex);
 
-    /// Dump joint to dmLog
+    /// Dump joint to log file.
     void Dump(const DistanceJoint& joint, std::size_t index);
 
     /// Dump joint to the log file.
@@ -66,12 +67,12 @@ namespace playrho
     void Dump(const MotorJoint& joint, std::size_t index);
 
     /// @brief Dumps the joint to the log file.
-    void Dump(const MouseJoint& joint, std::size_t index);
+    void Dump(const TargetJoint& joint, std::size_t index);
 
     /// @brief Dumps the joint to the log file.
     void Dump(const PrismaticJoint& joint, std::size_t index);
 
-    /// Dump joint to dmLog
+    /// Dump joint to log file.
     void Dump(const PulleyJoint& joint, std::size_t index);
 
     /// @brief Dumps the joint to the log file.
@@ -86,6 +87,7 @@ namespace playrho
     /// @brief Dumps the joint to the log file.
     void Dump(const WheelJoint& joint, std::size_t index);
     
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_COMMON_CODEDUMPER_HPP

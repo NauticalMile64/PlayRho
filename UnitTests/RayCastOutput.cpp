@@ -24,10 +24,13 @@
 #include <PlayRho/Collision/RayCastInput.hpp>
 #include <PlayRho/Collision/AABB.hpp>
 #include <PlayRho/Collision/DistanceProxy.hpp>
+#include <PlayRho/Collision/Shapes/DiskShapeConf.hpp>
+#include <PlayRho/Collision/Shapes/Shape.hpp>
 
 #include <type_traits>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(RayCastOutput, ByteSize)
 {
@@ -48,7 +51,7 @@ TEST(RayCastOutput, DefaultConstruction)
 
 TEST(RayCastOutput, InitConstruction)
 {
-    const auto normal = UnitVec2::GetLeft();
+    const auto normal = UnitVec::GetLeft();
     const auto fraction = Real(0.8f);
     RayCastOutput foo{{normal, fraction}};
     EXPECT_TRUE(foo.has_value());
@@ -58,40 +61,40 @@ TEST(RayCastOutput, InitConstruction)
 
 TEST(RayCastOutput, RayCastFreeFunctionHits)
 {
-    const auto radius = Real(0.1) * Meter;
-    const auto location = Length2D(Real(5) * Meter, Real(2) * Meter);
-    const auto p1 = Length2D(Real(10) * Meter, Real(2) * Meter);
-    const auto p2 = Length2D(Real(0) * Meter, Real(2) * Meter);
+    const auto radius = 0.1_m;
+    const auto location = Length2(5_m, 2_m);
+    const auto p1 = Length2(10_m, 2_m);
+    const auto p2 = Length2(0_m, 2_m);
     const auto maxFraction = Real(1);
     auto input = RayCastInput{p1, p2, maxFraction};
     const auto output = RayCast(radius, location, input);
     ASSERT_TRUE(output.has_value());
     EXPECT_NEAR(static_cast<double>(output->normal.GetX()),
-                static_cast<double>(UnitVec2::GetRight().GetX()),
+                static_cast<double>(UnitVec::GetRight().GetX()),
                 0.02);
     EXPECT_NEAR(static_cast<double>(output->normal.GetY()),
-                static_cast<double>(UnitVec2::GetRight().GetY()),
+                static_cast<double>(UnitVec::GetRight().GetY()),
                 0.02);
-    EXPECT_NEAR(static_cast<double>(output->fraction), 0.49, 0.01);
+    EXPECT_NEAR(static_cast<double>(output->fraction.get()), 0.49, 0.01);
 }
 
 TEST(RayCastOutput, RayCastLocationFreeFunctionMisses)
 {
     {
-        const auto radius = Real(0.1) * Meter;
-        const auto location = Length2D(Real(15) * Meter, Real(2) * Meter);
-        const auto p1 = Length2D(Real(10) * Meter, Real(2) * Meter);
-        const auto p2 = Length2D(Real(0) * Meter, Real(2) * Meter);
+        const auto radius = 0.1_m;
+        const auto location = Length2(15_m, 2_m);
+        const auto p1 = Length2(10_m, 2_m);
+        const auto p2 = Length2(0_m, 2_m);
         const auto maxFraction = Real(1);
         auto input = RayCastInput{p1, p2, maxFraction};
         const auto output = RayCast(radius, location, input);
         EXPECT_FALSE(output.has_value());
     }
     {
-        const auto radius = Real(0.1) * Meter;
-        const auto location = Length2D(Real(10) * Meter, Real(3) * Meter);
-        const auto p1 = Length2D(Real(0) * Meter, Real(2) * Meter);
-        const auto p2 = Length2D(Real(10) * Meter, Real(2) * Meter);
+        const auto radius = 0.1_m;
+        const auto location = Length2(10_m, 3_m);
+        const auto p1 = Length2(0_m, 2_m);
+        const auto p2 = Length2(10_m, 2_m);
         const auto maxFraction = Real(1);
         auto input = RayCastInput{p1, p2, maxFraction};
         const auto output = RayCast(radius, location, input);
@@ -101,32 +104,55 @@ TEST(RayCastOutput, RayCastLocationFreeFunctionMisses)
 
 TEST(RayCastOutput, RayCastAabbFreeFunction)
 {
-    AABB aabb;
-    const auto p1 = Length2D(Real(10) * Meter, Real(2) * Meter);
-    const auto p2 = Length2D(Real(0) * Meter, Real(2) * Meter);
+    const auto p1 = Length2(10_m, 2_m);
+    const auto p2 = Length2(0_m, 2_m);
     const auto maxFraction = Real(1);
-    RayCastInput input{p1, p2, maxFraction};
-    const auto output = RayCast(aabb, input);
-    EXPECT_FALSE(output.has_value());
+    {
+        const auto aabb = AABB{};
+        EXPECT_FALSE(RayCast(aabb, RayCastInput{p1, p2, maxFraction}).has_value());
+    }
+    {
+        const auto aabb = AABB{LengthInterval{9_m, 11_m}, LengthInterval{3_m, 1_m}};
+        EXPECT_FALSE(RayCast(aabb, RayCastInput{p1, p2, maxFraction}).has_value());
+        EXPECT_TRUE( RayCast(aabb, RayCastInput{p2, p1, maxFraction}).has_value());
+    }
+    {
+        auto aabb = AABB{};
+        aabb.ranges[0].Include(4_m).Include(5_m);
+        aabb.ranges[1].Include(1_m).Include(3_m);
+        
+        const auto output1 = RayCast(aabb, RayCastInput{p1, p2, maxFraction});
+        ASSERT_TRUE(output1.has_value());
+        EXPECT_NEAR(static_cast<double>(Real{output1->fraction}), 0.5, 0.0001);
+        EXPECT_EQ(output1->normal, UnitVec::GetRight());
+        
+        const auto output2 = RayCast(aabb, RayCastInput{p2, p1, maxFraction});
+        ASSERT_TRUE(output2.has_value());
+        EXPECT_NEAR(static_cast<double>(Real{output2->fraction}), 0.4, 0.0001);
+        EXPECT_EQ(output2->normal, UnitVec::GetLeft());
+
+        const auto output3 = RayCast(aabb, RayCastInput{Length2{}, Length2{5_m, 6_m}, maxFraction});
+        ASSERT_FALSE(output3.has_value());
+    }
 }
 
 TEST(RayCastOutput, RayCastDistanceProxyFF)
 {
-    const auto pos1 = Length2D{Real(3) * Meter, Real(1) * Meter}; // bottom right
-    const auto pos2 = Length2D{Real(3) * Meter, Real(3) * Meter}; // top right
-    const auto pos3 = Length2D{Real(1) * Meter, Real(3) * Meter}; // top left
-    const auto pos4 = Length2D{Real(1) * Meter, Real(1) * Meter}; // bottom left
-    const Length2D squareVerts[] = {pos1, pos2, pos3, pos4};
+    const auto pos1 = Length2{3_m, 1_m}; // bottom right
+    const auto pos2 = Length2{3_m, 3_m}; // top right
+    const auto pos3 = Length2{1_m, 3_m}; // top left
+    const auto pos4 = Length2{1_m, 1_m}; // bottom left
+    const Length2 squareVerts[] = {pos1, pos2, pos3, pos4};
     const auto n1 = GetUnitVector(GetFwdPerpendicular(pos2 - pos1));
     const auto n2 = GetUnitVector(GetFwdPerpendicular(pos3 - pos2));
     const auto n3 = GetUnitVector(GetFwdPerpendicular(pos4 - pos3));
     const auto n4 = GetUnitVector(GetFwdPerpendicular(pos1 - pos4));
-    const UnitVec2 squareNormals[] = {n1, n2, n3, n4};
-    const auto radius = Real(0.5) * Meter;
+    const UnitVec squareNormals[] = {n1, n2, n3, n4};
+    const auto radius = 0.5_m;
     DistanceProxy dp{radius, 4, squareVerts, squareNormals};
 
-    const auto p1 = Length2D(Real(0) * Meter, Real(2) * Meter);
-    const auto p2 = Length2D(Real(10) * Meter, Real(2) * Meter);
+    const auto p1 = Length2(0_m, 2_m);
+    const auto p2 = Length2(10_m, 2_m);
     const auto maxFraction = Real(1);
     const auto input0 = RayCastInput{p1, p2, maxFraction};
     {
@@ -134,17 +160,30 @@ TEST(RayCastOutput, RayCastDistanceProxyFF)
         EXPECT_TRUE(output.has_value());
         if (output.has_value())
         {
-            EXPECT_EQ(output->normal, UnitVec2::GetLeft());
-            EXPECT_NEAR(static_cast<double>(output->fraction), 0.05, 0.002);
+            EXPECT_EQ(output->normal, UnitVec::GetLeft());
+            EXPECT_NEAR(static_cast<double>(output->fraction.get()), 0.05, 0.002);
         }
     }
     
-    const auto p0 = Length2D{};
+    const auto p0 = Length2{};
     const auto input1 = RayCastInput{p0, p1, maxFraction};
     {
         const auto output = RayCast(dp, input1, Transform_identity);
         EXPECT_FALSE(output.has_value());
     }
+}
+
+TEST(RayCastOutput, RayCastShapeFF)
+{
+    const auto p1 = Length2{+4_m, 0_m}; // bottom right
+    const auto p2 = Length2{+0_m, 0_m}; // top right
+    const auto maxFraction = Real(1);
+    const auto input = RayCastInput{p1, p2, maxFraction};
+    const auto xfm = Transform_identity;
+    const auto output = RayCast(DiskShapeConf{1_m}, ChildCounter{0}, input, xfm);
+    EXPECT_TRUE(output.has_value());
+    EXPECT_EQ(output->normal, d2::UnitVec::GetRight());
+    EXPECT_NEAR(static_cast<double>(output->fraction), 0.75, 0.01);
 }
 
 TEST(RayCastHit, ByteSize)
@@ -191,7 +230,7 @@ TEST(RayCastHit, DefaultConstruction)
 
 TEST(RayCastHit, InitConstruction)
 {
-    const auto normal = UnitVec2::GetLeft();
+    const auto normal = UnitVec::GetLeft();
     const auto fraction = Real(0.8f);
     RayCastHit foo{normal, fraction};
     EXPECT_EQ(foo.normal, normal);

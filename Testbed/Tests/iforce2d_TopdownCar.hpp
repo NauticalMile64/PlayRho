@@ -26,7 +26,7 @@
 #include <vector>
 #include <set>
 
-namespace playrho {
+namespace testbed {
 
 using ControlStateType = unsigned int;
 
@@ -88,19 +88,19 @@ class TDTire
 private:
     Body* m_body;
     std::set<GroundAreaFUD*> m_groundAreas;
-    Force m_maxDriveForce = Force{0};
-    LinearVelocity m_maxForwardSpeed = LinearVelocity{0};
-    LinearVelocity m_maxBackwardSpeed = LinearVelocity{0};
-    Momentum m_maxLateralImpulse = Momentum{0};
+    Force m_maxDriveForce = 0_N;
+    LinearVelocity m_maxForwardSpeed = 0_mps;
+    LinearVelocity m_maxBackwardSpeed = 0_mps;
+    Momentum m_maxLateralImpulse = 0_Ns;
     Real m_currentTraction = 1;
     
 public:
     
-    TDTire(World* world, std::shared_ptr<PolygonShape> tireShape)
+    TDTire(World* world, Shape tireShape)
     {
-        BodyDef bodyDef;
-        bodyDef.type = BodyType::Dynamic;
-        m_body = world->CreateBody(bodyDef);
+        BodyConf bodyConf;
+        bodyConf.type = BodyType::Dynamic;
+        m_body = world->CreateBody(bodyConf);
         
         const auto fixture = m_body->CreateFixture(tireShape);
         fixture->SetUserData( new CarTireFUD() );
@@ -148,16 +148,16 @@ public:
         return m_body;
     }
     
-    LinearVelocity2D getLateralVelocity() const
+    LinearVelocity2 getLateralVelocity() const
     {
-        const auto currentRightNormal = GetWorldVector(*m_body, UnitVec2::GetRight());
+        const auto currentRightNormal = GetWorldVector(*m_body, UnitVec::GetRight());
         const auto vel = GetLinearVelocity(*m_body);
         return Dot(currentRightNormal, vel) * currentRightNormal;
     }
     
-    LinearVelocity2D getForwardVelocity() const
+    LinearVelocity2 getForwardVelocity() const
     {
-        const auto currentForwardNormal = GetWorldVector(*m_body, UnitVec2::GetTop());
+        const auto currentForwardNormal = GetWorldVector(*m_body, UnitVec::GetTop());
         const auto vel = GetLinearVelocity(*m_body);
         return Dot(currentForwardNormal, vel) * currentForwardNormal;
     }
@@ -165,30 +165,31 @@ public:
     void updateFriction()
     {
         //lateral linear velocity
-        auto impulse = Momentum2D{GetMass(*m_body) * -getLateralVelocity()};
-        const auto length = GetLength(GetVec2(impulse)) * Kilogram * MeterPerSecond;
+        auto impulse = Momentum2{GetMass(*m_body) * -getLateralVelocity()};
+        const auto length = GetMagnitude(GetVec2(impulse)) * 1_kg * 1_mps;
         if ( length > m_maxLateralImpulse )
             impulse *= m_maxLateralImpulse / length;
         ApplyLinearImpulse(*m_body, m_currentTraction * impulse, m_body->GetWorldCenter());
         
         //angular velocity
         const auto rotInertia = GetRotInertia(*m_body);
-        constexpr auto Tenth = Real{1} / Real{10};
+        PLAYRHO_CONSTEXPR const auto Tenth = Real{1} / Real{10};
         ApplyAngularImpulse(*m_body, m_currentTraction * Tenth * rotInertia * -GetAngularVelocity(*m_body));
         
         //forward linear velocity
         const auto forwardVelocity = getForwardVelocity();
-        auto currentForwardSpeed = LinearVelocity{0};
-        const auto forwardDir = GetUnitVector(forwardVelocity, currentForwardSpeed, UnitVec2::GetZero());
-        const auto dragForceMagnitude = Real{-2} * currentForwardSpeed;
-        const auto newForce = Force2D{m_currentTraction * dragForceMagnitude * forwardDir * Kilogram / Second};
+        const auto uvresult = UnitVec::Get(StripUnit(GetX(forwardVelocity)), StripUnit(GetY(forwardVelocity)));
+        const auto forwardDir = std::get<UnitVec>(uvresult);
+        const auto currentForwardSpeed = std::get<Real>(uvresult) * 1_mps;
+        const auto dragForceMagnitude = -2 * currentForwardSpeed;
+        const auto newForce = Force2{m_currentTraction * dragForceMagnitude * forwardDir * 1_kg / 1_s};
         SetForce(*m_body, newForce, m_body->GetWorldCenter());
     }
     
     void updateDrive(ControlStateType controlState)
     {
         //find desired speed
-        auto desiredSpeed = LinearVelocity{0};
+        auto desiredSpeed = 0_mps;
         switch ( controlState & (TDC_UP|TDC_DOWN) ) {
             case TDC_UP:   desiredSpeed = m_maxForwardSpeed;  break;
             case TDC_DOWN: desiredSpeed = m_maxBackwardSpeed; break;
@@ -196,11 +197,11 @@ public:
         }
         
         //find current speed in forward direction
-        const auto currentForwardNormal = GetWorldVector(*m_body, UnitVec2::GetTop());
+        const auto currentForwardNormal = GetWorldVector(*m_body, UnitVec::GetTop());
         const auto currentSpeed = Dot(getForwardVelocity(), currentForwardNormal);
         
         //apply necessary force
-        auto forceMagnitude = Force{0};
+        auto forceMagnitude = 0_N;
         if (desiredSpeed > currentSpeed)
             forceMagnitude = m_maxDriveForce;
         else if (desiredSpeed < currentSpeed)
@@ -208,17 +209,17 @@ public:
         else
             return;
         
-        const auto newForce = Force2D{m_currentTraction * forceMagnitude * currentForwardNormal};
+        const auto newForce = Force2{m_currentTraction * forceMagnitude * currentForwardNormal};
         SetForce(*m_body, newForce, m_body->GetWorldCenter());
     }
     
     void updateTurn(ControlStateType controlState)
     {
-        auto desiredTorque = Real{0} * NewtonMeter;
+        auto desiredTorque = 0_Nm;
         switch (controlState & (TDC_LEFT|TDC_RIGHT))
         {
-            case TDC_LEFT:  desiredTorque = Real{+15} * NewtonMeter; break;
-            case TDC_RIGHT: desiredTorque = Real{-15} * NewtonMeter; break;
+            case TDC_LEFT:  desiredTorque = +15_Nm; break;
+            case TDC_RIGHT: desiredTorque = -15_Nm; break;
             default: ;//nothing
         }
         SetTorque(*m_body, desiredTorque);
@@ -237,77 +238,77 @@ public:
     TDCar(World* world)
     {
         //create car body
-        BodyDef bodyDef;
-        bodyDef.type = BodyType::Dynamic;
-        m_body = world->CreateBody(bodyDef);
-        m_body->SetAngularDamping(Real(3) * Hertz);
+        BodyConf bodyConf;
+        bodyConf.type = BodyType::Dynamic;
+        m_body = world->CreateBody(bodyConf);
+        m_body->SetAngularDamping(3_Hz);
         
-        Length2D vertices[8];
-        vertices[0] = Vec2(+1.5f,  +0.0f) * Meter;
-        vertices[1] = Vec2(+3.0f,  +2.5f) * Meter;
-        vertices[2] = Vec2(+2.8f,  +5.5f) * Meter;
-        vertices[3] = Vec2(+1.0f, +10.0f) * Meter;
-        vertices[4] = Vec2(-1.0f, +10.0f) * Meter;
-        vertices[5] = Vec2(-2.8f,  +5.5f) * Meter;
-        vertices[6] = Vec2(-3.0f,  +2.5f) * Meter;
-        vertices[7] = Vec2(-1.5f,  +0.0f) * Meter;
-        PolygonShape polygonShape;
-        polygonShape.Set(Span<const Length2D>(vertices, 8));
-        polygonShape.SetDensity(Real{0.1f} * KilogramPerSquareMeter);
-        m_body->CreateFixture(std::make_shared<PolygonShape>(polygonShape));
+        Length2 vertices[8];
+        vertices[0] = Vec2(+1.5f,  +0.0f) * 1_m;
+        vertices[1] = Vec2(+3.0f,  +2.5f) * 1_m;
+        vertices[2] = Vec2(+2.8f,  +5.5f) * 1_m;
+        vertices[3] = Vec2(+1.0f, +10.0f) * 1_m;
+        vertices[4] = Vec2(-1.0f, +10.0f) * 1_m;
+        vertices[5] = Vec2(-2.8f,  +5.5f) * 1_m;
+        vertices[6] = Vec2(-3.0f,  +2.5f) * 1_m;
+        vertices[7] = Vec2(-1.5f,  +0.0f) * 1_m;
+        auto polygonShape = PolygonShapeConf{};
+        polygonShape.Set(Span<const Length2>(vertices, 8));
+        polygonShape.UseDensity(0.1_kgpm2);
+        m_body->CreateFixture(Shape(polygonShape));
         
         //prepare common joint parameters
-        RevoluteJointDef jointDef;
-        jointDef.bodyA = m_body;
-        jointDef.enableLimit = true;
-        jointDef.lowerAngle = Angle{0};
-        jointDef.upperAngle = Angle{0};
-        jointDef.localAnchorB = Vec2{0, 0} * Meter; //center of tire
+        RevoluteJointConf jointConf;
+        jointConf.bodyA = m_body;
+        jointConf.enableLimit = true;
+        jointConf.lowerAngle = 0_deg;
+        jointConf.upperAngle = 0_deg;
+        jointConf.localAnchorB = Length2{}; //center of tire
         
-        const auto maxForwardSpeed = Real{250.0f} * MeterPerSecond;
-        const auto maxBackwardSpeed = Real{-40.0f} * MeterPerSecond;
-        const auto backTireMaxDriveForce = Real{950.0f} * Newton; // 300.0f;
-        const auto frontTireMaxDriveForce = Real{400.0f} * Newton; // 500.0f;
-        const auto backTireMaxLateralImpulse = Real{9.0f} * Kilogram * MeterPerSecond; // 8.5f;
-        const auto frontTireMaxLateralImpulse = Real{9.0f} * Kilogram * MeterPerSecond; // 7.5f;
+        const auto maxForwardSpeed = 250_mps;
+        const auto maxBackwardSpeed = -40_mps;
+        const auto backTireMaxDriveForce = 950_N; // 300.0f;
+        const auto frontTireMaxDriveForce = 400_N; // 500.0f;
+        const auto backTireMaxLateralImpulse = 9_Ns; // 8.5f;
+        const auto frontTireMaxLateralImpulse = 9_Ns; // 7.5f;
 
-        PolygonShape tireShape;
-        tireShape.SetAsBox(Real{0.5f} * Meter, Real{1.25f} * Meter);
-        tireShape.SetDensity(Real{1} * KilogramPerSquareMeter);
-        const auto sharedTireShape = std::make_shared<PolygonShape>(tireShape);
+        auto tireShape = PolygonShapeConf{};
+        tireShape.SetAsBox(0.5_m, 1.25_m);
+        tireShape.UseDensity(1_kgpm2);
+        const auto sharedTireShape = Shape(tireShape);
 
         TDTire* tire;
 
         //back left tire (starts at absolute 0, 0 but pulled into place by joint)
         tire = new TDTire{world, sharedTireShape};
         tire->setCharacteristics(maxForwardSpeed, maxBackwardSpeed, backTireMaxDriveForce, backTireMaxLateralImpulse);
-        jointDef.bodyB = tire->GetBody();
-        jointDef.localAnchorA = Vec2(-3, 0.75f) * Meter; // sets car relative location of tire
-        world->CreateJoint(jointDef);
+        jointConf.bodyB = tire->GetBody();
+        jointConf.localAnchorA = Vec2(-3, 0.75f) * 1_m; // sets car relative location of tire
+        world->CreateJoint(jointConf);
         m_tires.push_back(tire);
         
         //back right tire (starts at absolute 0, 0 but pulled into place by joint)
         tire = new TDTire{world, sharedTireShape};
         tire->setCharacteristics(maxForwardSpeed, maxBackwardSpeed, backTireMaxDriveForce, backTireMaxLateralImpulse);
-        jointDef.bodyB = tire->GetBody();
-        jointDef.localAnchorA = Vec2(+3, 0.75f) * Meter; // sets car relative location of tire
-        world->CreateJoint(jointDef);
+        jointConf.bodyB = tire->GetBody();
+        jointConf.localAnchorA = Vec2(+3, 0.75f) * 1_m; // sets car relative location of tire
+        world->CreateJoint(jointConf);
         m_tires.push_back(tire);
         
         //front left tire (starts at absolute 0, 0 but pulled into place by joint)
         tire = new TDTire{world, sharedTireShape};
         tire->setCharacteristics(maxForwardSpeed, maxBackwardSpeed, frontTireMaxDriveForce, frontTireMaxLateralImpulse);
-        jointDef.bodyB = tire->GetBody();
-        jointDef.localAnchorA = Vec2(-3, 8.5f) * Meter; // sets car relative location of tire
-        flJoint = static_cast<RevoluteJoint*>(world->CreateJoint(jointDef));
+        jointConf.bodyB = tire->GetBody();
+        jointConf.localAnchorA = Vec2(-3, 8.5f) * 1_m; // sets car relative location of tire
+        flJoint = static_cast<RevoluteJoint*>(world->CreateJoint(jointConf));
         m_tires.push_back(tire);
         
         //front right tire (starts at absolute 0, 0 but pulled into place by joint)
         tire = new TDTire{world, sharedTireShape};
         tire->setCharacteristics(maxForwardSpeed, maxBackwardSpeed, frontTireMaxDriveForce, frontTireMaxLateralImpulse);
-        jointDef.bodyB = tire->GetBody();
-        jointDef.localAnchorA = Vec2(+3, 8.5f) * Meter; // sets car relative location of tire
-        frJoint = static_cast<RevoluteJoint*>(world->CreateJoint(jointDef));
+        jointConf.bodyB = tire->GetBody();
+        jointConf.localAnchorA = Vec2(+3, 8.5f) * 1_m; // sets car relative location of tire
+        frJoint = static_cast<RevoluteJoint*>(world->CreateJoint(jointConf));
         m_tires.push_back(tire);
     }
     
@@ -329,10 +330,10 @@ public:
         }
         
         //control steering
-        const auto lockAngle = Real{35.0f} * Degree;
-        const auto turnSpeedPerSec = Real{160.0f} * Degree;//from lock to lock in 0.5 sec
+        const auto lockAngle = 35_deg;
+        const auto turnSpeedPerSec = 160_deg;//from lock to lock in 0.5 sec
         const auto turnPerTimeStep = turnSpeedPerSec / Real{60.0f};
-        auto desiredAngle = Angle{0};
+        auto desiredAngle = 0_deg;
         switch ( controlState & (TDC_LEFT|TDC_RIGHT) ) {
             case TDC_LEFT:  desiredAngle = lockAngle;  break;
             case TDC_RIGHT: desiredAngle = -lockAngle; break;
@@ -341,7 +342,7 @@ public:
         const auto angleNow = GetJointAngle(*flJoint);
         const auto desiredAngleToTurn = desiredAngle - angleNow;
         const auto angleToTurn = Clamp(desiredAngleToTurn, -turnPerTimeStep, turnPerTimeStep);
-        if (angleToTurn != Angle{0})
+        if (angleToTurn != 0_deg)
         {
             const auto newAngle = angleNow + angleToTurn;
             flJoint->SetLimits( newAngle, newAngle );
@@ -368,64 +369,76 @@ class MyDestructionListener :  public DestructionListener
 class iforce2d_TopdownCar : public Test
 {
 public:
-    iforce2d_TopdownCar()
+    static Test::Conf GetTestConf()
     {
-        m_world->SetGravity(Vec2{0, 0} * MeterPerSquareSecond);
-        m_world->SetDestructionListener(&m_destructionListener);
+        auto conf = Test::Conf{};
+        conf.seeAlso = "https://www.iforce2d.net/b2dtut/projected-trajectory";
+        conf.credits = "Originally written by Chris Campbell for Box. Ported to PlayRho by Louis Langholtz.";
+        return conf;
+    }
+
+    iforce2d_TopdownCar(): Test(GetTestConf())
+    {
+        m_gravity = LinearAcceleration2{};
+        m_world.SetDestructionListener(&m_destructionListener);
         
         //set up ground areas
         {
             Fixture* groundAreaFixture;
 
-            BodyDef bodyDef;
-            m_groundBody = m_world->CreateBody(bodyDef);
+            BodyConf bodyConf;
+            m_groundBody = m_world.CreateBody(bodyConf);
             
-            PolygonShape polygonShape;
-            FixtureDef fixtureDef;
-            fixtureDef.isSensor = true;
+            auto polygonShape = PolygonShapeConf{};
+            FixtureConf fixtureConf;
+            fixtureConf.isSensor = true;
             
-            SetAsBox(polygonShape, Real{9} * Meter, Real{7} * Meter, Vec2(-10,15) * Meter, Real{20.0f} * Degree );
-            groundAreaFixture = m_groundBody->CreateFixture(std::make_shared<PolygonShape>(polygonShape), fixtureDef);
+            polygonShape.SetAsBox(9_m, 7_m, Vec2(-10,15) * 1_m, 20_deg );
+            groundAreaFixture = m_groundBody->CreateFixture(Shape(polygonShape), fixtureConf);
             groundAreaFixture->SetUserData( new GroundAreaFUD( 0.5f, false ) );
             
-            SetAsBox(polygonShape, Real{9} * Meter, Real{5} * Meter, Vec2(5,20) * Meter, Real{-40.0f} * Degree );
-            groundAreaFixture = m_groundBody->CreateFixture(std::make_shared<PolygonShape>(polygonShape), fixtureDef);
+            polygonShape.SetAsBox(9_m, 5_m, Vec2(5,20) * 1_m, -40_deg );
+            groundAreaFixture = m_groundBody->CreateFixture(Shape(polygonShape), fixtureConf);
             groundAreaFixture->SetUserData( new GroundAreaFUD( 0.2f, false ) );
         }
         
         //m_tire = new TDTire(m_world);
         //m_tire->setCharacteristics(100, -20, 150);
         
-        m_car = new TDCar{m_world};
+        m_car = new TDCar{&m_world};
         m_controlState = 0;
+        
+        RegisterForKey(GLFW_KEY_A, GLFW_PRESS, 0, "Turn left.", [&](KeyActionMods) {
+            m_controlState |= TDC_LEFT;
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "Turn right.", [&](KeyActionMods) {
+            m_controlState |= TDC_RIGHT;
+        });
+        RegisterForKey(GLFW_KEY_W, GLFW_PRESS, 0, "Accelerate forward.", [&](KeyActionMods) {
+            m_controlState |= TDC_UP;
+        });
+        RegisterForKey(GLFW_KEY_S, GLFW_PRESS, 0, "Accelerate backward.", [&](KeyActionMods) {
+            m_controlState |= TDC_DOWN;
+        });
+        
+        RegisterForKey(GLFW_KEY_A, GLFW_RELEASE, 0, "Stop turning left.", [&](KeyActionMods) {
+            m_controlState &= ~TDC_LEFT;
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_RELEASE, 0, "Stop turning right.", [&](KeyActionMods) {
+            m_controlState &= ~TDC_RIGHT;
+        });
+        RegisterForKey(GLFW_KEY_W, GLFW_RELEASE, 0, "Stop accelerating forward.", [&](KeyActionMods) {
+            m_controlState &= ~TDC_UP;
+        });
+        RegisterForKey(GLFW_KEY_S, GLFW_RELEASE, 0, "Stop accelerating backward.", [&](KeyActionMods) {
+            m_controlState &= ~TDC_DOWN;
+        });
     }
     
     ~iforce2d_TopdownCar()
     {
         //delete m_tire;
         delete m_car;
-    }
-    
-    void KeyboardDown(Key key) override
-    {
-        switch (key) {
-            case Key_A: m_controlState |= TDC_LEFT; break;
-            case Key_D: m_controlState |= TDC_RIGHT; break;
-            case Key_W: m_controlState |= TDC_UP; break;
-            case Key_S: m_controlState |= TDC_DOWN; break;
-            default: break;
-        }
-    }
-    
-    void KeyboardUp(Key key) override
-    {
-        switch (key) {
-            case Key_A: m_controlState &= ~TDC_LEFT; break;
-            case Key_D: m_controlState &= ~TDC_RIGHT; break;
-            case Key_W: m_controlState &= ~TDC_UP; break;
-            case Key_S: m_controlState &= ~TDC_DOWN; break;
-            default: break;
-        }
     }
     
     void handleContact(Contact* contact, bool began)
@@ -466,16 +479,6 @@ public:
         m_car->update(m_controlState);
     }
     
-    void PostStep(const Settings&, Drawer& drawer) override
-    {
-        //show some useful info
-        drawer.DrawString(5, m_textLine, "Press w/a/s/d to control the car");
-        m_textLine += 15;
-        
-        //drawer.DrawString(5, m_textLine, "Tire traction: %.2f", m_tire->m_currentTraction);
-        //m_textLine += 15;
-    }
-    
     ControlStateType m_controlState;
     MyDestructionListener m_destructionListener;
     Body* m_groundBody;
@@ -483,6 +486,6 @@ public:
     TDCar* m_car;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

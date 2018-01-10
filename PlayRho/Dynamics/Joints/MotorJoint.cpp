@@ -26,6 +26,7 @@
 #include <PlayRho/Dynamics/Contacts/BodyConstraint.hpp>
 
 namespace playrho {
+namespace d2 {
 
 // Point-to-point constraint
 // Cdot = v2 - v1
@@ -39,7 +40,7 @@ namespace playrho {
 // J = [0 0 -1 0 0 1]
 // K = invI1 + invI2
 
-MotorJoint::MotorJoint(const MotorJointDef& def):
+MotorJoint::MotorJoint(const MotorJointConf& def):
     Joint(def),
     m_linearOffset(def.linearOffset),
     m_angularOffset(def.angularOffset),
@@ -55,6 +56,11 @@ void MotorJoint::Accept(JointVisitor& visitor) const
     visitor.Visit(*this);
 }
 
+void MotorJoint::Accept(JointVisitor& visitor)
+{
+    visitor.Visit(*this);
+}
+
 void MotorJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step, const ConstraintSolverConf&)
 {
     auto& bodyConstraintA = At(bodies, GetBodyA());
@@ -66,8 +72,8 @@ void MotorJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const StepC
     const auto posB = bodyConstraintB->GetPosition();
     auto velB = bodyConstraintB->GetVelocity();
 
-    const auto qA = UnitVec2::Get(posA.angular);
-    const auto qB = UnitVec2::Get(posB.angular);
+    const auto qA = UnitVec::Get(posA.angular);
+    const auto qB = UnitVec::Get(posB.angular);
 
     // Compute the effective mass matrix.
     m_rA = Rotate(-bodyConstraintA->GetLocalCenter(), qA);
@@ -132,7 +138,7 @@ void MotorJoint::InitVelocityConstraints(BodyConstraintsMap& bodies, const StepC
     }
     else
     {
-        m_linearImpulse = Momentum2D{};
+        m_linearImpulse = Momentum2{};
         m_angularImpulse = AngularMomentum{0};
     }
 
@@ -178,10 +184,10 @@ bool MotorJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const Step
 
     // Solve linear friction
     {
-        const auto vb = LinearVelocity2D{velB.linear + (GetRevPerpendicular(m_rB) * (velB.angular / Radian))};
-        const auto va = LinearVelocity2D{velA.linear - (GetRevPerpendicular(m_rA) * (velA.angular / Radian))};
+        const auto vb = LinearVelocity2{velB.linear + (GetRevPerpendicular(m_rB) * (velB.angular / Radian))};
+        const auto va = LinearVelocity2{velA.linear - (GetRevPerpendicular(m_rA) * (velA.angular / Radian))};
 
-        const auto Cdot = LinearVelocity2D{(vb - va) + inv_h * m_correctionFactor * m_linearError};
+        const auto Cdot = LinearVelocity2{(vb - va) + inv_h * m_correctionFactor * m_linearError};
 
         const auto impulse = -Transform(Cdot, m_linearMass);
         const auto oldImpulse = m_linearImpulse;
@@ -189,16 +195,16 @@ bool MotorJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const Step
 
         const auto maxImpulse = h * m_maxForce;
 
-        if (GetLengthSquared(m_linearImpulse) > Square(maxImpulse))
+        if (GetMagnitudeSquared(m_linearImpulse) > Square(maxImpulse))
         {
-            m_linearImpulse = GetUnitVector(m_linearImpulse, UnitVec2::GetZero()) * maxImpulse;
+            m_linearImpulse = GetUnitVector(m_linearImpulse, UnitVec::GetZero()) * maxImpulse;
         }
 
         const auto incImpulse = m_linearImpulse - oldImpulse;
         const auto angImpulseA = AngularMomentum{Cross(m_rA, incImpulse) / Radian};
         const auto angImpulseB = AngularMomentum{Cross(m_rB, incImpulse) / Radian};
 
-        if (incImpulse != Momentum2D{})
+        if (incImpulse != Momentum2{})
         {
             solved = false;
         }
@@ -213,33 +219,19 @@ bool MotorJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const Step
     return solved;
 }
 
-bool MotorJoint::SolvePositionConstraints(BodyConstraintsMap& bodies,
-                                          const ConstraintSolverConf& conf) const
+bool MotorJoint::SolvePositionConstraints(BodyConstraintsMap&, const ConstraintSolverConf&) const
 {
-    NOT_USED(bodies);
-    NOT_USED(conf);
-
     return true;
 }
 
-Length2D MotorJoint::GetAnchorA() const
+Length2 MotorJoint::GetAnchorA() const
 {
     return GetBodyA()->GetLocation();
 }
 
-Length2D MotorJoint::GetAnchorB() const
+Length2 MotorJoint::GetAnchorB() const
 {
     return GetBodyB()->GetLocation();
-}
-
-Momentum2D MotorJoint::GetLinearReaction() const
-{
-    return m_linearImpulse;
-}
-
-AngularMomentum MotorJoint::GetAngularReaction() const
-{
-    return m_angularImpulse;
 }
 
 void MotorJoint::SetCorrectionFactor(Real factor)
@@ -248,25 +240,14 @@ void MotorJoint::SetCorrectionFactor(Real factor)
     m_correctionFactor = factor;
 }
 
-Real MotorJoint::GetCorrectionFactor() const
-{
-    return m_correctionFactor;
-}
-
-void MotorJoint::SetLinearOffset(const Length2D linearOffset)
+void MotorJoint::SetLinearOffset(const Length2 linearOffset)
 {
     if (m_linearOffset != linearOffset)
     {
         m_linearOffset = linearOffset;
-
         GetBodyA()->SetAwake();
         GetBodyB()->SetAwake();
     }
-}
-
-const Length2D MotorJoint::GetLinearOffset() const
-{
-    return m_linearOffset;
 }
 
 void MotorJoint::SetAngularOffset(Angle angularOffset)
@@ -274,15 +255,10 @@ void MotorJoint::SetAngularOffset(Angle angularOffset)
     if (angularOffset != m_angularOffset)
     {
         m_angularOffset = angularOffset;
-
         GetBodyA()->SetAwake();
         GetBodyB()->SetAwake();
     }
 }
 
-Angle MotorJoint::GetAngularOffset() const
-{
-    return m_angularOffset;
-}
-
+} // namespace d2
 } // namespace playrho

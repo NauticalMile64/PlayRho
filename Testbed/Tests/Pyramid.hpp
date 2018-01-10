@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class Pyramid : public Test
 {
@@ -34,38 +34,33 @@ public:
 
     Pyramid()
     {
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
+        const auto ground = m_world.CreateBody();
+        ground->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
 
-        const auto a = Real{0.5f} * Meter;
-        const auto shape = std::make_shared<PolygonShape>(a, a);
-        shape->SetDensity(Real{5} * KilogramPerSquareMeter);
-
+        const auto a = 0.5_m;
+        const auto shape = Shape{PolygonShapeConf{}.SetAsBox(a, a).UseDensity(5_kgpm2)};
         auto x = Vec2(-7.0f, 0.75f);
         const auto deltaX = Vec2(0.5625f, 1.25f);
         const auto deltaY = Vec2(1.125f, 0.0f);
-
         Vec2 y;
         for (auto i = 0; i < e_count; ++i)
         {
             y = x;
-
             for (auto j = i; j < e_count; ++j)
             {
-                BodyDef bd;
+                BodyConf bd;
                 bd.type = BodyType::Dynamic;
-                bd.position = y * Meter;
-                const auto body = m_world->CreateBody(bd);
+                bd.linearAcceleration = m_gravity;
+                bd.location = y * 1_m;
+                const auto body = m_world.CreateBody(bd);
                 body->CreateFixture(shape);
-
                 y += deltaY;
             }
-
             x += deltaX;
         }
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

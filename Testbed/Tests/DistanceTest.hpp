@@ -22,47 +22,166 @@
 
 #include "../Framework/Test.hpp"
 #include <sstream>
+#include <utility>
 
-namespace playrho {
+namespace testbed {
 
 class DistanceTest : public Test
 {
 public:
-    DistanceTest()
+    static Test::Conf GetTestConf()
     {
-        m_world->SetGravity(Vec2{0, 0} * MeterPerSquareSecond);
+        auto conf = Test::Conf{};
+        conf.settings.drawSkins = true;
+        conf.neededSettings = (0x1u << NeedDrawSkinsField);
+        return conf;
+    }
+    
+    DistanceTest(): Test(GetTestConf())
+    {
+        m_gravity = LinearAcceleration2{};
 
-        const auto def = BodyDef{}
-        	.UseType(BodyType::Dynamic)
-        	.UseLinearDamping(Real(0.9) * Hertz)
-        	.UseAngularDamping(Real(0.9) * Hertz);
-        m_bodyA = m_world->CreateBody(def);
-        m_bodyB = m_world->CreateBody(def);
+        const auto def = BodyConf{}
+            .UseType(BodyType::Dynamic)
+            .UseLinearDamping(0.9_Hz)
+        	.UseAngularDamping(0.9_Hz);
+        m_bodyA = m_world.CreateBody(def);
+        m_bodyB = m_world.CreateBody(def);
 
-        m_bodyA->SetTransform(Vec2(-10.0f, 20.2f) * Meter, Angle{0});
-        m_bodyB->SetTransform(m_bodyA->GetLocation() + Vec2(19.017401f, 0.13678508f) * Meter, Angle{0});
+        m_bodyA->SetTransform(Vec2(-10.0f, 20.2f) * 1_m, 0_deg);
+        m_bodyB->SetTransform(m_bodyA->GetLocation() + Vec2(19.017401f, 0.13678508f) * 1_m, 0_deg);
         
         CreateFixtures();
+        
+        RegisterForKey(GLFW_KEY_A, GLFW_PRESS, 0, "Move selected shape left.", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body)
+            {
+                body->SetTransform(body->GetLocation() - Vec2{Real(0.1), 0} * 1_m, body->GetAngle());
+                body->SetAwake();
+            }
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "Move selected shape right.", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body)
+            {
+                body->SetTransform(body->GetLocation() + Vec2{Real(0.1), 0} * 1_m, body->GetAngle());
+                body->SetAwake();
+            }
+        });
+        RegisterForKey(GLFW_KEY_W, GLFW_PRESS, 0, "Move selected shape up.", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body)
+            {
+                body->SetTransform(body->GetLocation() + Vec2{0, Real(0.1)} * 1_m, body->GetAngle());
+                body->SetAwake();
+            }
+        });
+        RegisterForKey(GLFW_KEY_S, GLFW_PRESS, 0, "Move selected shape down.", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body)
+            {
+                body->SetTransform(body->GetLocation() - Vec2{0, Real(0.1)} * 1_m, body->GetAngle());
+                body->SetAwake();
+            }
+        });
+        RegisterForKey(GLFW_KEY_Q, GLFW_PRESS, 0, "Move selected counter-clockwise.", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body)
+            {
+                body->SetTransform(body->GetLocation(), body->GetAngle() + 5_deg);
+                body->SetAwake();
+            }
+        });
+        RegisterForKey(GLFW_KEY_E, GLFW_PRESS, 0, "Move selected clockwise.", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body)
+            {
+                body->SetTransform(body->GetLocation(), body->GetAngle() - 5_deg);
+                body->SetAwake();
+            }
+        });
+        RegisterForKey(GLFW_KEY_KP_ADD, GLFW_PRESS, 0, "increase vertex radius of selected shape", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body && fixture)
+            {
+                const auto polygon = static_cast<const PolygonShapeConf*>(GetData(fixture->GetShape()));
+                auto conf = PolygonShapeConf{};
+                conf.Set(polygon->GetVertices());
+                conf.UseVertexRadius(polygon->vertexRadius + RadiusIncrement);
+                const auto newf = body->CreateFixture(Shape{conf});
+                fixtures.erase(fixtures.begin());
+                fixtures.insert(newf);
+                SetSelectedFixtures(fixtures);
+                body->DestroyFixture(fixture);
+            }
+        });
+        RegisterForKey(GLFW_KEY_KP_SUBTRACT, GLFW_PRESS, 0, "decrease vertex radius of selected shape", [&](KeyActionMods) {
+            auto fixtures = GetSelectedFixtures();
+            const auto fixture = fixtures.size() == 1? *(fixtures.begin()): nullptr;
+            const auto body = fixture? static_cast<Body*>(fixture->GetBody()): nullptr;
+            if (body && fixture)
+            {
+                const auto shape = fixture->GetShape();
+                const auto lastLegitVertexRadius = GetVertexRadius(shape);
+                const auto newVertexRadius = lastLegitVertexRadius - RadiusIncrement;
+                if (newVertexRadius >= 0_m)
+                {
+                    const auto polygon = static_cast<const PolygonShapeConf*>(GetData(shape));
+                    auto conf = PolygonShapeConf{};
+                    conf.Set(polygon->GetVertices());
+                    conf.UseVertexRadius(newVertexRadius);
+                    auto newf = body->CreateFixture(Shape{conf});
+                    if (newf)
+                    {
+                        fixtures.erase(fixtures.begin());
+                        fixtures.insert(newf);
+                        SetSelectedFixtures(fixtures);
+                        body->DestroyFixture(fixture);
+                    }
+                }
+            }
+        });
+        RegisterForKey(GLFW_KEY_EQUAL, GLFW_PRESS, 0, "toggle drawing simplex info", [&](KeyActionMods) {
+            m_drawSimplexInfo = !m_drawSimplexInfo;
+        });
+        RegisterForKey(GLFW_KEY_MINUS, GLFW_PRESS, 0, "toggle drawing manifold info", [&](KeyActionMods) {
+            m_drawManifoldInfo = !m_drawManifoldInfo;
+        });
     }
 
     void CreateFixtures()
     {
         const auto radius = RadiusIncrement * Real{20};
-        auto conf = PolygonShape::Conf{};
-        conf.density = Real{1} * KilogramPerSquareMeter;
+        auto conf = PolygonShapeConf{};
+        conf.density = 1_kgpm2;
 
         conf.vertexRadius = radius;
-        PolygonShape polygonA{conf};
+        auto polygonA = conf;
         //polygonA.SetAsBox(8.0f, 6.0f);
-        polygonA.Set(Span<const Length2D>{Vec2{-8, -6} * Meter, Vec2{8, -6} * Meter, Vec2{0, 6} * Meter});
-        m_bodyA->CreateFixture(std::make_shared<PolygonShape>(polygonA));
+        polygonA.Set(Span<const Length2>{Vec2{-8, -6} * 1_m, Vec2{8, -6} * 1_m, Vec2{0, 6} * 1_m});
+        m_bodyA->CreateFixture(Shape(polygonA));
         
         conf.vertexRadius = radius * Real{2};
-        PolygonShape polygonB{conf};
-        // polygonB.SetAsBox(7.2f * Meter, 0.8f * Meter);
-        polygonB.Set(Span<const Length2D>{Vec2{-7.2f, 0} * Meter, Vec2{+7.2f, 0} * Meter});
+        auto polygonB = conf;
+        // polygonB.SetAsBox(7.2_m, 0.8_m);
+        polygonB.Set(Span<const Length2>{Vec2{-7.2f, 0} * 1_m, Vec2{+7.2f, 0} * 1_m});
         //polygonB.Set(Span<const Vec2>{Vec2{float(-7.2), 0}, Vec2{float(7.2), 0}});
-        m_bodyB->CreateFixture(std::make_shared<PolygonShape>(polygonB));
+        m_bodyB->CreateFixture(Shape(polygonB));
     }
 
     static const Fixture* GetFixture(Body* body)
@@ -77,7 +196,7 @@ public:
         m_bodyB->DestroyFixtures();
     }
     
-    void ShowManifold(Drawer& drawer, const Manifold& manifold, const char* name)
+    void ShowManifold(Drawer&, const Manifold& manifold, const char* name)
     {
         std::ostringstream strbuf;
         const auto count = manifold.GetPointCount();
@@ -91,41 +210,45 @@ public:
             strbuf << "cf=" << p.contactFeature;
             strbuf << "}";
         }
+        std::ostringstream stream;
         switch (manifold.GetType())
         {
             case Manifold::e_circles:
-                drawer.DrawString(5, m_textLine, "%s %s: lp={%g,%g}, #=%d%s",
-                                  GetName(manifold.GetType()),
-                                  name,
-                                  static_cast<double>(Real{GetX(manifold.GetLocalPoint()) / Meter}),
-                                  static_cast<double>(Real{GetY(manifold.GetLocalPoint()) / Meter}),
-                                  count, strbuf.str().c_str());
-                m_textLine += DRAW_STRING_NEW_LINE;
+                stream << GetName(manifold.GetType()) << " " << name << ": ";
+                stream << "lp={";
+                stream << static_cast<double>(Real{GetX(manifold.GetLocalPoint()) / 1_m});
+                stream << ",";
+                stream << static_cast<double>(Real{GetY(manifold.GetLocalPoint()) / 1_m});
+                stream << "}, #=" << unsigned{count} << strbuf.str();
                 break;
             case Manifold::e_faceA:
             case Manifold::e_faceB:
-                drawer.DrawString(5, m_textLine, "%s %s: lp={%g,%g}, ln={%g,%g}, #=%d%s",
-                                  GetName(manifold.GetType()),
-                                  name,
-                                  static_cast<double>(Real{GetX(manifold.GetLocalPoint()) / Meter}),
-                                  static_cast<double>(Real{GetY(manifold.GetLocalPoint()) / Meter}),
-                                  static_cast<double>(GetX(manifold.GetLocalNormal())),
-                                  static_cast<double>(GetY(manifold.GetLocalNormal())),
-                                  count, strbuf.str().c_str());
-                m_textLine += DRAW_STRING_NEW_LINE;
+                stream << GetName(manifold.GetType()) << " " << name << ": ";
+                stream << "lp={";
+                stream << static_cast<double>(Real{GetX(manifold.GetLocalPoint()) / 1_m});
+                stream << ",";
+                stream << static_cast<double>(Real{GetY(manifold.GetLocalPoint()) / 1_m});
+                stream << "}, ln={";
+                stream << static_cast<double>(GetX(manifold.GetLocalNormal()));
+                stream << ",";
+                stream << static_cast<double>(GetY(manifold.GetLocalNormal()));
+                stream << "}, #=" << unsigned{count} << strbuf.str();
                 break;
             default:
                 break;
         }
+        m_status += stream.str();
     }
 
     void PostStep(const Settings&, Drawer& drawer) override
     {
-        const auto shapeA = static_cast<const PolygonShape*>(GetFixture(m_bodyA)->GetShape().get());
-        const auto shapeB = static_cast<const PolygonShape*>(GetFixture(m_bodyB)->GetShape().get());
+        m_status.clear();
 
-        const auto proxyA = shapeA->GetChild(0);
-        const auto proxyB = shapeB->GetChild(0);
+        const auto shapeA = GetFixture(m_bodyA)->GetShape();
+        const auto shapeB = GetFixture(m_bodyB)->GetShape();
+
+        const auto proxyA = GetChild(shapeA, 0);
+        const auto proxyB = GetChild(shapeB, 0);
         const auto xfmA = m_bodyA->GetTransformation();
         const auto xfmB = m_bodyB->GetTransformation();
 
@@ -141,7 +264,7 @@ public:
         const auto output = Distance(proxyA, xfmA, proxyB, xfmB, distanceConf);
         distanceConf.cache = Simplex::GetCache(output.simplex.GetEdges());
         const auto witnessPoints = GetWitnessPoints(output.simplex);
-        const auto outputDistance = Sqrt(GetLengthSquared(witnessPoints.a - witnessPoints.b));
+        const auto outputDistance = GetMagnitude(std::get<0>(witnessPoints) - std::get<1>(witnessPoints));
         
         const auto rA = proxyA.GetVertexRadius();
         const auto rB = proxyB.GetVertexRadius();
@@ -154,61 +277,56 @@ public:
             // Shapes are still not overlapped.
             // Move the witness points to the outer surface.
             adjustedDistance -= totalRadius;
-            const auto normal = GetUnitVector(witnessPoints.b - witnessPoints.a);
-            adjustedWitnessPoints.a += rA * normal;
-            adjustedWitnessPoints.b -= rB * normal;
+            const auto normal = GetUnitVector(std::get<1>(witnessPoints) - std::get<0>(witnessPoints));
+            std::get<0>(adjustedWitnessPoints) += rA * normal;
+            std::get<1>(adjustedWitnessPoints) -= rB * normal;
         }
         else
         {
             // Shapes are overlapped when radii are considered.
             // Move the witness points to the middle.
-            const auto p = (witnessPoints.a + witnessPoints.b) / Real{2};
-            adjustedWitnessPoints.a = p;
-            adjustedWitnessPoints.b = p;
+            const auto p = (std::get<0>(witnessPoints) + std::get<1>(witnessPoints)) / Real{2};
+            std::get<0>(adjustedWitnessPoints) = p;
+            std::get<1>(adjustedWitnessPoints) = p;
             adjustedDistance = 0;
         }
         
-        drawer.DrawString(xfmA.p, "Shape A");
-        drawer.DrawString(xfmB.p, "Shape B");
+        drawer.DrawString(xfmA.p, Drawer::Left, "Shape A");
+        drawer.DrawString(xfmB.p, Drawer::Left, "Shape B");
 
-        drawer.DrawString(5, m_textLine,
-                          "Press 'A', 'D', 'W', 'S', 'Q', 'E' to move selected shape left, right, up, down, counter-clockwise, or clockwise.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-
-        drawer.DrawString(5, m_textLine,
-                          "Press num-pad '+'/'-' to increase/decrease vertex radius of selected shape (%g & %g).",
-                          static_cast<double>(Real{rA / Meter}),
-                          static_cast<double>(Real{rB / Meter}));
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream os;
+        os << "Vertex radius of selected shape (";
+        os << static_cast<double>(Real{rA / 1_m});
+        os << " & ";
+        os << static_cast<double>(Real{rB / 1_m});
+        os << ").\n\n";
         
-        drawer.DrawString(5, m_textLine,
-                          "Press '=', or '-' to toggle drawing simplex, or manifold info (%s, %s).",
-                          m_drawSimplexInfo? "on": "off",
-                          m_drawManifoldInfo? "on": "off");
-        m_textLine += DRAW_STRING_NEW_LINE;
+        os << "Simplex drawing " << (m_drawSimplexInfo? "on": "off");
+        os << ", manifold drawing " << (m_drawManifoldInfo? "on": "off");
+        os << ".\n\n";
 
-        drawer.DrawString(5, m_textLine,
-                          "Max separation: %g for a-face[%i] b-vert[%i]; %g for b-face[%i] a-vert[%i]",
-                          static_cast<double>(Real{maxIndicesAB.separation / Meter}),
-                          maxIndicesAB.index1,
-                          maxIndicesAB.index2,
-                          static_cast<double>(Real{maxIndicesBA.separation / Meter}),
-                          maxIndicesBA.index1,
-                          maxIndicesBA.index2);
-        m_textLine += DRAW_STRING_NEW_LINE;
+        os << "Max separation:\n";
+        os << "  " << static_cast<double>(Real{maxIndicesAB.distance / 1_m});
+        os << " for a-face[" << unsigned{GetFirstShapeVertexIdx(maxIndicesAB)} << "]";
+        os << " b-vert[" << unsigned{GetSecondShapeVertexIdx<0>(maxIndicesAB)} << "].\n";
+        os << "  " << static_cast<double>(Real{maxIndicesBA.distance / 1_m});
+        os << " for b-face[" << unsigned{GetFirstShapeVertexIdx(maxIndicesBA)} << "]";
+        os << " a-vert[" << unsigned{GetSecondShapeVertexIdx<0>(maxIndicesBA)} << "].\n\n";
 
-        if (AlmostEqual(static_cast<double>(Real{maxIndicesAB.separation / Meter}),
-                         static_cast<double>(Real{maxIndicesBA.separation / Meter})))
+        if (AlmostEqual(static_cast<double>(Real{maxIndicesAB.distance / 1_m}),
+                         static_cast<double>(Real{maxIndicesBA.distance / 1_m})))
         {
+            const auto childA = GetChild(shapeA, 0);
+            const auto childB = GetChild(shapeB, 0);
             //assert(maxIndicesAB.index1 == maxIndicesBA.index2);
             //assert(maxIndicesAB.index2 == maxIndicesBA.index1);
-            const auto ifaceA = maxIndicesAB.index1;
-            const auto nA = InverseRotate(Rotate(shapeA->GetNormal(ifaceA), xfmA.q), xfmB.q);
+            const auto ifaceA = GetFirstShapeVertexIdx(maxIndicesAB);
+            const auto nA = InverseRotate(Rotate(childA.GetNormal(ifaceA), xfmA.q), xfmB.q);
             // shapeA face maxIndicesAB.index1 is coplanar to an edge intersecting shapeB vertex maxIndicesAB.index2
-            const auto i1 = maxIndicesAB.index2;
-            const auto i0 = GetModuloPrev(i1, shapeB->GetVertexCount());
-            const auto n0 = shapeB->GetNormal(i0);
-            const auto n1 = shapeB->GetNormal(i1);
+            const auto i1 = GetSecondShapeVertexIdx<0>(maxIndicesAB);
+            const auto i0 = GetModuloPrev(i1, childB.GetVertexCount());
+            const auto n0 = childB.GetNormal(i0);
+            const auto n1 = childB.GetNormal(i1);
             const auto s0 = Dot(nA, n0);
             const auto s1 = Dot(nA, n1);
             assert(s0 != s1);
@@ -222,7 +340,7 @@ public:
                 i1;
 #endif
         }
-        else if (maxIndicesAB.separation > maxIndicesBA.separation)
+        else if (maxIndicesAB.distance > maxIndicesBA.distance)
         {
             // shape A face maxIndicesAB.index1 is least separated from shape B vertex maxIndicesAB.index2
             // Circles or Face-A manifold type.
@@ -233,37 +351,39 @@ public:
             // Circles or Face-B manifold type.
         }
 
-        drawer.DrawString(5, m_textLine, "distance = %g (from %g), iterations = %d",
-                          static_cast<double>(Real{adjustedDistance / Meter}),
-                          static_cast<double>(Real{outputDistance / Meter}),
-                          output.iterations);
-        m_textLine += DRAW_STRING_NEW_LINE;
+        os << "Distance = " << static_cast<double>(Real{adjustedDistance / 1_m}) << " (from ";
+        os << static_cast<double>(Real{outputDistance / 1_m}) << "), iterations = ";
+        os << unsigned{output.iterations} << ".\n\n";
         
         {
             const auto size = output.simplex.GetSize();
-            drawer.DrawString(5, m_textLine, "Simplex info: size=%d, wpt-a={%g,%g}, wpt-b={%g,%g})",
-                              size,
-                              static_cast<double>(Real{GetX(witnessPoints.a) / Meter}),
-                              static_cast<double>(Real{GetY(witnessPoints.a) / Meter}),
-                              static_cast<double>(Real{GetX(witnessPoints.b) / Meter}),
-                              static_cast<double>(Real{GetY(witnessPoints.b) / Meter}));
-            m_textLine += DRAW_STRING_NEW_LINE;
+            os << "Simplex info: size=" << unsigned{size} << ", wpt-a={";
+            os << static_cast<double>(Real{GetX(std::get<0>(witnessPoints)) / 1_m});
+            os << ",";
+            os << static_cast<double>(Real{GetY(std::get<0>(witnessPoints)) / 1_m});
+            os << "}, wpt-b={";
+            os << static_cast<double>(Real{GetX(std::get<1>(witnessPoints)) / 1_m});
+            os << ",";
+            os << static_cast<double>(Real{GetY(std::get<1>(witnessPoints)) / 1_m});
+            os << "}:\n";
             for (auto i = decltype(size){0}; i < size; ++i)
             {
                 const auto& edge = output.simplex.GetSimplexEdge(i);
                 const auto coef = output.simplex.GetCoefficient(i);
                 
-                drawer.DrawString(5, m_textLine, "  a[%d]={%g,%g} b[%d]={%g,%g} coef=%g",
-                                  edge.GetIndexA(),
-                                  static_cast<double>(Real{GetX(edge.GetPointA()) / Meter}),
-                                  static_cast<double>(Real{GetY(edge.GetPointA()) / Meter}),
-                                  edge.GetIndexB(),
-                                  static_cast<double>(Real{GetX(edge.GetPointB()) / Meter}),
-                                  static_cast<double>(Real{GetY(edge.GetPointB()) / Meter}),
-                                  coef);
-                m_textLine += DRAW_STRING_NEW_LINE;
+                os << "  a[" << unsigned{edge.GetIndexA()} << "]={";
+                os << static_cast<double>(Real{GetX(edge.GetPointA()) / 1_m});
+                os << ",";
+                os << static_cast<double>(Real{GetY(edge.GetPointA()) / 1_m});
+                os << "} b[" << unsigned{edge.GetIndexB()} << "]={";
+                os << static_cast<double>(Real{GetX(edge.GetPointB()) / 1_m});
+                os << ",";
+                os << static_cast<double>(Real{GetY(edge.GetPointB()) / 1_m});
+                os << "} coef=" << coef << ".\n";
             }
+            os << "\n";
         }
+        m_status += os.str();
 
         ShowManifold(drawer, manifold, "manifold");
 #ifdef DEFINE_GET_MANIFOLD
@@ -339,134 +459,31 @@ public:
                 drawer.DrawSegment(edge.GetPointA(), edge.GetPointB(), simplexSegmentColor);
             }
 
-            if (adjustedWitnessPoints.a != adjustedWitnessPoints.b)
+            if (std::get<0>(adjustedWitnessPoints) != std::get<1>(adjustedWitnessPoints))
             {
-                drawer.DrawPoint(adjustedWitnessPoints.a, 4.0f, adjustedPointColor);
-                drawer.DrawPoint(adjustedWitnessPoints.b, 4.0f, adjustedPointColor);
+                drawer.DrawPoint(std::get<0>(adjustedWitnessPoints), 4.0f, adjustedPointColor);
+                drawer.DrawPoint(std::get<1>(adjustedWitnessPoints), 4.0f, adjustedPointColor);
             }
             else
             {
-                drawer.DrawPoint(adjustedWitnessPoints.a, 4.0f, matchingPointColor);
+                drawer.DrawPoint(std::get<0>(adjustedWitnessPoints), 4.0f, matchingPointColor);
             }
 
-            drawer.DrawPoint(witnessPoints.a, 4.0f, witnessPointColor);
-            drawer.DrawPoint(witnessPoints.b, 4.0f, witnessPointColor);
+            drawer.DrawPoint(std::get<0>(witnessPoints), 4.0f, witnessPointColor);
+            drawer.DrawPoint(std::get<1>(witnessPoints), 4.0f, witnessPointColor);
             
             for (auto&& edge: output.simplex.GetEdges())
             {
                 drawer.DrawPoint(edge.GetPointA(), 6.0f, simplexPointColor);
                 drawer.DrawPoint(edge.GetPointB(), 6.0f, simplexPointColor);
-                drawer.DrawString(edge.GetPointA(), "%d", edge.GetIndexA());
-                drawer.DrawString(edge.GetPointB(), "%d", edge.GetIndexB());
+                drawer.DrawString(edge.GetPointA(), Drawer::Left, "%d", edge.GetIndexA());
+                drawer.DrawString(edge.GetPointB(), Drawer::Left, "%d", edge.GetIndexB());
             }
-        }
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        auto fixtures = GetSelectedFixtures();
-        const auto fixture = fixtures.size() == 1? fixtures[0]: nullptr;
-        const auto body = fixture? fixture->GetBody(): nullptr;
-
-        switch (key)
-        {
-        case Key_A:
-            if (body)
-            {
-                body->SetTransform(body->GetLocation() - Vec2{Real(0.1), 0} * Meter, body->GetAngle());
-                body->SetAwake();
-            }
-            break;
-
-        case Key_D:
-            if (body)
-            {
-                body->SetTransform(body->GetLocation() + Vec2{Real(0.1), 0} * Meter, body->GetAngle());
-                body->SetAwake();
-            }
-            break;
-
-        case Key_S:
-            if (body)
-            {
-                body->SetTransform(body->GetLocation() - Vec2{0, Real(0.1)} * Meter, body->GetAngle());
-                body->SetAwake();
-            }
-            break;
-
-        case Key_W:
-            if (body)
-            {
-                body->SetTransform(body->GetLocation() + Vec2{0, Real(0.1)} * Meter, body->GetAngle());
-                body->SetAwake();
-            }
-            break;
-
-        case Key_Q:
-            if (body)
-            {
-                body->SetTransform(body->GetLocation(), body->GetAngle() + Real{5} * Degree);
-                body->SetAwake();
-            }
-            break;
-
-        case Key_E:
-            if (body)
-            {
-                body->SetTransform(body->GetLocation(), body->GetAngle() - Real{5} * Degree);
-                body->SetAwake();
-            }
-            break;
-
-        case Key_Add:
-            if (body && fixture)
-            {
-                const auto shape = fixture->GetShape();
-                auto polygon = *static_cast<const PolygonShape*>(shape.get());
-                polygon.SetVertexRadius(shape->GetVertexRadius() + RadiusIncrement);
-                const auto newf = body->CreateFixture(std::make_shared<PolygonShape>(polygon));
-                fixtures[0] = newf;
-                SetSelectedFixtures(fixtures);
-                body->DestroyFixture(fixture);
-            }
-            break;
-
-        case Key_Subtract:
-            if (body && fixture)
-            {
-                const auto shape = fixture->GetShape();
-                const auto lastLegitVertexRadius = shape->GetVertexRadius();
-                const auto newVertexRadius = lastLegitVertexRadius - RadiusIncrement;
-                if (newVertexRadius >= Length{0})
-                {
-                    PolygonShape polygon{*static_cast<const PolygonShape*>(shape.get())};
-                    polygon.SetVertexRadius(newVertexRadius);
-                    auto newf = body->CreateFixture(std::make_shared<PolygonShape>(polygon));
-                    if (newf)
-                    {
-                        fixtures[0] = newf;
-                        SetSelectedFixtures(fixtures);
-                        body->DestroyFixture(fixture);
-                    }
-                }
-            }
-            break;
-
-        case Key_Equal:
-            m_drawSimplexInfo = !m_drawSimplexInfo;
-            break;
-
-        case Key_Minus:
-            m_drawManifoldInfo = !m_drawManifoldInfo;
-            break;
-
-        default:
-            break;
         }
     }
 
 private:
-    const Length RadiusIncrement = (Meter / Real(1000)) * Real{200};
+    const Length RadiusIncrement = 2_dm;
     const Color simplexSegmentColor = Color{0.0f, 0.5f, 0.5f}; // dark cyan
     const Color simplexPointColor = Color{0, 1, 1, 0.6f}; // semi-transparent cyan
     const Color witnessPointColor = Color{1, 1, 0, 0.5}; // semi-transparent yellow
@@ -480,6 +497,6 @@ private:
     bool m_drawManifoldInfo = true;
 };
     
-} // namespace playrho
+} // namespace testbed
 
 #endif

@@ -23,10 +23,11 @@
 #define PLAYRHO_DYNAMICS_JOINTS_PRISMATICJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/PrismaticJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/PrismaticJointConf.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Prismatic Joint.
 ///
@@ -40,29 +41,32 @@ namespace playrho {
 ///
 /// @image html prismaticJoint.gif
 ///
+/// @sa https://en.wikipedia.org/wiki/Prismatic_joint
+///
 class PrismaticJoint : public Joint
 {
 public:
     
     /// @brief Copy constructor.
-    PrismaticJoint(const PrismaticJointDef& def);
+    PrismaticJoint(const PrismaticJointConf& def);
     
     void Accept(JointVisitor& visitor) const override;
+    void Accept(JointVisitor& visitor) override;
 
-    Length2D GetAnchorA() const override;
-    Length2D GetAnchorB() const override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
 
-    Momentum2D GetLinearReaction() const override;
+    Momentum2 GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// @brief Gets the local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const { return m_localAnchorA; }
+    /// @brief Gets the local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const { return m_localAnchorA; }
 
-    /// @brief Gets the local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const  { return m_localAnchorB; }
+    /// @brief Gets the local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const  { return m_localAnchorB; }
 
     /// @brief Gets local joint axis relative to bodyA.
-    UnitVec2 GetLocalAxisA() const { return m_localXAxisA; }
+    UnitVec GetLocalAxisA() const { return m_localXAxisA; }
 
     /// @brief Gets the reference angle.
     Angle GetReferenceAngle() const { return m_referenceAngle; }
@@ -100,8 +104,8 @@ public:
     /// @brief Gets the maximum motor force.
     Force GetMaxMotorForce() const noexcept { return m_maxMotorForce; }
 
-    /// @brief Gets the current motor force given the inverse time step.
-    Force GetMotorForce(Frequency inv_dt) const noexcept;
+    /// @brief Gets the current motor impulse.
+    Momentum GetMotorImpulse() const noexcept { return m_motorImpulse; }
 
     /// @brief Gets the current limit state.
     /// @note This will be <code>e_inactiveLimit</code> unless the joint limit has been
@@ -116,30 +120,30 @@ private:
                                   const ConstraintSolverConf& conf) const override;
 
     // Solver shared
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    UnitVec2 m_localXAxisA;
-    UnitVec2 m_localYAxisA;
-    Angle m_referenceAngle;
-    Vec3 m_impulse = Vec3_zero;
-    Momentum m_motorImpulse = 0;
-    Length m_lowerTranslation;
-    Length m_upperTranslation;
-    Force m_maxMotorForce;
-    AngularVelocity m_motorSpeed;
-    bool m_enableLimit;
-    bool m_enableMotor;
-    LimitState m_limitState = e_inactiveLimit;
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    UnitVec m_localXAxisA; ///< Local X axis A.
+    UnitVec m_localYAxisA; ///< Local Y axis A.
+    Angle m_referenceAngle; ///< Reference angle.
+    Vec3 m_impulse = Vec3{}; ///< Impulse.
+    Momentum m_motorImpulse = 0; ///< Motor impulse.
+    Length m_lowerTranslation; ///< Lower translation.
+    Length m_upperTranslation; ///< Upper translation.
+    Force m_maxMotorForce; ///< Max motor force.
+    AngularVelocity m_motorSpeed; ///< Motor speed.
+    bool m_enableLimit; ///< Enable limit. <code>true</code> if limit is enabled.
+    bool m_enableMotor; ///< Enable motor. <code>true</code> if motor is enabled.
+    LimitState m_limitState = e_inactiveLimit; ///< Limit state.
 
     // Solver temp
-    UnitVec2 m_axis = UnitVec2::GetZero();
-    UnitVec2 m_perp = UnitVec2::GetZero();
-    Length m_s1;
-    Length m_s2;
-    Length m_a1;
-    Length m_a2;
-    Mat33 m_K;
-    Mass m_motorMass = Mass{0};
+    UnitVec m_axis = UnitVec::GetZero(); ///< Axis.
+    UnitVec m_perp = UnitVec::GetZero(); ///< Perpendicular.
+    Length m_s1; ///< Location S1.
+    Length m_s2; ///< Location S2.
+    Length m_a1; ///< Location A1.
+    Length m_a2; ///< Location A2.
+    Mat33 m_K; ///< K matrix.
+    Mass m_motorMass = 0_kg; ///< Motor mass.
 };
 
 inline Length PrismaticJoint::GetLowerLimit() const noexcept
@@ -180,6 +184,14 @@ Length GetJointTranslation(const PrismaticJoint& joint) noexcept;
 /// @relatedalso PrismaticJoint
 LinearVelocity GetLinearVelocity(const PrismaticJoint& joint) noexcept;
 
+/// @brief Gets the current motor force for the given joint, given the inverse time step.
+/// @relatedalso PrismaticJoint
+inline Force GetMotorForce(const PrismaticJoint& joint, Frequency inv_dt) noexcept
+{
+    return joint.GetMotorImpulse() * inv_dt;
+}
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_PRISMATICJOINT_HPP

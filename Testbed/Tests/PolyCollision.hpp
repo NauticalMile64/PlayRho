@@ -23,44 +23,63 @@
 #include "../Framework/Test.hpp"
 #include <vector>
 
-namespace playrho {
+namespace testbed {
 
 class PolyCollision : public Test
 {
 public:
     PolyCollision()
     {
-        {
-            m_polygonA.SetAsBox(Real{0.2f} * Meter, Real{0.4f} * Meter);
-            m_transformA = Transformation{Vec2(0.0f, 0.0f) * Meter, UnitVec2::GetRight()};
-        }
-
-        {
-            m_polygonB.SetAsBox(Real{0.5f} * Meter, Real{0.5f} * Meter);
-            m_positionB = Vec2(19.345284f, 1.5632932f) * Meter;
-            m_angleB = Real{1.9160721f} * Radian;
-            m_transformB = Transformation{m_positionB, UnitVec2::Get(m_angleB)};
-        }
+        m_transformA = Transformation{Length2{}, UnitVec::GetRight()};
+        m_positionB = Vec2(19.345284f, 1.5632932f) * 1_m;
+        m_angleB = 1.9160721_rad;
+        m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        
+        RegisterForKey(GLFW_KEY_A, GLFW_PRESS, 0, "Move Left", [&](KeyActionMods) {
+            GetX(m_positionB) -= 0.1_m;
+            m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "Move Right", [&](KeyActionMods) {
+            GetX(m_positionB) += 0.1_m;
+            m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        });
+        RegisterForKey(GLFW_KEY_S, GLFW_PRESS, 0, "Move Down", [&](KeyActionMods) {
+            GetY(m_positionB) -= 0.1_m;
+            m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        });
+        RegisterForKey(GLFW_KEY_W, GLFW_PRESS, 0, "Move Up", [&](KeyActionMods) {
+            GetY(m_positionB) += 0.1_m;
+            m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        });
+        RegisterForKey(GLFW_KEY_Q, GLFW_PRESS, 0, "Rotate Counter Clockwise", [&](KeyActionMods) {
+            m_angleB += 0.1_rad * Pi;
+            m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        });
+        RegisterForKey(GLFW_KEY_E, GLFW_PRESS, 0, "Rotate Clockwise", [&](KeyActionMods) {
+            m_angleB -= 0.1_rad * Pi;
+            m_transformB = Transformation{m_positionB, UnitVec::Get(m_angleB)};
+        });
     }
 
     void PostStep(const Settings& settings, Drawer& drawer) override
     {
         NOT_USED(settings);
 
-        const auto proxyA = m_polygonA.GetChild(0);
-        const auto proxyB = m_polygonB.GetChild(0);
+        const auto proxyA = GetChild(m_polygonA, 0);
+        const auto proxyB = GetChild(m_polygonB, 0);
 
         const auto manifold = CollideShapes(proxyA, m_transformA, proxyB, m_transformB);
         const auto pointCount = manifold.GetPointCount();
 
-        drawer.DrawString(5, m_textLine, "point count = %d", pointCount);
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "Point count: " << unsigned{pointCount} << ".";
+        m_status = stream.str();
 
         {
             const auto color = Color(0.9f, 0.9f, 0.9f);
             {
                 const auto vertexCount = m_polygonA.GetVertexCount();
-                auto v = std::vector<Length2D>(vertexCount);
+                auto v = std::vector<Length2>(vertexCount);
                 for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
                 {
                     v[i] = Transform(m_polygonA.GetVertex(i), m_transformA);
@@ -70,7 +89,7 @@ public:
 
             {
                 const auto vertexCount = m_polygonB.GetVertexCount();
-                auto v = std::vector<Length2D>(vertexCount);
+                auto v = std::vector<Length2>(vertexCount);
                 for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
                 {
                     v[i] = Transform(m_polygonB.GetVertex(i), m_transformB);
@@ -87,52 +106,17 @@ public:
             drawer.DrawPoint(worldManifold.GetPoint(i), 4.0f, Color(0.9f, 0.3f, 0.3f));
         }
     }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_A:
-            GetX(m_positionB) -= Real{0.1f} * Meter;
-            break;
-
-        case Key_D:
-            GetX(m_positionB) += Real{0.1f} * Meter;
-            break;
-
-        case Key_S:
-            GetY(m_positionB) -= Real{0.1f} * Meter;
-            break;
-
-        case Key_W:
-            GetY(m_positionB) += Real{0.1f} * Meter;
-            break;
-
-        case Key_Q:
-            m_angleB += Real{0.1f} * Radian * Pi;
-            break;
-
-        case Key_E:
-            m_angleB -= Real{0.1f} * Radian * Pi;
-            break;
-
-        default:
-            break;
-        }
-
-        m_transformB = Transformation{m_positionB, UnitVec2::Get(m_angleB)};
-    }
-
-    PolygonShape m_polygonA;
-    PolygonShape m_polygonB;
+    
+    PolygonShapeConf m_polygonA{PolygonShapeConf{}.SetAsBox(0.2_m, 0.4_m)};
+    PolygonShapeConf m_polygonB{PolygonShapeConf{}.SetAsBox(0.5_m, 0.5_m)};
 
     Transformation m_transformA;
     Transformation m_transformB;
 
-    Length2D m_positionB;
+    Length2 m_positionB;
     Angle m_angleB;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

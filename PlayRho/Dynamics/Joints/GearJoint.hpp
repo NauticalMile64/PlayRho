@@ -23,10 +23,11 @@
 #define PLAYRHO_DYNAMICS_JOINTS_GEARJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/GearJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/GearJointConf.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Gear joint.
 ///
@@ -46,22 +47,26 @@ class GearJoint : public Joint
 {
 public:
     
+    /// @brief Is the given definition okay.
+    static bool IsOkay(const GearJointConf& data) noexcept;
+
     /// @brief Initializing constructor.
-    GearJoint(const GearJointDef& data);
+    GearJoint(const GearJointConf& data);
     
     void Accept(JointVisitor& visitor) const override;
+    void Accept(JointVisitor& visitor) override;
 
-    Length2D GetAnchorA() const override;
-    Length2D GetAnchorB() const override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
 
-    Momentum2D GetLinearReaction() const override;
+    Momentum2 GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// @brief Gets the local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const noexcept { return m_localAnchorA; }
+    /// @brief Gets the local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const noexcept { return m_localAnchorA; }
     
-    /// @brief Gets the local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const noexcept { return m_localAnchorB; }
+    /// @brief Gets the local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const noexcept { return m_localAnchorB; }
 
     /// @brief Gets the first joint.
     NonNull<Joint*> GetJoint1() const noexcept { return m_joint1; }
@@ -71,51 +76,56 @@ public:
    
     /// @brief Sets the gear ratio.
     void SetRatio(Real ratio);
-    
-    /// @brief Gets the ratio.
+
+    /// @brief Gets the ratio for position solving.
     Real GetRatio() const noexcept;
+    
+    /// @brief Gets the constant for position solving.
+    Real GetConstant() const noexcept;
 
 private:
 
-    void InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step, const ConstraintSolverConf& conf) override;
+    void InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step,
+                                 const ConstraintSolverConf& conf) override;
     bool SolveVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step) override;
-    bool SolvePositionConstraints(BodyConstraintsMap& bodies, const ConstraintSolverConf& conf) const override;
+    bool SolvePositionConstraints(BodyConstraintsMap& bodies,
+                                  const ConstraintSolverConf& conf) const override;
 
-    NonNull<Joint*> m_joint1;
-    NonNull<Joint*> m_joint2;
+    NonNull<Joint*> m_joint1; ///< Joint 1.
+    NonNull<Joint*> m_joint2; ///< Joint 2.
 
-    JointType m_typeA;
-    JointType m_typeB;
+    JointType m_typeA; ///< Type of joint 1.
+    JointType m_typeB; ///< Type of joint 2.
 
     // Body A is connected to body C
     // Body B is connected to body D
-    Body* m_bodyC;
-    Body* m_bodyD;
+    Body* m_bodyC; ///< Body C.
+    Body* m_bodyD; ///< Body D.
 
     // Solver shared
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    Length2D m_localAnchorC;
-    Length2D m_localAnchorD;
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    Length2 m_localAnchorC; ///< Local anchor C.
+    Length2 m_localAnchorD; ///< Local anchor D.
 
-    UnitVec2 m_localAxisC;
-    UnitVec2 m_localAxisD;
+    UnitVec m_localAxisC; ///< Local axis C.
+    UnitVec m_localAxisD; ///< Local axis D.
 
-    Angle m_referenceAngleA;
-    Angle m_referenceAngleB;
+    Angle m_referenceAngleA; ///< Reference angle A.
+    Angle m_referenceAngleB; ///< Reference angle B.
 
-    Real m_constant;
-    Real m_ratio;
+    Real m_constant; ///< Constant for position solving.
+    Real m_ratio; ///< Ratio for position solving.
 
-    Momentum m_impulse = Momentum{0};
+    Momentum m_impulse = 0_Ns; ///< Impulse.
 
     // Solver temp
-    Vec2 m_JvAC;
-    Vec2 m_JvBD;
-    Length m_JwA;
-    Length m_JwB;
-    Length m_JwC;
-    Length m_JwD;
+    Vec2 m_JvAC = Vec2{}; ///< AC Jv data.
+    Vec2 m_JvBD; ///< BD Jv data.
+    Length m_JwA = 0_m; ///< A Jw data.
+    Length m_JwB; ///< B Jw data.
+    Length m_JwC; ///< C Jw data.
+    Length m_JwD; ///< D Jw data.
     Real m_mass; ///< Either linear mass or angular mass.
 };
 
@@ -123,7 +133,13 @@ inline Real GearJoint::GetRatio() const noexcept
 {
     return m_ratio;
 }
-    
+
+inline Real GearJoint::GetConstant() const noexcept
+{
+    return m_constant;
+}
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_GEARJOINT_HPP

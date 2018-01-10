@@ -21,10 +21,10 @@
 #ifndef PLAYRHO_COMMON_RANGE_HPP
 #define PLAYRHO_COMMON_RANGE_HPP
 
+#include <PlayRho/Defines.hpp>
 #include <cstddef>
 
-namespace playrho
-{
+namespace playrho {
     
     /// @brief Template range value class.
     template <typename IT>
@@ -36,7 +36,7 @@ namespace playrho
         using iterator_type = IT;
 
         /// @brief Initializing constructor.
-        constexpr Range(iterator_type iter_begin, iterator_type iter_end) noexcept:
+        PLAYRHO_CONSTEXPR inline Range(iterator_type iter_begin, iterator_type iter_end) noexcept:
         	m_begin{iter_begin}, m_end{iter_end}
         {
             // Intentionally empty.
@@ -61,8 +61,8 @@ namespace playrho
         }
 
     private:
-        iterator_type m_begin;
-        iterator_type m_end;
+        iterator_type m_begin; ///< Begin iterator.
+        iterator_type m_end; ///< End iterator.
     };
 
     /// @brief Template sized range value class.
@@ -74,7 +74,7 @@ namespace playrho
         using size_type = std::size_t;
 
         /// @brief Initializing constructor.
-        constexpr SizedRange(typename Range<IT>::iterator_type iter_begin,
+        PLAYRHO_CONSTEXPR inline SizedRange(typename Range<IT>::iterator_type iter_begin,
                              typename Range<IT>::iterator_type iter_end,
                              size_type size) noexcept:
         	Range<IT>{iter_begin, iter_end}, m_size{size}

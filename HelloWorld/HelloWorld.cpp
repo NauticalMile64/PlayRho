@@ -24,6 +24,7 @@
 #include <iomanip>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 // This is a simple example of building and running a simulation using PlayRho.
 // The code creates a large box to be the ground and a small disk to be a ball
@@ -34,28 +35,25 @@ int main()
     // Construct a world object, which will hold and simulate bodies.
     auto world = World{};
 
-    // Call the body factory which allocates memory for the ground body.
+    // Call world's body creation method which allocates memory for ground body.
     // The body is also added to the world.
-    const auto ground = world.CreateBody(BodyDef{}
-                                         .UseLocation(Length2D{0 * Meter, -10 * Meter}));
+    const auto ground = world.CreateBody(BodyConf{}.UseLocation(Length2{0_m, -10_m}));
 
     // Define the ground shape. Use a polygon configured as a box for this.
     // The extents are the half-width and half-height of the box.
-    const auto box = std::make_shared<PolygonShape>(50 * Meter, 10 * Meter);
+    const auto box = PolygonShapeConf{}.SetAsBox(50_m, 10_m);
 
     // Add the box shape to the ground body.
     ground->CreateFixture(box);
 
-    // Define a location above the ground for a "dynamic" body and call the body factory.
-    const auto ball = world.CreateBody(BodyDef{}
-                                       .UseLocation(Length2D{0 * Meter, 4 * Meter})
-                                       .UseType(BodyType::Dynamic));
+    // Define location above ground for a "dynamic" body & call world's body creation method.
+    const auto ball = world.CreateBody(BodyConf{}
+                                       .UseLocation(Length2{0_m, 4_m})
+                                       .UseType(BodyType::Dynamic)
+                                       .UseLinearAcceleration(EarthlyGravity));
 
-    // Define a disk shape for the ball body.
-    const auto disk = std::make_shared<DiskShape>(1 * Meter);
-
-    // Add the disk shape to the ball body.
-    ball->CreateFixture(disk);
+    // Define a disk shape for the ball body and create a fixture to add it.
+    ball->CreateFixture(DiskShapeConf{}.UseRadius(1_m));
 
     // Prepare for simulation. Typically code uses a time step of 1/60 of a second
     // (60Hz). The defaults are setup for that and to generally provide a high

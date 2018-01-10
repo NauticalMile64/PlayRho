@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 // This is used to test sensor shapes.
 class SensorTest : public Test
@@ -37,40 +37,36 @@ public:
     SensorTest()
     {
         {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
+            const auto ground = m_world.CreateBody();
+            ground->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
 
 #if 0
             {
-                FixtureDef sd;
-                sd.SetAsBox(10.0f * Meter, 2.0f * Meter, Vec2(0.0f, 20.0f) * Meter, 0.0f);
+                auto sd = FixtureConf{};
+                sd.SetAsBox(10_m, 2_m, Vec2(0.0f, 20.0f) * 1_m, 0.0f);
                 sd.isSensor = true;
                 m_sensor = ground->CreateFixture(sd);
             }
 #else
             {
-                FixtureDef fd;
-                fd.isSensor = true;
-                auto conf = DiskShape::Conf{};
-                conf.vertexRadius = Real{5.0f} * Meter;
-                conf.location = Vec2(0.0f, 10.0f) * Meter;
-                m_sensor = ground->CreateFixture(std::make_shared<DiskShape>(conf), fd);
+                auto conf = DiskShapeConf{};
+                conf.vertexRadius = 5_m;
+                conf.location = Vec2(0.0f, 10.0f) * 1_m;
+                m_sensor = ground->CreateFixture(Shape(conf), FixtureConf{}.UseIsSensor(true));
             }
 #endif
         }
 
-        const auto shape = std::make_shared<DiskShape>(Real{1} * Meter);
-        shape->SetDensity(Real{1} * KilogramPerSquareMeter);
+        const auto shape = Shape{DiskShapeConf{}.UseDensity(1_kgpm2).UseRadius(1_m)};
         for (auto i = 0; i < e_count; ++i)
         {
-            BodyDef bd;
+            auto bd = BodyConf{};
             bd.type = BodyType::Dynamic;
-            bd.position = Vec2(-10.0f + 3.0f * i, 20.0f) * Meter;
+            bd.linearAcceleration = m_gravity;
+            bd.location = Vec2(-10.0f + 3.0f * i, 20.0f) * 1_m;
             bd.userData = m_touching + i;
-
             m_touching[i] = false;
-            m_bodies[i] = m_world->CreateBody(bd);
-
+            m_bodies[i] = m_world.CreateBody(bd);
             m_bodies[i]->CreateFixture(shape);
         }
     }
@@ -142,20 +138,17 @@ public:
 
             const auto body = m_bodies[i];
             const auto ground = m_sensor->GetBody();
-
-            const auto circle = static_cast<const DiskShape*>(m_sensor->GetShape().get());
+            const auto circle = static_cast<const DiskShapeConf*>(GetData(m_sensor->GetShape()));
             const auto center = GetWorldPoint(*ground, circle->GetLocation());
-
             const auto position = body->GetLocation();
-
             const auto d = center - position;
-            if (AlmostZero(GetLengthSquared(d) / SquareMeter))
+            if (AlmostZero(GetMagnitudeSquared(d) / SquareMeter))
             {
                 continue;
             }
 
-            const auto F = Force2D{Real{100.0f} * GetUnitVector(d) * Newton};
-            ApplyForce(*body, F, position);
+            const auto F = Force2{GetUnitVector(d) * 100_N};
+            playrho::d2::ApplyForce(*body, F, position);
         }
     }
 
@@ -164,6 +157,6 @@ public:
     bool m_touching[e_count];
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

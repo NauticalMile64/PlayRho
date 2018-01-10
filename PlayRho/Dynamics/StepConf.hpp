@@ -3,17 +3,19 @@
  * Modified work Copyright (c) 2017 Louis Langholtz https://github.com/louis-langholtz/PlayRho
  *
  * This software is provided 'as-is', without any express or implied
- * warranty.  In no event will the authors be held liable for any damages
+ * warranty. In no event will the authors be held liable for any damages
  * arising from the use of this software.
+ *
  * Permission is granted to anyone to use this software for any purpose,
  * including commercial applications, and to alter it and redistribute it
  * freely, subject to the following restrictions:
+ *
  * 1. The origin of this software must not be misrepresented; you must not
- * claim that you wrote the original software. If you use this software
- * in a product, an acknowledgment in the product documentation would be
- * appreciated but is not required.
+ *    claim that you wrote the original software. If you use this software
+ *    in a product, an acknowledgment in the product documentation would be
+ *    appreciated but is not required.
  * 2. Altered source versions must be plainly marked as such, and must not be
- * misrepresented as being the original software.
+ *    misrepresented as being the original software.
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
@@ -34,18 +36,18 @@ namespace playrho {
 /// the values have defaults. These defaults are intended to most likely be the values desired.
 /// @note Be sure to confirm that the delta time (the time-per-step i.e. <code>dt</code>) is
 ///   correct for your use.
-/// @note This data structure is 100-bytes large (with 4-byte Real on at least one 64-bit platform).
+/// @note This data structure is 108-bytes large (with 4-byte Real on at least one 64-bit platform).
 /// @sa World::Step.
 class StepConf
 {
 public:
     /// @brief Step iterations type.
-    /// @details A type for countining iterations per-step.
+    /// @details A type for counting iterations per-step.
     /// @note The special value of -1 is reserved for signifying an invalid iteration value.
     using iteration_type = TimestepIters;
 
     /// @brief Invalid iteration value.
-    static constexpr auto InvalidIteration = static_cast<iteration_type>(-1);
+    static PLAYRHO_CONSTEXPR const auto InvalidIteration = static_cast<iteration_type>(-1);
 
     /// @brief Gets the delta time (time amount for this time step).
     /// @sa SetTime(Real).
@@ -57,17 +59,17 @@ public:
     /// @sa GetTime().
     Frequency GetInvTime() const noexcept { return invTime; }
     
-    /// @brief Sets the delte time and inverse time from the given value and its inverse respectively.
+    /// @brief Sets the delta time and inverse time from the given value and its inverse respectively.
     /// @note Used in both the regular and TOI phases of step processing.
     /// @post Getting the delta time will return this value.
     /// @post The inverse delta time value is the inverse of the given value or zero if the value is zero.
     /// @sa GetTime().
     /// @sa GetInvTime().
     /// @param value Elapsed time amount.
-    constexpr StepConf& SetTime(Time value) noexcept
+    PLAYRHO_CONSTEXPR inline StepConf& SetTime(Time value) noexcept
     {
         time = value;
-        invTime = (value != Time{0})? Real{1} / value: Hertz * Real{0};
+        invTime = (value != Time{0})? Real{1} / value: 0_Hz;
         return *this;
     }
 
@@ -78,10 +80,10 @@ public:
     /// @sa GetTime().
     /// @sa GetInvTime().
     /// @param value Inverse time amount.
-    constexpr StepConf& SetInvTime(Frequency value) noexcept
+    PLAYRHO_CONSTEXPR inline StepConf& SetInvTime(Frequency value) noexcept
     {
         invTime = value;
-        time = (value != Frequency{0})? Time{Real{1} / value}: Time{0};
+        time = (value != 0_Hz)? Time{Real{1} / value}: Time{0};
         return *this;
     }
     
@@ -151,12 +153,10 @@ public:
     Momentum toiMinMomentum = DefaultToiMinMomentum;
 
     /// @brief Target depth.
-    /// @details Target depth of overlap for calculating the TOI for CCD elligible bodies.
-    /// @note Must be greater than 0.
-    /// @note Must not be subnormal.
-    /// @note Must be less than twice the world's minimum vertex radius.
+    /// @details Target depth of overlap for calculating the TOI for CCD eligible bodies.
+    /// @note Recommend value that's less than twice the world's minimum vertex radius.
     /// @note Used in the TOI phase of step processing.
-    Positive<Length> targetDepth = DefaultLinearSlop * Real{3};
+    Length targetDepth = DefaultLinearSlop * Real{3};
     
     /// @brief Tolerance.
     /// @details The acceptable plus or minus tolerance from the target depth for TOI calculations.
@@ -164,7 +164,7 @@ public:
     /// @note Must not be subnormal.
     /// @note Must be less than the target depth.
     /// @note Used in the TOI phase of step processing.
-    Positive<Length> tolerance = DefaultLinearSlop / Real{4};
+    NonNegative<Length> tolerance = DefaultLinearSlop / Real{4};
 
     /// @brief Velocity threshold.
     /// @details A velocity threshold for elastic collisions. Any collision with a relative linear
@@ -175,7 +175,7 @@ public:
     /// @brief Maximum translation.
     ///
     /// @details The maximum amount a body can translate in a single step. This represents
-    ///   an upper bound on the maximum linear velocity of a body of maxTranslation / time.
+    ///   an upper bound on the maximum linear velocity of a body of max-translation per time.
     ///
     /// @note If you want or need to support a higher maximum linear speed, then instead
     ///   of changing this value, decrease the step's time value. So for example, rather
@@ -190,7 +190,7 @@ public:
     /// @brief Maximum rotation.
     ///
     /// @details The maximum amount a body can rotate in a single step. This represents
-    ///   an upper bound on the maximum angular speed of a body of maxRotation / time.
+    ///   an upper bound on the maximum angular speed of a body of max rotation / time.
     ///
     /// @warning This value should be less than Pi * Radian.
     ///
@@ -234,7 +234,7 @@ public:
     
     /// @brief AABB extension.
     /// @details This is the extension that will be applied to Axis Aligned Bounding Box
-    ///    objects used in "broadphase" collision detection. This fattens AABBs in the
+    ///    objects used in broad phase collision detection. This fattens AABBs in the
     ///    dynamic tree. This allows proxies to move by a small amount without triggering
     ///    a tree adjustment.
     /// @note Should be greater than 0.

@@ -18,37 +18,37 @@
  */
 
 #include "Test.hpp"
-#include "Drawer.hpp"
+#include "DebugDraw.hpp"
 #include <stdio.h>
 #include <vector>
 #include <sstream>
 #include <chrono>
-#include <map>
 #include <utility>
+#include "imgui.h"
 
-#include <PlayRho/Dynamics/FixtureProxy.hpp>
-
+using namespace testbed;
 using namespace playrho;
+using namespace playrho::d2;
 
-static void DrawCorner(Drawer& drawer, Length2D p, Length r, Angle a0, Angle a1, Color color)
+static void DrawCorner(Drawer& drawer, Length2 p, Length r, Angle a0, Angle a1, Color color)
 {
     const auto angleDiff = GetRevRotationalAngle(a0, a1);
-    auto lastAngle = Angle{0};
-    for (auto angle = Degree * Real{5}; angle < angleDiff; angle += Degree * Real{5})
+    auto lastAngle = 0_deg;
+    for (auto angle = 5_deg; angle < angleDiff; angle += 5_deg)
     {
-        const auto c0 = p + r * UnitVec2::Get(a0 + lastAngle);
-        const auto c1 = p + r * UnitVec2::Get(a0 + angle);
+        const auto c0 = p + r * UnitVec::Get(a0 + lastAngle);
+        const auto c1 = p + r * UnitVec::Get(a0 + angle);
         drawer.DrawSegment(c0, c1, color);
         lastAngle = angle;
     }
     {
-        const auto c0 = p + r * UnitVec2::Get(a0 + lastAngle);
-        const auto c1 = p + r * UnitVec2::Get(a1);
+        const auto c0 = p + r * UnitVec::Get(a0 + lastAngle);
+        const auto c1 = p + r * UnitVec::Get(a1);
         drawer.DrawSegment(c0, c1, color);
     }
 }
 
-class ShapeDrawer: public ShapeVisitor
+class ShapeDrawer
 {
 public:
     ShapeDrawer(Drawer& d, Color c, bool s, Transformation t):
@@ -56,12 +56,36 @@ public:
     {
         // Intentionally empty.
     }
-
-    void Visit(const DiskShape& shape) override;
-    void Visit(const EdgeShape& shape) override;
-    void Visit(const PolygonShape& shape) override;
-    void Visit(const ChainShape& shape) override;
-    void Visit(const MultiShape& shape) override;
+    
+    void operator() (const std::type_info& ti, const void* data)
+    {
+        if (ti == typeid(DiskShapeConf))
+        {
+            Visit(*static_cast<const DiskShapeConf*>(data));
+        }
+        else if (ti == typeid(EdgeShapeConf))
+        {
+            Visit(*static_cast<const EdgeShapeConf*>(data));
+        }
+        else if (ti == typeid(PolygonShapeConf))
+        {
+            Visit(*static_cast<const PolygonShapeConf*>(data));
+        }
+        else if (ti == typeid(ChainShapeConf))
+        {
+            Visit(*static_cast<const ChainShapeConf*>(data));
+        }
+        else if (ti == typeid(MultiShapeConf))
+        {
+            Visit(*static_cast<const MultiShapeConf*>(data));
+        }
+    }
+    
+    void Visit(const DiskShapeConf& shape);
+    void Visit(const EdgeShapeConf& shape);
+    void Visit(const PolygonShapeConf& shape);
+    void Visit(const ChainShapeConf& shape);
+    void Visit(const MultiShapeConf& shape);
 
     void Draw(const DistanceProxy& proxy);
 
@@ -71,7 +95,7 @@ public:
     Transformation xf;
 };
 
-void ShapeDrawer::Visit(const DiskShape& shape)
+void ShapeDrawer::Visit(const DiskShapeConf& shape)
 {
     const auto center = Transform(shape.GetLocation(), xf);
     const auto radius = shape.GetRadius();
@@ -84,16 +108,16 @@ void ShapeDrawer::Visit(const DiskShape& shape)
     drawer.DrawSegment(center, center + radius * axis, color);
 }
 
-void ShapeDrawer::Visit(const EdgeShape& shape)
+void ShapeDrawer::Visit(const EdgeShapeConf& shape)
 {
-    const auto v1 = Transform(shape.GetVertex1(), xf);
-    const auto v2 = Transform(shape.GetVertex2(), xf);
+    const auto v1 = Transform(shape.GetVertexA(), xf);
+    const auto v2 = Transform(shape.GetVertexB(), xf);
     drawer.DrawSegment(v1, v2, color);
 
     if (skins)
     {
-        const auto r = shape.GetVertexRadius();
-        if (r > Length{0})
+        const auto r = GetVertexRadius(shape);
+        if (r > 0_m)
         {
             const auto skinColor = Color{color.r * 0.6f, color.g * 0.6f, color.b * 0.6f};
             const auto worldNormal0 = GetFwdPerpendicular(GetUnitVector(v2 - v1));
@@ -109,10 +133,10 @@ void ShapeDrawer::Visit(const EdgeShape& shape)
     }
 }
 
-void ShapeDrawer::Visit(const ChainShape& shape)
+void ShapeDrawer::Visit(const ChainShapeConf& shape)
 {
     const auto count = shape.GetVertexCount();
-    const auto r = shape.GetVertexRadius();
+    const auto r = GetVertexRadius(shape);
     const auto skinColor = Color{color.r * 0.6f, color.g * 0.6f, color.b * 0.6f};
 
     auto v1 = Transform(shape.GetVertex(0), xf);
@@ -120,7 +144,7 @@ void ShapeDrawer::Visit(const ChainShape& shape)
     {
         const auto v2 = Transform(shape.GetVertex(i), xf);
         drawer.DrawSegment(v1, v2, color);
-        if (skins && r > Length{0})
+        if (skins && r > 0_m)
         {
             const auto worldNormal0 = GetFwdPerpendicular(GetUnitVector(v2 - v1));
             const auto offset = worldNormal0 * r;
@@ -138,7 +162,7 @@ void ShapeDrawer::Visit(const ChainShape& shape)
 void ShapeDrawer::Draw(const DistanceProxy& shape)
 {
     const auto vertexCount = shape.GetVertexCount();
-    auto vertices = std::vector<Length2D>(vertexCount);
+    auto vertices = std::vector<Length2>(vertexCount);
     for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
     {
         vertices[i] = Transform(shape.GetVertex(i), xf);
@@ -153,7 +177,7 @@ void ShapeDrawer::Draw(const DistanceProxy& shape)
     }
 
     const auto skinColor = Color{color.r * 0.6f, color.g * 0.6f, color.b * 0.6f};
-    const auto r = shape.GetVertexRadius();
+    const auto r = GetVertexRadius(shape);
     for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
     {
         if (i > 0)
@@ -180,21 +204,21 @@ void ShapeDrawer::Draw(const DistanceProxy& shape)
     }
     else if (vertexCount == 1)
     {
-        DrawCorner(drawer, vertices[0], r, Angle{0}, Real{360} * Degree, skinColor);
+        DrawCorner(drawer, vertices[0], r, 0_deg, 360_deg, skinColor);
     }
 }
 
-void ShapeDrawer::Visit(const PolygonShape& shape)
+void ShapeDrawer::Visit(const PolygonShapeConf& shape)
 {
-    Draw(shape.GetChild(0));
+    Draw(GetChild(shape, 0));
 }
 
-void ShapeDrawer::Visit(const MultiShape& shape)
+void ShapeDrawer::Visit(const MultiShapeConf& shape)
 {
-    const auto count = shape.GetChildCount();
+    const auto count = GetChildCount(shape);
     for (auto i = decltype(count){0}; i < count; ++i)
     {
-        Draw(shape.GetChild(i));
+        Draw(GetChild(shape, i));
     }
 }
 
@@ -203,7 +227,9 @@ static void Draw(Drawer& drawer, const Fixture& fixture, const Color& color, boo
     const auto xf = GetTransformation(fixture);
     auto shapeDrawer = ShapeDrawer{drawer, color, skins, xf};
     const auto shape = fixture.GetShape();
-    shape->Accept(shapeDrawer);
+    Accept(shape, [&](const std::type_info& ti, const void* data) {
+        shapeDrawer(ti, data);
+    });
 }
 
 static Color GetColor(const Body& body)
@@ -222,12 +248,12 @@ static Color GetColor(const Body& body)
     }
     if (!body.IsAwake())
     {
-        return Color{0.6f, 0.6f, 0.6f};
+        return Color{0.75f, 0.75f, 0.75f};
     }
     return Color{0.9f, 0.7f, 0.7f};
 }
 
-static bool Draw(Drawer& drawer, const Body& body, bool skins, const Test::Fixtures& selected)
+static bool Draw(Drawer& drawer, const Body& body, bool skins, const Test::FixtureSet& selected)
 {
     auto found = false;
     const auto bodyColor = GetColor(body);
@@ -248,12 +274,6 @@ static bool Draw(Drawer& drawer, const Body& body, bool skins, const Test::Fixtu
 
 static void Draw(Drawer& drawer, const Joint& joint)
 {
-    const auto bodyA = joint.GetBodyA();
-    const auto bodyB = joint.GetBodyB();
-    const auto xf1 = bodyA->GetTransformation();
-    const auto xf2 = bodyB->GetTransformation();
-    const auto x1 = xf1.p;
-    const auto x2 = xf2.p;
     const auto p1 = joint.GetAnchorA();
     const auto p2 = joint.GetAnchorB();
 
@@ -276,30 +296,60 @@ static void Draw(Drawer& drawer, const Joint& joint)
         }
             break;
 
-        case JointType::Mouse:
+        case JointType::Target:
             // don't draw this
             break;
 
         default:
+        {
+            const auto bodyA = joint.GetBodyA();
+            const auto bodyB = joint.GetBodyB();
+            const auto x1 = bodyA->GetTransformation().p;
+            const auto x2 = bodyB->GetTransformation().p;
             drawer.DrawSegment(x1, p1, color);
             drawer.DrawSegment(p1, p2, color);
             drawer.DrawSegment(x2, p2, color);
+        }
     }
 }
 
-static bool Draw(Drawer& drawer, const World& world, const Settings& settings,
-                 const Test::Fixtures& selected)
+static void Draw(Drawer& drawer, const AABB& aabb, const Color& color)
+{
+    Length2 vs[4];
+    vs[0] = Length2{aabb.ranges[0].GetMin(), aabb.ranges[1].GetMin()};
+    vs[1] = Length2{aabb.ranges[0].GetMax(), aabb.ranges[1].GetMin()};
+    vs[2] = Length2{aabb.ranges[0].GetMax(), aabb.ranges[1].GetMax()};
+    vs[3] = Length2{aabb.ranges[0].GetMin(), aabb.ranges[1].GetMax()};
+    drawer.DrawPolygon(vs, 4, color);
+}
+
+bool Test::DrawWorld(Drawer& drawer, const World& world, const Settings& settings,
+                     const FixtureSet& selected)
 {
     auto found = false;
 
     if (settings.drawShapes)
     {
+        const auto drawLabels = [&]() {
+            const auto useField = m_neededSettings & (1u << NeedDrawLabelsField);
+            return useField? m_settings.drawLabels: settings.drawLabels;
+        }();
+        const auto drawSkins = [&]() {
+            const auto useField = m_neededSettings & (0x1u << NeedDrawSkinsField);
+            return useField? m_settings.drawSkins: settings.drawSkins;
+        }();
+        
         for (auto&& body: world.GetBodies())
         {
             const auto b = GetPtr(body);
-            if (Draw(drawer, *b, settings.drawSkins, selected))
+            if (Draw(drawer, *b, drawSkins, selected))
             {
                 found = true;
+            }
+            if (drawLabels)
+            {
+                // Use center of mass instead of body center since body center may not
+                drawer.DrawString(b->GetWorldCenter(), Drawer::Center, "%d", GetWorldIndex(b));
             }
         }
     }
@@ -315,71 +365,53 @@ static bool Draw(Drawer& drawer, const World& world, const Settings& settings,
     if (settings.drawAABBs)
     {
         const auto color = Color{0.9f, 0.3f, 0.9f};
-
-        for (auto&& body: world.GetBodies())
+        const auto root = world.GetTree().GetRootIndex();
+        if (root != DynamicTree::GetInvalidSize())
         {
-            const auto b = GetPtr(body);
-            if (!b->IsEnabled())
-            {
-                continue;
-            }
-
-            for (auto&& fixture: b->GetFixtures())
-            {
-                const auto& f = GetRef(fixture);
-                const auto proxy_count = f.GetProxyCount();
-                for (auto i = decltype(proxy_count){0}; i < proxy_count; ++i)
-                {
-                    const auto proxy = f.GetProxy(i);
-                    const auto aabb = world.GetFatAABB(proxy->proxyId);
-                    Length2D vs[4];
-                    vs[0] = Length2D{GetX(aabb.GetLowerBound()), GetY(aabb.GetLowerBound())};
-                    vs[1] = Length2D{GetX(aabb.GetUpperBound()), GetY(aabb.GetLowerBound())};
-                    vs[2] = Length2D{GetX(aabb.GetUpperBound()), GetY(aabb.GetUpperBound())};
-                    vs[3] = Length2D{GetX(aabb.GetLowerBound()), GetY(aabb.GetUpperBound())};
-
-                    drawer.DrawPolygon(vs, 4, color);
-                }
-            }
+            const auto worldAabb = world.GetTree().GetAABB(root);
+            Draw(drawer, worldAabb, color);
+            Query(world.GetTree(), worldAabb, [&](DynamicTree::Size id) {
+                Draw(drawer, world.GetTree().GetAABB(id), color);
+                return DynamicTreeOpcode::Continue;
+            });
         }
     }
 
     if (settings.drawCOMs)
     {
-        const auto k_axisScale = Real(0.4) * Meter;
+        const auto k_axisScale = 0.4_m;
         const auto red = Color{1.0f, 0.0f, 0.0f};
         const auto green = Color{0.0f, 1.0f, 0.0f};
         for (auto&& body: world.GetBodies())
         {
             const auto b = GetPtr(body);
+            const auto massScale = std::pow(static_cast<float>(StripUnit(GetMass(*b))), 1.0f/3);
             auto xf = b->GetTransformation();
             xf.p = b->GetWorldCenter();
             const auto p1 = xf.p;
-            drawer.DrawSegment(p1, p1 + k_axisScale * GetXAxis(xf.q), red);
-            drawer.DrawSegment(p1, p1 + k_axisScale * GetYAxis(xf.q), green);
+            drawer.DrawSegment(p1, p1 + massScale * k_axisScale * GetXAxis(xf.q), red);
+            drawer.DrawSegment(p1, p1 + massScale * k_axisScale * GetYAxis(xf.q), green);
         }
     }
 
     return found;
 }
 
-bool Test::Contains(const Fixtures& fixtures, const Fixture* f) noexcept
+const LinearAcceleration2 Test::Gravity = LinearAcceleration2{
+    Real(0.0f) * MeterPerSquareSecond,
+    -Real(10.0f) * MeterPerSquareSecond
+};
+
+bool Test::Contains(const FixtureSet& fixtures, const Fixture* f) noexcept
 {
-    for (auto fixture: fixtures)
-    {
-        if (fixture == f)
-        {
-            return true;
-        }
-    }
-    return false;
+    return fixtures.find(const_cast<Fixture*>(f)) != fixtures.end();
 }
 
 void Test::DestructionListenerImpl::SayGoodbye(Joint& joint)
 {
-    if (test->m_mouseJoint == &joint)
+    if (test->m_targetJoint == &joint)
     {
-        test->m_mouseJoint = nullptr;
+        test->m_targetJoint = nullptr;
     }
     else
     {
@@ -387,60 +419,54 @@ void Test::DestructionListenerImpl::SayGoodbye(Joint& joint)
     }
 }
 
-Test::Test(const WorldDef& conf):
-    m_world{new World(conf)}
+Test::Test(Conf conf):
+    m_world(conf.worldConf),
+    m_neededSettings(conf.neededSettings),
+    m_settings(conf.settings),
+    m_description(conf.description),
+    m_credits(conf.credits),
+    m_seeAlso(conf.seeAlso),
+    m_numContactsPerStep(m_maxHistory, 0u),
+    m_numTouchingPerStep(m_maxHistory, 0u)
 {
     m_destructionListener.test = this;
-    m_world->SetDestructionListener(&m_destructionListener);
-    m_world->SetContactListener(this);
-
-    m_groundBody = m_world->CreateBody();
+    m_world.SetDestructionListener(&m_destructionListener);
+    m_world.SetContactListener(this);
 }
 
 Test::~Test()
 {
-    // By deleting the world, we delete the bomb, mouse joint, etc.
-    delete m_world;
 }
 
-void Test::ResetWorld(const playrho::World &saved)
+void Test::ResetWorld(const World &saved)
 {
-    SetSelectedFixtures(Fixtures{});
+    ClearSelectedFixtures();
 
-    auto bombIndex = static_cast<decltype(m_world->GetBodies().size())>(-1);
-    auto groundIndex = static_cast<decltype(m_world->GetBodies().size())>(-1);
+    auto bombIndex = static_cast<decltype(m_world.GetBodies().size())>(-1);
 
     {
-        auto i = decltype(m_world->GetBodies().size()){0};
-        for (auto&& b: m_world->GetBodies())
+        auto i = decltype(m_world.GetBodies().size()){0};
+        for (auto&& b: m_world.GetBodies())
         {
             const auto body = GetPtr(b);
             if (body == m_bomb)
             {
                 bombIndex = i;
             }
-            if (body == m_groundBody)
-            {
-                groundIndex = i;
-            }
             ++i;
         }
     }
 
-    *m_world = saved;
+    m_world = saved;
 
     {
-        auto i = decltype(m_world->GetBodies().size()){0};
-        for (auto&& b: m_world->GetBodies())
+        auto i = decltype(m_world.GetBodies().size()){0};
+        for (auto&& b: m_world.GetBodies())
         {
             const auto body = GetPtr(b);
             if (i == bombIndex)
             {
                 m_bomb = body;
-            }
-            if (i == groundIndex)
-            {
-                m_groundBody = body;
             }
             ++i;
         }
@@ -461,8 +487,8 @@ void Test::PreSolve(Contact& contact, const Manifold& oldManifold)
     for (auto i = decltype(count){0}; i < count; ++i)
     {
         const auto ci = worldManifold.GetImpulses(i);
-        cp.normalImpulse = ci.m_normal;
-        cp.tangentImpulse = ci.m_tangent;
+        cp.normalImpulse = Get<0>(ci);
+        cp.tangentImpulse = Get<1>(ci);
         cp.state = pointStates.state2[i];
         cp.position = worldManifold.GetPoint(i);
         cp.separation = worldManifold.GetSeparation(i);
@@ -470,31 +496,42 @@ void Test::PreSolve(Contact& contact, const Manifold& oldManifold)
     }
 }
 
-void Test::DrawTitle(Drawer& drawer, const char *string)
+template <class T>
+static std::set<Body*> GetBodySetFromFixtures(const T& fixtures)
 {
-    drawer.DrawString(5, DRAW_STRING_NEW_LINE, string);
-    m_textLine = 3 * DRAW_STRING_NEW_LINE;
+    auto collection = std::set<Body*>();
+    for (auto f: fixtures)
+    {
+        collection.insert(f->GetBody());
+    }
+    return collection;
 }
 
-void Test::MouseDown(const Length2D& p)
+void Test::SetSelectedFixtures(FixtureSet value) noexcept
+{
+    m_selectedFixtures = value;
+    m_selectedBodies = GetBodySetFromFixtures(value);
+}
+
+void Test::MouseDown(const Length2& p)
 {
     m_mouseWorld = p;
 
-    if (m_mouseJoint)
+    if (m_targetJoint)
     {
         return;
     }
 
     // Make a small box.
-    const auto aabb = GetFattenedAABB(AABB{p}, Meter / Real{1000});
+    const auto aabb = GetFattenedAABB(AABB{p}, 1_m / 1000);
 
-    auto fixtures = std::vector<Fixture*>();
+    auto fixtures = FixtureSet{};
 
     // Query the world for overlapping shapes.
-    m_world->QueryAABB(aabb, [&](Fixture* f, const ChildCounter) {
+    m_world.QueryAABB(aabb, [&](Fixture* f, const ChildCounter) {
         if (TestPoint(*f, p))
         {
-            fixtures.push_back(f);
+            fixtures.insert(f);
         }
         return true; // Continue the query.
     });
@@ -502,47 +539,47 @@ void Test::MouseDown(const Length2D& p)
     SetSelectedFixtures(fixtures);
     if (fixtures.size() == 1)
     {
-        const auto body = fixtures[0]->GetBody();
+        const auto body = (*(fixtures.begin()))->GetBody();
         if (body->GetType() == BodyType::Dynamic)
         {
-            MouseJointDef md;
-            md.bodyA = m_groundBody;
+            auto md = TargetJointConf{};
             md.bodyB = body;
             md.target = p;
             md.maxForce = Real(10000.0f) * GetMass(*body) * MeterPerSquareSecond;
-            m_mouseJoint = static_cast<MouseJoint*>(m_world->CreateJoint(md));
+            m_targetJoint = static_cast<TargetJoint*>(m_world.CreateJoint(md));
             body->SetAwake();
         }
     }
 }
 
-void Test::SpawnBomb(const Length2D& worldPt)
+void Test::SpawnBomb(const Length2& worldPt)
 {
     m_bombSpawnPoint = worldPt;
     m_bombSpawning = true;
 }
 
-void Test::CompleteBombSpawn(const Length2D& p)
+void Test::CompleteBombSpawn(const Length2& p)
 {
     if (!m_bombSpawning)
     {
         return;
     }
 
+    const auto deltaTime = m_lastDeltaTime;
     const auto relP = m_bombSpawnPoint - p;
-    const auto vel = LinearVelocity2D{
-        Real{30} * GetX(relP) / Second,
-        Real{30} * GetY(relP) / Second
-    };
+    const auto vel = (deltaTime != 0_s)? LinearVelocity2{
+        Real{0.25f} * GetX(relP) / deltaTime,
+        Real{0.25f} * GetY(relP) / deltaTime
+    }: LinearVelocity2{};
     LaunchBomb(m_bombSpawnPoint, vel);
     m_bombSpawning = false;
 }
 
-void Test::ShiftMouseDown(const Length2D& p)
+void Test::ShiftMouseDown(const Length2& p)
 {
     m_mouseWorld = p;
 
-    if (m_mouseJoint)
+    if (m_targetJoint)
     {
         return;
     }
@@ -550,12 +587,12 @@ void Test::ShiftMouseDown(const Length2D& p)
     SpawnBomb(p);
 }
 
-void Test::MouseUp(const Length2D& p)
+void Test::MouseUp(const Length2& p)
 {
-    if (m_mouseJoint)
+    if (m_targetJoint)
     {
-        m_world->Destroy(m_mouseJoint);
-        m_mouseJoint = nullptr;
+        m_world.Destroy(m_targetJoint);
+        m_targetJoint = nullptr;
     }
 
     if (m_bombSpawning)
@@ -564,334 +601,461 @@ void Test::MouseUp(const Length2D& p)
     }
 }
 
-void Test::MouseMove(const Length2D& p)
+void Test::MouseMove(const Length2& p)
 {
     m_mouseWorld = p;
 
-    if (m_mouseJoint)
+    if (m_targetJoint)
     {
-        m_mouseJoint->SetTarget(p);
+        m_targetJoint->SetTarget(p);
     }
 }
 
 void Test::LaunchBomb()
 {
-    const auto p = Length2D(RandomFloat(-15.0f, 15.0f) * Meter, Real(40.0f) * Meter);
-    const auto v = LinearVelocity2D{
-        Real{-100} * GetX(p) / Second,
-        Real{-100} * GetY(p) / Second
-    };
-    LaunchBomb(p, v);
+    const auto deltaTime = m_lastDeltaTime;
+    const auto viewport = ConvertScreenToWorld();
+    const auto worldX = RandomFloat(viewport.ranges[0].GetMin()/1_m, viewport.ranges[0].GetMax()/1_m);
+    const auto atA = Length2{worldX * 1_m, viewport.ranges[1].GetMax()};
+    const auto centerX = GetCenter(viewport.ranges[0]);
+    const auto height = GetSize(viewport.ranges[1]);
+    const auto atB = Length2{centerX, viewport.ranges[1].GetMax() - (height * 9.0f / 10.0f)};
+    const auto v = (deltaTime != 0_s)? (atB - atA) / (deltaTime * 30): LinearVelocity2{};
+    LaunchBomb(atA, v);
 }
 
-void Test::LaunchBomb(const Length2D& position, const LinearVelocity2D linearVelocity)
+void Test::LaunchBomb(const Length2& at, const LinearVelocity2 v)
 {
     if (m_bomb)
     {
-        m_world->Destroy(m_bomb);
-        m_bomb = nullptr;
+        m_world.Destroy(m_bomb);
     }
 
-    m_bomb = m_world->CreateBody(BodyDef{}.UseType(BodyType::Dynamic).UseLocation(position).UseBullet(true));
-    m_bomb->SetVelocity(Velocity{linearVelocity, AngularVelocity{0}});
+    m_bomb = m_world.CreateBody(BodyConf{}.UseType(BodyType::Dynamic).UseBullet(true)
+                                .UseLocation(at).UseLinearVelocity(v)
+                                .UseLinearAcceleration(m_gravity));
 
-    auto conf = DiskShape::Conf{};
-    conf.vertexRadius = Real{0.3f} * Meter;
-    conf.density = Density{Real{20} * Kilogram / SquareMeter};
+    auto conf = DiskShapeConf{};
+    conf.vertexRadius = m_bombRadius;
+    conf.density = m_bombDensity;
     conf.restitution = 0.0f;
-    const auto circle = std::make_shared<DiskShape>(conf);
-
-    m_bomb->CreateFixture(circle);
+    m_bomb->CreateFixture(Shape{conf});
 }
 
-void Test::DrawStats(Drawer& drawer, const StepConf& stepConf)
+static void ShowHelpMarker(const char* desc)
 {
-    const auto bodyCount = GetBodyCount(*m_world);
-    const auto awakeCount = GetAwakeCount(*m_world);
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::ShowTooltip(desc, 400);
+    }
+}
+
+void Test::DrawStats(const StepConf& stepConf, UiState& ui)
+{
+    const auto bodyCount = GetBodyCount(m_world);
+    const auto awakeCount = GetAwakeCount(m_world);
     const auto sleepCount = bodyCount - awakeCount;
-    const auto jointCount = GetJointCount(*m_world);
-    const auto fixtureCount = GetFixtureCount(*m_world);
-    const auto shapeCount = GetShapeCount(*m_world);
-    const auto touchingCount = GetTouchingCount(*m_world);
-
-    std::stringstream stream;
-
-    drawer.DrawString(5, m_textLine, "step#=%d (@%fs):", m_stepCount, m_sumDeltaTime);
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  Times:";
-    stream << " cur=" << m_curStepDuration.count();
-    stream << " max=" << m_maxStepDuration.count();
-    stream << " sum=" << m_sumStepDuration.count();
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  Object counts:";
-    stream << " bodies=" << bodyCount << " (" << sleepCount << " asleep),";
-    stream << " fixtures=" << fixtureCount << ",";
-    stream << " shapes=" << shapeCount << ",";
-    stream << " contacts=" << m_numContacts;
-    stream << " (" << touchingCount << " touching, " << m_maxContacts << " max),";
-    stream << " joints=" << jointCount;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  pre-info:";
-    stream << " cts-add=" << m_stepStats.pre.added;
-    stream << " cts-ignor=" << m_stepStats.pre.ignored;
-    stream << " cts-del=" << m_stepStats.pre.destroyed;
-    stream << " cts-upd=" << m_stepStats.pre.updated;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    drawer.DrawString(5, m_textLine, "  reg-info:");
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "   ";
-    stream << " cts-add=" << m_stepStats.reg.contactsAdded;
-    stream << " isl-find=" << m_stepStats.reg.islandsFound;
-    stream << " isl-solv=" << m_stepStats.reg.islandsSolved;
-    stream << " pos-iter=" << m_stepStats.reg.sumPosIters;
-    stream << " vel-iter=" << m_stepStats.reg.sumVelIters;
-    stream << " proxy-moved=" << m_stepStats.toi.proxiesMoved;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "   ";
-    stream << " bod-slept=" << m_stepStats.reg.bodiesSlept;
-    stream << " min-sep=" << static_cast<double>(Real{m_stepStats.reg.minSeparation / Meter});
-    stream << " max-inc-imp=" << static_cast<double>(Real{m_stepStats.reg.maxIncImpulse / (Kilogram * MeterPerSecond)});
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    drawer.DrawString(5, m_textLine, "  toi-info:");
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "   ";
-    stream << " cts-add=" << m_stepStats.toi.contactsAdded;
-    stream << " isl-find=" << m_stepStats.toi.islandsFound;
-    stream << " isl-solv=" << m_stepStats.toi.islandsSolved;
-    stream << " pos-iter=" << m_stepStats.toi.sumPosIters;
-    stream << " vel-iter=" << m_stepStats.toi.sumVelIters;
-    stream << " proxy-moved=" << m_stepStats.toi.proxiesMoved;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "   ";
-    stream << " cts-find=" << m_stepStats.toi.contactsFound;
-    stream << " cts-atmaxsubs=" << m_stepStats.toi.contactsAtMaxSubSteps;
-    stream << " cts-upd=" << m_stepStats.toi.contactsUpdatedToi;
-    stream << " max-dist-iter=" << unsigned{m_stepStats.toi.maxDistIters};
-    stream << " max-toi-iter=" << unsigned{m_stepStats.toi.maxToiIters};
-    stream << " min-sep=" << static_cast<double>(Real{m_stepStats.toi.minSeparation / Meter});
-    stream << " max-inc-imp=" << static_cast<double>(Real{m_stepStats.toi.maxIncImpulse / (Kilogram * MeterPerSecond)});
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  Pre sums:";
-    // stream << " cts-ignored=" << m_sumContactsIgnoredPre;
-    stream << " cts-upd=" << m_sumContactsUpdatedPre;
-    stream << " cts-skipped=" << m_sumContactsSkippedPre;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  Reg sums:";
-    stream << " isl-found=" << m_sumRegIslandsFound;
-    stream << " isl-solv=" << m_sumRegIslandsSolved;
-    stream << " pos-iter=" << m_sumRegPosIters;
-    stream << " vel-iter=" << m_sumRegVelIters;
-    stream << " proxy-moved=" << m_sumRegProxiesMoved;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  TOI sums:";
-    stream << " isl-found=" << m_sumToiIslandsFound;
-    stream << " isl-solv=" << m_sumToiIslandsSolved;
-    stream << " pos-iter=" << m_sumToiPosIters;
-    stream << " vel-iter=" << m_sumToiVelIters;
-    stream << " proxy-moved=" << m_sumToiProxiesMoved;
-    stream << " cts-touch-upd=" << m_sumToiContactsUpdatedTouching;
-    stream << " cts-touch-skipped=" << m_sumToiContactsSkippedTouching;
-    stream << " cts-upd-toi=" << m_sumContactsUpdatedToi;
-    stream << " cts-maxstep=" << m_sumContactsAtMaxSubSteps;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  Reg ranges:";
-    stream << " min-sep=" << static_cast<double>(Real{m_minRegSep / Meter});
-    stream << " max-sep=" << static_cast<double>(Real{m_maxRegSep / Meter});
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    stream = std::stringstream();
-    stream << "  TOI ranges:";
-    stream << " min-sep=" << static_cast<double>(Real{m_minToiSep / Meter});
-    stream << " max-dist-iter=" << unsigned{m_maxDistIters} << "/" << unsigned{stepConf.maxDistanceIters};
-    stream << " max-toi-iter=" << unsigned{m_maxToiIters} << "/" << unsigned{stepConf.maxToiIters};
-    stream << " max-root-iter=" << unsigned{m_maxRootIters} << "/" << unsigned{stepConf.maxToiRootIters};
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    const auto proxyCount = m_world->GetProxyCount();
-    const auto height = m_world->GetTreeHeight();
-    const auto balance = m_world->GetTreeBalance();
-    const auto quality = m_world->GetTreeQuality();
-    drawer.DrawString(5, m_textLine, "  proxies/height/balance/quality = %d/%d/%d/%g",
-                      proxyCount, height, balance, quality);
-    m_textLine += DRAW_STRING_NEW_LINE;
-
-    auto cts = std::map<Contact*,int>();
-    const auto selectedFixtures = GetSelectedFixtures();
-    for (auto fixture: selectedFixtures)
+    const auto jointCount = GetJointCount(m_world);
+    const auto fixtureCount = GetFixtureCount(m_world);
+    const auto shapeCount = GetShapeCount(m_world);
+    const auto touchingCount = GetTouchingCount(m_world);
+ 
+    if (m_numTouchingPerStep.size() >= m_maxHistory)
     {
-        const auto b = fixture->GetBody();
-        for (const auto contact: b->GetContacts())
+        m_numTouchingPerStep.pop_front();
+    }
+    m_numTouchingPerStep.push_back(touchingCount);
+    m_maxTouching = std::max(m_maxTouching, touchingCount);
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    const auto totalWidth = ImGui::GetWindowWidth() - style.FramePadding.x * 2;
+    const auto firstColumnWidth = 65.0f;
+
+    ImGui::Text("Step #=%d (@%fs):", m_stepCount, m_sumDeltaTime);
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("%s", "# of steps performed so far for the current test "
+                          "and the elapsed simulated time.");
+    }
+    ImGui::Separator();
+
+    {
+        ImGui::ColumnsContext cc(4, "TimesColumns", false);
+        ImGui::SetColumnWidth(0, firstColumnWidth);
+        ImGui::TextUnformatted("Times:");
+        ImGui::NextColumn();
+        ImGui::Value("Current", m_curStepDuration.count(), "%f");
+        if (ImGui::IsItemHovered())
         {
-            const auto c = GetContactPtr(contact);
-            const auto iter = cts.find(c);
-            if (iter == cts.end())
-            {
-                cts.insert(std::make_pair(c, 1));
-            }
-            else
-            {
-                ++(iter->second);
-            }
+            ImGui::SetTooltip("%s", "Compute time of last step.");
         }
-        DrawStats(drawer, *fixture);
+        ImGui::NextColumn();
+        ImGui::Value("Max", m_maxStepDuration.count(), "%f");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Maximum compute time of all steps so far for the current test.");
+        }
+        ImGui::NextColumn();
+        ImGui::Value("Sum", m_sumStepDuration.count(), "%f");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Sum compute time of all steps so far for the current test.");
+        }
+        ImGui::NextColumn();
     }
 
-    for (const auto contact: cts)
     {
-        const auto c = contact.first;
-        if ((contact.second > 1) && (c->IsTouching()))
+        ImGui::ColumnsContext cc(5, "NumObjectsColumns", false);
+        ImGui::SetColumnWidth(0, firstColumnWidth);
+        ImGui::TextUnformatted("# Objects:");
+        ImGui::NextColumn();
+        ImGui::Text("Bodies: %u/%u", bodyCount - sleepCount, bodyCount);
+        if (ImGui::IsItemHovered())
         {
-            const auto m = c->GetManifold();
-            stream = std::stringstream();
-            stream << "Selected manifold: lp=" << m.GetLocalPoint();
-            switch (m.GetType())
-            {
-                case Manifold::e_circles:
-                    stream << " circles";
-                    break;
-                case Manifold::e_faceA:
-                {
-                    const auto count = m.GetPointCount();
-                    stream << " faceA=" << int{count};
-                    for (auto i = decltype(count){0}; i < count; ++i)
-                    {
-                        const auto mp = m.GetPoint(i);
-                        stream << " p[" << int{i} << "]={";
-                        stream << mp.contactFeature;
-                        stream << ",";
-                        stream << mp.localPoint;
-                        stream << ",";
-                        stream << mp.normalImpulse;
-                        stream << ",";
-                        stream << mp.tangentImpulse;
-                        stream << "}";
-                    }
-                    break;
-                }
-                case Manifold::e_faceB:
-                {
-                    const auto count = m.GetPointCount();
-                    stream << " faceB=" << int{count};
-                    for (auto i = decltype(count){0}; i < count; ++i)
-                    {
-                        const auto mp = m.GetPoint(i);
-                        stream << " p[" << int{i} << "]={";
-                        stream << mp.contactFeature;
-                        stream << ",";
-                        stream << mp.localPoint;
-                        stream << ",";
-                        stream << mp.normalImpulse;
-                        stream << ",";
-                        stream << mp.tangentImpulse;
-                        stream << "}";
-                    }
-                    break;
-                }
-                default: break;
-            }
-            drawer.DrawString(5, m_textLine, stream.str().c_str());
-            m_textLine += DRAW_STRING_NEW_LINE;
+            ImGui::SetTooltip("%s", "Counts of awake bodies over total bodies.");
         }
+        ImGui::NextColumn();
+        ImGui::Text("Fixtures: %lu/%lu", shapeCount, fixtureCount);
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Counts of shapes over fixtures.");
+        }
+        ImGui::NextColumn();
+        ImGui::Text("Contacts: %u/%u", touchingCount, m_numContacts);
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Counts of touching contacts over total contacts. Click to toggle histogram.");
+        }
+        if (ImGui::IsItemClicked())
+        {
+            ui.showContactsHistory = !ui.showContactsHistory;
+        }
+        ImGui::NextColumn();
+        ImGui::Value("Joints", jointCount);
+        ImGui::NextColumn();
     }
-}
-
-void Test::DrawStats(Drawer& drawer, const Fixture& fixture)
-{
-    const auto density = fixture.GetDensity();
-    const auto friction = fixture.GetFriction();
-    const auto restitution = fixture.GetRestitution();
-    const auto shape = fixture.GetShape();
-    const auto childCount = shape->GetChildCount();
-    const auto vertexRadius = shape->GetVertexRadius();
-    const auto body = fixture.GetBody();
-    const auto location = body->GetLocation();
-    const auto angle = body->GetAngle();
-    const auto velocity = body->GetVelocity();
-    const auto contacts = body->GetContacts();
-
-    auto numContacts = 0;
-    auto numTouching = 0;
-    auto numImpulses = 0;
-    for (auto&& ci: contacts)
+    
     {
-        ++numContacts;
-        const auto contact = GetContactPtr(ci);
-        if (contact->IsTouching())
+        ImGui::ColumnsContext cc(6, "PreStepColumns", false);
+        ImGui::SetColumnWidth(0, firstColumnWidth);
+        ImGui::TextUnformatted("Pre-step:");
+        ImGui::NextColumn();
+        ImGui::Value("cts-add", m_stepStats.pre.added);
+        if (ImGui::IsItemHovered())
         {
-            ++numTouching;
-            const auto manifold = contact->GetManifold();
-            numImpulses += manifold.GetPointCount();
+            ImGui::SetTooltip("%s", "Contacts added.");
         }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted([=]() {
+            std::ostringstream os;
+            os << "c-ign: " << m_stepStats.pre.ignored << "/" << m_sumContactsIgnoredPre;
+            return os.str();
+        }());
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts ignored over running total ignored.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted([=]() {
+            std::ostringstream os;
+            os << "c-skip: " << m_stepStats.pre.skipped << "/" << m_sumContactsSkippedPre;
+            return os.str();
+        }());
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts skipped over running total skipped.");
+        }
+        ImGui::NextColumn();
+        ImGui::Value("c-del", m_stepStats.pre.destroyed);
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts deleted.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted([=]() {
+            std::ostringstream os;
+            os << "c-upd: " << m_stepStats.pre.updated << "/" << m_sumContactsUpdatedPre;
+            return os.str();
+        }());
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts updated over running total updated.");
+        }
+        ImGui::NextColumn();
     }
 
-    std::stringstream stream;
-    stream << "Selected fixture:";
-    stream << " pos={{";
-    stream << static_cast<double>(Real{GetX(location) / Meter});
-    stream << ",";
-    stream << static_cast<double>(Real{GetY(location) / Meter});
-    stream << "}, ";
-    stream << static_cast<double>(Real{angle / Degree});
-    stream << "}, ";
-    stream << " vel={{";
-    stream << static_cast<double>(Real{GetX(velocity.linear) / MeterPerSecond});
-    stream << ",";
-    stream << static_cast<double>(Real{GetY(velocity.linear) / MeterPerSecond});
-    stream << "}, ";
-    stream << static_cast<double>(Real{velocity.angular / DegreePerSecond});
-    stream << "}";
-    stream << " density=" << static_cast<double>(Real{density * SquareMeter / Kilogram});
-    stream << " vr=" << static_cast<double>(Real{vertexRadius / Meter});
-    stream << " childCount=" << std::size_t(childCount);
-    stream << " friction=" << friction;
-    stream << " restitution=" << restitution;
-    stream << " b-cts=" << numTouching;
-    stream << "/" << numContacts;
-    stream << " b-impulses=" << numImpulses;
-    drawer.DrawString(5, m_textLine, stream.str().c_str());
-    m_textLine += DRAW_STRING_NEW_LINE;
+    ImGui::Separator();
+
+    {
+        ImGui::ColumnsContext cc(15, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("c-add");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts added.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("i-find");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Islands found.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("i-solv");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Islands solved.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("posit");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Position iterations.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("velit");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Velocity iterations.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("pmov");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Proxies moved.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("minsep");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Minimum separation.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("maxP");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Max incremental impulse.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("b-slept");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Bodies slept.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("c-find");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts found.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("c-@maxs");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts at max substeps.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("c-upd");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Contacts whose TOI was updated.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("max-d-it");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Max distance iterations.");
+        }
+        ImGui::NextColumn();
+        ImGui::TextUnformatted("max-t-it");
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", "Max TOI iterations.");
+        }
+        ImGui::NextColumn();
+    }
+
+    {
+        ImGui::ColumnsContext cc(15, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("Reg. step:");
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.reg.contactsAdded);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.reg.islandsFound);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.reg.islandsSolved);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.reg.sumPosIters);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.reg.sumVelIters);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.proxiesMoved);
+        ImGui::NextColumn();
+        ImGui::Text("%f", static_cast<double>(Real{m_stepStats.reg.minSeparation / Meter}));
+        ImGui::NextColumn();
+        ImGui::Text("%.2f", static_cast<double>(Real{m_stepStats.reg.maxIncImpulse / NewtonSecond}));
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.reg.bodiesSlept);
+        ImGui::NextColumn();
+    }
+
+    {
+        ImGui::ColumnsContext cc(15, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("TOI step:");
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.contactsAdded);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.islandsFound);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.islandsSolved);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.sumPosIters);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.sumVelIters);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.proxiesMoved);
+        ImGui::NextColumn();
+        ImGui::Text("%f", static_cast<double>(Real{m_stepStats.toi.minSeparation / Meter}));
+        ImGui::NextColumn();
+        ImGui::Text("%.2f", static_cast<double>(Real{m_stepStats.toi.maxIncImpulse / NewtonSecond}));
+        ImGui::NextColumn();
+        // Skip bodies slept column
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.contactsFound);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.contactsAtMaxSubSteps);
+        ImGui::NextColumn();
+        ImGui::Text("%u", m_stepStats.toi.contactsUpdatedToi);
+        ImGui::NextColumn();
+        ImGui::Text("%u", unsigned{m_stepStats.toi.maxDistIters});
+        ImGui::NextColumn();
+        ImGui::Text("%u", unsigned{m_stepStats.toi.maxToiIters});
+        ImGui::NextColumn();
+    }
+
+    {
+        ImGui::ColumnsContext cc(15, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("Reg. sums:");
+        ImGui::NextColumn();
+        // Skip c-add column
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumRegIslandsFound));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumRegIslandsSolved));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumRegPosIters));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumRegVelIters));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumRegProxiesMoved));
+        ImGui::NextColumn();
+    }
+
+    {
+        ImGui::ColumnsContext cc(15, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("TOI sums:");
+        ImGui::NextColumn();
+        // Skip c-add column
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumToiIslandsFound));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumToiIslandsSolved));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumToiPosIters));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumToiVelIters));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumToiProxiesMoved));
+        ImGui::NextColumn();
+        // Skip minSeparation column
+        ImGui::NextColumn();
+        // Skip maxIncImpulse column
+        ImGui::NextColumn();
+        // Skip bodies slept column
+        ImGui::NextColumn();
+        // Skip contacts found column
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumContactsAtMaxSubSteps));
+        ImGui::NextColumn();
+        ImGui::TextUnformatted(std::to_string(m_sumContactsUpdatedToi));
+        ImGui::NextColumn();
+        
+#if 0
+        stream = std::ostringstream();
+        stream << "  TOI sums:";
+        stream << " cts-touch-upd=" << m_sumToiContactsUpdatedTouching;
+        stream << " cts-touch-skipped=" << m_sumToiContactsSkippedTouching;
+#endif
+    }
+
+    ImGui::Separator();
+
+    {
+        ImGui::ColumnsContext cc(2, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("Reg ranges:");
+        ImGui::NextColumn();
+        std::ostringstream stream;
+        stream << "min-sep=" << static_cast<double>(Real{m_minRegSep / Meter});
+        stream << ", max-sep=" << static_cast<double>(Real{m_maxRegSep / Meter});
+        stream << ".";
+        ImGui::TextUnformatted(stream.str());
+        ImGui::NextColumn();
+    }
+
+    {
+        ImGui::ColumnsContext cc(2, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("TOI ranges:");
+        ImGui::NextColumn();
+        std::ostringstream stream;
+        stream << "min-sep=" << static_cast<double>(Real{m_minToiSep / Meter});
+        stream << ", max-dist-iter=" << unsigned{m_maxDistIters} << "/" << unsigned{stepConf.maxDistanceIters};
+        stream << ", max-toi-iter=" << unsigned{m_maxToiIters} << "/" << unsigned{stepConf.maxToiIters};
+        stream << ", max-root-iter=" << unsigned{m_maxRootIters} << "/" << unsigned{stepConf.maxToiRootIters};
+        stream << ", max-simul-cts=" << m_maxSimulContacts;
+        stream << ".";
+        ImGui::TextUnformatted(stream.str());
+        ImGui::NextColumn();
+    }
+
+    {
+        const auto leafCount = m_world.GetTree().GetLeafCount();
+        const auto nodeCount = m_world.GetTree().GetNodeCount();
+        const auto height = GetHeight(m_world.GetTree());
+        const auto balance = m_world.GetTree().GetMaxBalance();
+        const auto quality = ComputePerimeterRatio(m_world.GetTree());
+        const auto capacity = m_world.GetTree().GetNodeCapacity();
+
+        ImGui::ColumnsContext cc(2, nullptr, false);
+        ImGui::SetColumnWidths(totalWidth, {firstColumnWidth});
+        ImGui::TextUnformatted("Dyn. tree:");
+        ImGui::NextColumn();
+        ImGui::Text("nodes=%u/%u/%u, ", leafCount, nodeCount, capacity);
+        ImGui::SameLine(0, 0);
+        ImGui::Text("height=%u, ", height);
+        ImGui::SameLine(0, 0);
+        ImGui::Text("bal=%u, ", balance);
+        ImGui::SameLine(0, 0);
+        ImGui::Text("p-rat=%.2f, ", static_cast<double>(quality));
+        ImGui::SameLine(0, 0);
+        std::ostringstream stream;
+        stream << m_maxAABB;
+        ImGui::Text("max-aabb=%s.", stream.str().c_str());
+        ImGui::NextColumn();
+    }
 }
 
 void Test::DrawContactInfo(const Settings& settings, Drawer& drawer)
 {
-    const auto k_impulseScale = Real(0.1) * Second / Kilogram;
-    const auto k_axisScale = (Real(3) / Real(10)) * Meter;
+    const auto k_impulseScale = 0.1_s / 1_kg;
+    const auto k_axisScale = 0.3_m;
     const auto addStateColor = Color{0.3f, 0.9f, 0.3f}; // greenish
     const auto persistStateColor = Color{0.3f, 0.3f, 0.9f}; // blueish
     const auto contactNormalColor = Color{0.7f, 0.7f, 0.7f}; // light gray
@@ -927,8 +1091,8 @@ void Test::DrawContactInfo(const Settings& settings, Drawer& drawer)
             const auto headLength = length / Real(10);
             const auto p1 = point.position;
             const auto p2 = p1 + length * point.normal;
-            const auto p2_left = p2 - headLength * Rotate(point.normal, UnitVec2::GetTopRight());
-            const auto p2_right = p2 - headLength * Rotate(point.normal, UnitVec2::GetBottomRight());
+            const auto p2_left = p2 - headLength * Rotate(point.normal, UnitVec::GetTopRight());
+            const auto p2_right = p2 - headLength * Rotate(point.normal, UnitVec::GetBottomRight());
             drawer.DrawSegment(p1, p2, Brighten(normalImpulseColor, selected? lighten: darken));
             drawer.DrawSegment(p2, p2_left, Brighten(normalImpulseColor, selected? lighten: darken));
             drawer.DrawSegment(p2, p2_right, Brighten(normalImpulseColor, selected? lighten: darken));
@@ -951,21 +1115,33 @@ void Test::DrawContactInfo(const Settings& settings, Drawer& drawer)
     }
 }
 
-void Test::Step(const Settings& settings, Drawer& drawer)
+template <typename T>
+struct DequeValuesGetter
 {
+    static float Func(void* data, int idx)
+    {
+        const std::deque<T>& deque = *static_cast<std::deque<T>*>(data);
+        const auto size = deque.size();
+        return (idx >= 0 && static_cast<decltype(size)>(idx) < size)?
+            static_cast<float>(deque[static_cast<decltype(size)>(idx)]): 0.0f;
+    }
+};
+
+void Test::Step(const Settings& settings, Drawer& drawer, UiState& ui)
+{
+    m_lastDeltaTime = settings.dt * Second;
+    m_textLine = 3 * DRAW_STRING_NEW_LINE;
+
     PreStep(settings, drawer);
 
     if (settings.pause)
     {
-        drawer.DrawString(5, m_textLine, "****PAUSED****");
-        m_textLine += DRAW_STRING_NEW_LINE;
-
-        if ((settings.dt == 0) && m_mouseJoint)
+        if ((settings.dt == 0) && m_targetJoint)
         {
-            const auto bodyB = m_mouseJoint->GetBodyB();
-            const auto anchorB = m_mouseJoint->GetAnchorB();
+            const auto bodyB = m_targetJoint->GetBodyB();
+            const auto anchorB = m_targetJoint->GetAnchorB();
             const auto centerB = bodyB->GetLocation();
-            const auto destB = m_mouseJoint->GetTarget();
+            const auto destB = m_targetJoint->GetTarget();
             //m_points.clear();
             bodyB->SetTransform(destB - (anchorB - centerB), bodyB->GetAngle());
         }
@@ -977,11 +1153,11 @@ void Test::Step(const Settings& settings, Drawer& drawer)
         m_points.clear();
     }
 
-    m_world->SetSubStepping(settings.enableSubStepping);
+    m_world.SetSubStepping(settings.enableSubStepping);
 
     auto stepConf = StepConf{};
 
-    stepConf.SetTime(Second * Real{settings.dt});
+    stepConf.SetTime(settings.dt * Second);
 
     stepConf.regVelocityIterations = static_cast<StepConf::iteration_type>(settings.regVelocityIterations);
     stepConf.regPositionIterations = static_cast<StepConf::iteration_type>(settings.regPositionIterations);
@@ -990,6 +1166,7 @@ void Test::Step(const Settings& settings, Drawer& drawer)
 
     stepConf.maxSubSteps = static_cast<StepConf::iteration_type>(settings.maxSubSteps);
 
+    stepConf.minStillTimeToSleep = static_cast<Real>(settings.minStillTimeToSleep) * Second;
     stepConf.maxTranslation = static_cast<Real>(settings.maxTranslation) * Meter;
     stepConf.maxRotation = Real{settings.maxRotation} * Degree;
 
@@ -997,8 +1174,8 @@ void Test::Step(const Settings& settings, Drawer& drawer)
     stepConf.angularSlop = Real{settings.angularSlop} * Radian;
     stepConf.regMinSeparation = Real{settings.regMinSeparation} * Meter;
     stepConf.toiMinSeparation = Real{settings.toiMinSeparation} * Meter;
-    stepConf.targetDepth = settings.linearSlop * Real{3} * Meter;
-    stepConf.tolerance = (settings.linearSlop / Real{4}) * Meter;
+    stepConf.targetDepth = 3 * settings.linearSlop * Meter;
+    stepConf.tolerance = (settings.linearSlop / 4) * Meter;
 
     stepConf.maxLinearCorrection = Real{settings.maxLinearCorrection} * Meter;
     stepConf.maxAngularCorrection = Real{settings.maxAngularCorrection} * Degree;
@@ -1006,16 +1183,18 @@ void Test::Step(const Settings& settings, Drawer& drawer)
     stepConf.toiResolutionRate = settings.toiPosResRate / 100.0f;
     if (!settings.enableSleep)
     {
-        stepConf.minStillTimeToSleep = Second * std::numeric_limits<Real>::infinity();
-        Awaken(*m_world);
+        stepConf.minStillTimeToSleep = std::numeric_limits<Time>::infinity();
+        Awaken(m_world);
     }
     stepConf.doToi = settings.enableContinuous;
     stepConf.doWarmStart = settings.enableWarmStarting;
 
     const auto start = std::chrono::system_clock::now();
-    const auto stepStats = m_world->Step(stepConf);
+    const auto stepStats = m_world.Step(stepConf);
     const auto end = std::chrono::system_clock::now();
 
+    m_maxAABB = GetEnclosingAABB(m_maxAABB, GetAABB(m_world.GetTree()));
+    
     m_sumContactsUpdatedPre += stepStats.pre.updated;
     m_sumContactsIgnoredPre += stepStats.pre.ignored;
     m_sumContactsSkippedPre += stepStats.pre.skipped;
@@ -1036,11 +1215,12 @@ void Test::Step(const Settings& settings, Drawer& drawer)
     m_sumToiContactsSkippedTouching += stepStats.toi.contactsSkippedTouching;
     m_sumContactsAtMaxSubSteps += stepStats.toi.contactsAtMaxSubSteps;
 
+    m_maxSimulContacts = std::max(m_maxSimulContacts, stepStats.toi.maxSimulContacts);
     m_maxDistIters = std::max(m_maxDistIters, stepStats.toi.maxDistIters);
     m_maxRootIters = std::max(m_maxRootIters, stepStats.toi.maxRootIters);
     m_maxToiIters = std::max(m_maxToiIters, stepStats.toi.maxToiIters);
 
-    if (stepStats.reg.minSeparation < std::numeric_limits<Real>::infinity() * Meter)
+    if (stepStats.reg.minSeparation < std::numeric_limits<Length>::infinity())
     {
         m_minRegSep = std::min(m_minRegSep, stepStats.reg.minSeparation);
         m_maxRegSep = std::max(m_maxRegSep, stepStats.reg.minSeparation);
@@ -1049,6 +1229,7 @@ void Test::Step(const Settings& settings, Drawer& drawer)
     if (settings.dt != 0)
     {
         m_sumDeltaTime += settings.dt;
+
         ++m_stepCount;
         m_stepStats = stepStats;
         m_minToiSep = std::min(m_minToiSep, stepStats.toi.minSeparation);
@@ -1058,18 +1239,47 @@ void Test::Step(const Settings& settings, Drawer& drawer)
         m_sumStepDuration += m_curStepDuration;
     }
 
-    m_numContacts = GetContactCount(*m_world);
+    m_numContacts = GetContactCount(m_world);
     m_maxContacts = std::max(m_maxContacts, m_numContacts);
-
-    if (settings.drawStats)
+    
+    if (m_numContactsPerStep.size() >= m_maxHistory)
     {
-        DrawStats(drawer, stepConf);
+        m_numContactsPerStep.pop_front();
+    }
+    m_numContactsPerStep.push_back(m_numContacts);
+
+    if (ui.showStats)
+    {
+        ImGui::SetNextWindowPos(ImVec2(10, 200), ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize(ImVec2(600, 300), ImGuiCond_Appearing);
+        ImGui::WindowContext wc("Step Statistics", &ui.showStats, ImGuiWindowFlags_NoCollapse);
+        DrawStats(stepConf, ui);
+    }
+    
+    if (ui.showContactsHistory)
+    {
+        ImGui::SetNextWindowPos(ImVec2(10, 200), ImGuiCond_Once);
+        ImGui::WindowContext wc("Contacts Histogram", &ui.showContactsHistory,
+                                ImGuiWindowFlags_NoCollapse);
+        char buffer[40];
+        
+        std::sprintf(buffer, "Max of %u", m_maxTouching);
+        ImGui::PlotHistogram("# Touching", DequeValuesGetter<std::size_t>::Func,
+                             &m_numTouchingPerStep, static_cast<int>(m_numTouchingPerStep.size()),
+                             0, buffer, 0.0f, static_cast<float>(m_maxContacts),
+                             ImVec2(600, 100));
+
+        std::sprintf(buffer, "Max of %u", m_maxContacts);
+        ImGui::PlotHistogram("# Contacts", DequeValuesGetter<std::size_t>::Func,
+                             &m_numContactsPerStep, static_cast<int>(m_numContactsPerStep.size()),
+                             0, buffer, 0.0f, static_cast<float>(m_maxContacts),
+                             ImVec2(600, 100));
     }
 
-    if (m_mouseJoint)
+    if (m_targetJoint)
     {
-        const auto p1 = m_mouseJoint->GetAnchorB();
-        const auto p2 = m_mouseJoint->GetTarget();
+        const auto p1 = m_targetJoint->GetAnchorB();
+        const auto p2 = m_targetJoint->GetTarget();
 
         drawer.DrawPoint(p1, 4.0f, Color{0.0f, 1.0f, 0.0f});
         drawer.DrawPoint(p2, 4.0f, Color{0.0f, 1.0f, 0.0f});
@@ -1088,23 +1298,50 @@ void Test::Step(const Settings& settings, Drawer& drawer)
     PostStep(settings, drawer);
 
     const auto selectedFixtures = GetSelectedFixtures();
-    const auto selectedFound = Draw(drawer, *m_world, settings, selectedFixtures);
+    const auto selectedFound = DrawWorld(drawer, m_world, settings, selectedFixtures);
     if (!selectedFixtures.empty() && !selectedFound)
     {
-        SetSelectedFixtures(Fixtures{});
+        ClearSelectedFixtures();
     }
 
     drawer.Flush();
 }
 
-void Test::ShiftOrigin(const Length2D& newOrigin)
+void Test::ShiftOrigin(const Length2& newOrigin)
 {
-    m_world->ShiftOrigin(newOrigin);
+    m_world.ShiftOrigin(newOrigin);
 }
 
-constexpr auto RAND_LIMIT = 32767;
+void Test::KeyboardHandler(KeyID key, KeyAction action, KeyMods mods)
+{
+    for (const auto& handledKey: m_handledKeys)
+    {
+        const auto& keyActionMods = std::get<0>(handledKey);
+        if (keyActionMods.key != key)
+        {
+            continue;
+        }
+        if (keyActionMods.action != action)
+        {
+            continue;
+        }
+        if (mods != keyActionMods.mods)
+        {
+            continue;
+        }
+        const auto handlerID = std::get<1>(handledKey);
+        std::get<1>(m_keyHandlers[handlerID])(KeyActionMods{key, action, mods});
+    }
+}
 
-Real playrho::RandomFloat()
+void Test::RegisterForKey(KeyID key, KeyAction action, KeyMods mods, KeyHandlerID id)
+{
+    m_handledKeys.push_back(std::make_pair(KeyActionMods{key, action, mods}, id));
+}
+
+PLAYRHO_CONSTEXPR const auto RAND_LIMIT = 32767;
+
+Real testbed::RandomFloat()
 {
     auto r = static_cast<Real>(std::rand() & (RAND_LIMIT));
     r /= RAND_LIMIT;
@@ -1112,7 +1349,7 @@ Real playrho::RandomFloat()
     return r;
 }
 
-Real playrho::RandomFloat(Real lo, Real hi)
+Real testbed::RandomFloat(Real lo, Real hi)
 {
     auto r = static_cast<Real>(std::rand() & (RAND_LIMIT));
     r /= RAND_LIMIT;
@@ -1120,26 +1357,3 @@ Real playrho::RandomFloat(Real lo, Real hi)
     return r;
 }
 
-static const char* GetName(ContactFeature::Type type)
-{
-    switch (type)
-    {
-        case ContactFeature::e_face: return "face";
-        case ContactFeature::e_vertex: return "vertex";
-    }
-    return "unknown";
-}
-
-::std::ostream& playrho::operator<<(::std::ostream& os, const ContactFeature& value)
-{
-    os << "{";
-    os << ::GetName(value.typeA);
-    os << ",";
-    os << unsigned(value.indexA);
-    os << ",";
-    os << ::GetName(value.typeB);
-    os << ",";
-    os << unsigned(value.indexB);
-    os << "}";
-    return os;
-}

@@ -29,7 +29,7 @@ namespace playrho {
 /// This is a stack allocator used for fast per step allocations.
 /// You must nest allocate/free pairs. The code will assert
 /// if you try to interleave multiple allocate/free pairs.
-/// @note This class satisfies the C++11 std::unique_ptr() Deleter concept.
+/// @note This class satisfies the C++11 <code>std::unique_ptr()</code> Deleter concept.
 /// @note This data structure is 64-bytes large (on at least one 64-bit platform).
 class StackAllocator
 {
@@ -39,20 +39,20 @@ public:
     using size_type = std::size_t;
 
     /// @brief Stack allocator configuration data.
-    struct Configuration
+    struct Conf
     {
         size_type preallocation_size = 100 * 1024; ///< Preallocation size.
         size_type allocation_records = 32; ///< Allocation records.
     };
 
     /// @brief Gets the default configuration.
-    static constexpr Configuration GetDefaultConfiguration()
+    static PLAYRHO_CONSTEXPR inline Conf GetDefaultConf()
     {
-        return Configuration{};
+        return Conf{};
     }
 
     /// @brief Initializing constructor.
-    explicit StackAllocator(Configuration config = GetDefaultConfiguration()) noexcept;
+    explicit StackAllocator(Conf config = GetDefaultConf()) noexcept;
 
     ~StackAllocator() noexcept;
 
@@ -84,7 +84,7 @@ public:
 
     /// Functional operator for freeing memory allocated by this object.
     /// @details This method frees memory (like called Free) and allows this object
-    ///   to be used as deleter to std::unique_ptr.
+    ///   to be used as deleter to <code>std::unique_ptr</code>.
     void operator()(void *p) noexcept
     {
         Free(p);
@@ -134,22 +134,23 @@ public:
     
 private:
 
+    /// @brief Allocation record.
     struct AllocationRecord
     {
-        void* data;
-        size_type size;
-        bool usedMalloc;
+        void* data; ///< Data.
+        size_type size; ///< Size.
+        bool usedMalloc; ///< Whether <code>malloc</code> was used.
     };
     
-    char* const m_data;
-    AllocationRecord* const m_entries;
-    size_type const m_size;
-    size_type const m_max_entries;
+    char* const m_data; ///< Data.
+    AllocationRecord* const m_entries; ///< Entries.
+    size_type const m_size; ///< Size.
+    size_type const m_max_entries; ///< Max entries.
     
-    size_type m_index = 0;
-    size_type m_allocation = 0;
-    size_type m_maxAllocation = 0;
-    size_type m_entryCount = 0;
+    size_type m_index = 0; ///< Index.
+    size_type m_allocation = 0; ///< Allocation.
+    size_type m_maxAllocation = 0; ///< Max allocation.
+    size_type m_entryCount = 0; ///< Entry count.
 };
     
 } // namespace playrho

@@ -23,7 +23,7 @@
 #include "../Framework/Test.hpp"
 #include <algorithm>
 
-namespace playrho {
+namespace testbed {
 
 // This test shows collision processing and tests
 // deferred body destruction.
@@ -34,76 +34,72 @@ public:
     {
         // Ground body
         {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-50.0f, 0.0f) * Meter, Vec2(50.0f, 0.0f) * Meter));
+            const auto ground = m_world.CreateBody();
+            ground->CreateFixture(Shape{EdgeShapeConf{Vec2(-50, 0) * 1_m, Vec2(50, 0) * 1_m}});
         }
 
         auto xLo = -5.0f, xHi = 5.0f;
         auto yLo = 2.0f, yHi = 35.0f;
 
         // Small triangle
-        Length2D vertices[3];
-        vertices[0] = Vec2(-1.0f, 0.0f) * Meter;
-        vertices[1] = Vec2(1.0f, 0.0f) * Meter;
-        vertices[2] = Vec2(0.0f, 2.0f) * Meter;
+        Length2 vertices[3];
+        vertices[0] = Vec2(-1.0f, 0.0f) * 1_m;
+        vertices[1] = Vec2(1.0f, 0.0f) * 1_m;
+        vertices[2] = Vec2(0.0f, 2.0f) * 1_m;
 
-        PolygonShape polygon;
-        polygon.Set(Span<const Length2D>{vertices, 3});
-        polygon.SetDensity(Real{1} * KilogramPerSquareMeter);
+        auto polygon = PolygonShapeConf{};
+        polygon.Set(Span<const Length2>{vertices, 3});
+        polygon.UseDensity(1_kgpm2);
 
-        BodyDef triangleBodyDef;
-        triangleBodyDef.type = BodyType::Dynamic;
-        triangleBodyDef.position = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * Meter;
+        BodyConf triangleBodyConf;
+        triangleBodyConf.type = BodyType::Dynamic;
+        triangleBodyConf.location = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * 1_m;
 
-        const auto body1 = m_world->CreateBody(triangleBodyDef);
-        body1->CreateFixture(std::make_shared<PolygonShape>(polygon));
+        const auto body1 = m_world.CreateBody(triangleBodyConf);
+        body1->CreateFixture(Shape(polygon));
 
         // Large triangle (recycle definitions)
         vertices[0] *= 2.0f;
         vertices[1] *= 2.0f;
         vertices[2] *= 2.0f;
-        polygon.Set(Span<const Length2D>{vertices, 3});
+        polygon.Set(Span<const Length2>{vertices, 3});
 
-        triangleBodyDef.position = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * Meter;
+        triangleBodyConf.location = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * 1_m;
 
-        const auto body2 = m_world->CreateBody(triangleBodyDef);
-        body2->CreateFixture(std::make_shared<PolygonShape>(polygon));
+        const auto body2 = m_world.CreateBody(triangleBodyConf);
+        body2->CreateFixture(Shape(polygon));
         
         // Small box
-        polygon.SetAsBox(Real{1.0f} * Meter, Real{0.5f} * Meter);
+        polygon.SetAsBox(1_m, 0.5_m);
 
-        BodyDef boxBodyDef;
-        boxBodyDef.type = BodyType::Dynamic;
-        boxBodyDef.position = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * Meter;
+        BodyConf boxBodyConf;
+        boxBodyConf.type = BodyType::Dynamic;
+        boxBodyConf.location = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * 1_m;
 
-        const auto body3 = m_world->CreateBody(boxBodyDef);
-        body3->CreateFixture(std::make_shared<PolygonShape>(polygon));
+        const auto body3 = m_world.CreateBody(boxBodyConf);
+        body3->CreateFixture(Shape(polygon));
 
         // Large box (recycle definitions)
-        polygon.SetAsBox(Real{2.0f} * Meter, Real{1.0f} * Meter);
-        boxBodyDef.position = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * Meter;
+        polygon.SetAsBox(2_m, 1_m);
+        boxBodyConf.location = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * 1_m;
         
-        const auto body4 = m_world->CreateBody(boxBodyDef);
-        body4->CreateFixture(std::make_shared<PolygonShape>(polygon));
+        const auto body4 = m_world.CreateBody(boxBodyConf);
+        body4->CreateFixture(Shape(polygon));
+
+        BodyConf circleBodyConf;
+        circleBodyConf.type = BodyType::Dynamic;
 
         // Small circle
-        DiskShape circle;
-        circle.SetRadius(Real{1} * Meter);
-        circle.SetDensity(Real{1} * KilogramPerSquareMeter);
-
-        BodyDef circleBodyDef;
-        circleBodyDef.type = BodyType::Dynamic;
-        circleBodyDef.position = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * Meter;
-
-        const auto body5 = m_world->CreateBody(circleBodyDef);
-        body5->CreateFixture(std::make_shared<DiskShape>(circle));
+        circleBodyConf.location = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * 1_m;
+        const auto body5 = m_world.CreateBody(circleBodyConf);
+        body5->CreateFixture(Shape(DiskShapeConf{}.UseRadius(1_m).UseDensity(1_kgpm2)));
 
         // Large circle
-        circle.SetRadius(circle.GetRadius() * Real{2});
-        circleBodyDef.position = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * Meter;
-
-        const auto body6 = m_world->CreateBody(circleBodyDef);
-        body6->CreateFixture(std::make_shared<DiskShape>(circle));
+        circleBodyConf.location = Vec2(RandomFloat(xLo, xHi), RandomFloat(yLo, yHi)) * 1_m;
+        const auto body6 = m_world.CreateBody(circleBodyConf);
+        body6->CreateFixture(Shape(DiskShapeConf{}.UseRadius(2_m).UseDensity(1_kgpm2)));
+        
+        SetAccelerations(m_world, m_gravity);
     }
 
     void PostStep(const Settings&, Drawer&) override
@@ -124,7 +120,7 @@ public:
             const auto mass1 = GetMass(*body1);
             const auto mass2 = GetMass(*body2);
 
-            if (mass1 > Mass{0} && mass2 > Mass{0})
+            if (mass1 > 0_kg && mass2 > 0_kg)
             {
                 if (mass2 > mass1)
                 {
@@ -157,12 +153,12 @@ public:
 
             if (b != GetBomb())
             {
-                m_world->Destroy(b);
+                m_world.Destroy(b);
             }
         }
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

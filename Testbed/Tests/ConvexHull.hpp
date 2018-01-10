@@ -23,9 +23,9 @@
 #include "../Framework/Test.hpp"
 #include <vector>
 
-namespace playrho {
+namespace testbed {
 
-class ConvexHull : public Test
+class ConvexHullTest : public Test
 {
 public:
     enum: std::size_t
@@ -33,10 +33,17 @@ public:
         e_count = 16
     };
 
-    ConvexHull()
+    ConvexHullTest()
     {
         Generate();
         m_auto = false;
+        
+        RegisterForKey(GLFW_KEY_A, GLFW_PRESS, 0, "Toggle Auto Generation", [&](KeyActionMods) {
+            m_auto = !m_auto;
+        });
+        RegisterForKey(GLFW_KEY_G, GLFW_PRESS, 0, "Generate New Random Convex Hull", [&](KeyActionMods) {
+            Generate();
+        });
     }
 
     void Generate()
@@ -55,48 +62,26 @@ public:
             const auto v = Vec2{
                 Clamp(x, GetX(lowerBound), GetX(upperBound)),
                 Clamp(y, GetY(lowerBound), GetY(upperBound))
-            } * Meter;
+            } * 1_m;
             m_points.emplace_back(v);
-        }
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_A:
-            m_auto = !m_auto;
-            break;
-
-        case Key_G:
-            Generate();
-            break;
-
-        default:
-            break;
         }
     }
 
     void PostStep(const Settings&, Drawer& drawer) override
     {
-        const auto conf = PolygonShape::Conf{};
-        const auto shape = PolygonShape{Span<const Length2D>{&m_points[0], m_points.size()}, conf};
-
-        drawer.DrawString(5, m_textLine, "Press g to generate a new random convex hull");
-        m_textLine += DRAW_STRING_NEW_LINE;
+        const auto shape = PolygonShapeConf{}.Set(Span<const Length2>{&m_points[0], m_points.size()});
 
         drawer.DrawPolygon(shape.GetVertices().begin(), shape.GetVertexCount(), Color(0.9f, 0.9f, 0.9f));
 
         for (auto i = std::size_t{0}; i < m_points.size(); ++i)
         {
             drawer.DrawPoint(m_points[i], 3.0f, Color(0.3f, 0.9f, 0.3f));
-            drawer.DrawString(m_points[i] + Vec2(0.05f, 0.05f) * Meter, "%d", i);
+            drawer.DrawString(m_points[i] + Vec2(0.05f, 0.05f) * 1_m, Drawer::Left, "%d", i);
         }
 
-        if (!Validate(shape))
+        if (!Validate(shape.GetVertices()))
         {
-            drawer.DrawString(5, m_textLine, "Note: Invalid convex hull");
-            m_textLine += DRAW_STRING_NEW_LINE;
+            m_status = "Note: Invalid convex hull";
         }
 
         if (m_auto)
@@ -105,10 +90,10 @@ public:
         }
     }
 
-    std::vector<Length2D> m_points{e_count};
+    std::vector<Length2> m_points{e_count};
     bool m_auto;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

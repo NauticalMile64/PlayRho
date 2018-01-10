@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 // This is a test of collision filtering.
 // There is a triangle, a box, and a circle.
@@ -48,126 +48,116 @@ public:
     CollisionFiltering()
     {
         // Ground body
-        {
-            auto conf = EdgeShape::Conf{};
-            conf.friction = 0.3f;
-
-            BodyDef bd;
-            const auto ground = m_world->CreateBody(bd);
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter, conf));
-        }
-
+        m_world.CreateBody()->CreateFixture(Shape(EdgeShapeConf{}
+            .UseFriction(NonNegative<Real>(0.3f)).Set(Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m)));
+        
         // Small triangle
-        Length2D vertices[3];
-        vertices[0] = Vec2(-1.0f, 0.0f) * Meter;
-        vertices[1] = Vec2(1.0f, 0.0f) * Meter;
-        vertices[2] = Vec2(0.0f, 2.0f) * Meter;
-        PolygonShape polygon;
-        polygon.Set(Span<const Length2D>{vertices, 3});
-        polygon.SetDensity(Real{1} * KilogramPerSquareMeter);
+        Length2 vertices[3];
+        vertices[0] = Vec2(-1.0f, 0.0f) * 1_m;
+        vertices[1] = Vec2(1.0f, 0.0f) * 1_m;
+        vertices[2] = Vec2(0.0f, 2.0f) * 1_m;
+        auto polygon = PolygonShapeConf{};
+        polygon.UseDensity(1_kgpm2);
+        polygon.Set(Span<const Length2>{vertices, 3});
 
-        FixtureDef triangleShapeDef;
+        auto triangleShapeConf = FixtureConf{};
+        triangleShapeConf.filter.groupIndex = k_smallGroup;
+        triangleShapeConf.filter.categoryBits = k_triangleCategory;
+        triangleShapeConf.filter.maskBits = k_triangleMask;
 
-        triangleShapeDef.filter.groupIndex = k_smallGroup;
-        triangleShapeDef.filter.categoryBits = k_triangleCategory;
-        triangleShapeDef.filter.maskBits = k_triangleMask;
+        auto triangleBodyConf = BodyConf{};
+        triangleBodyConf.type = BodyType::Dynamic;
+        triangleBodyConf.location = Vec2(-5.0f, 2.0f) * 1_m;
 
-        BodyDef triangleBodyDef;
-        triangleBodyDef.type = BodyType::Dynamic;
-        triangleBodyDef.position = Vec2(-5.0f, 2.0f) * Meter;
-
-        const auto body1 = m_world->CreateBody(triangleBodyDef);
-        body1->CreateFixture(std::make_shared<PolygonShape>(polygon), triangleShapeDef);
+        const auto body1 = m_world.CreateBody(triangleBodyConf);
+        body1->CreateFixture(Shape(polygon), triangleShapeConf);
 
         // Large triangle (recycle definitions)
         vertices[0] *= 2.0f;
         vertices[1] *= 2.0f;
         vertices[2] *= 2.0f;
-        polygon.Set(Span<const Length2D>{vertices, 3});
-        triangleShapeDef.filter.groupIndex = k_largeGroup;
-        triangleBodyDef.position = Vec2(-5.0f, 6.0f) * Meter;
-        triangleBodyDef.fixedRotation = true; // look at me!
+        polygon.Set(Span<const Length2>{vertices, 3});
+        triangleShapeConf.filter.groupIndex = k_largeGroup;
+        triangleBodyConf.location = Vec2(-5.0f, 6.0f) * 1_m;
+        triangleBodyConf.fixedRotation = true; // look at me!
 
-        const auto body2 = m_world->CreateBody(triangleBodyDef);
-        body2->CreateFixture(std::make_shared<PolygonShape>(polygon), triangleShapeDef);
+        const auto body2 = m_world.CreateBody(triangleBodyConf);
+        body2->CreateFixture(Shape(polygon), triangleShapeConf);
 
         {
-            BodyDef bd;
+            auto bd = BodyConf{};
             bd.type = BodyType::Dynamic;
-            bd.position = Vec2(-5.0f, 10.0f) * Meter;
-            const auto body = m_world->CreateBody(bd);
-            auto conf = PolygonShape::Conf{};
-            conf.density = Real{1} * KilogramPerSquareMeter;
-            body->CreateFixture(std::make_shared<PolygonShape>(Real{0.5f} * Meter, Real{1.0f} * Meter, conf));
+            bd.location = Vec2(-5.0f, 10.0f) * 1_m;
+            const auto body = m_world.CreateBody(bd);
+            body->CreateFixture(Shape{PolygonShapeConf{}.UseDensity(1_kgpm2).SetAsBox(0.5_m, 1_m)});
 
-            PrismaticJointDef jd;
+            auto jd = PrismaticJointConf{};
             jd.bodyA = body2;
             jd.bodyB = body;
             jd.enableLimit = true;
-            jd.localAnchorA = Vec2(0.0f, 4.0f) * Meter;
-            jd.localAnchorB = Vec2_zero * Meter;
-            jd.localAxisA = UnitVec2::GetTop();
-            jd.lowerTranslation = Real{-1.0f} * Meter;
-            jd.upperTranslation = Real{1.0f} * Meter;
+            jd.localAnchorA = Vec2(0.0f, 4.0f) * 1_m;
+            jd.localAnchorB = Length2{};
+            jd.localAxisA = UnitVec::GetTop();
+            jd.lowerTranslation = -1.0_m;
+            jd.upperTranslation = +1.0_m;
 
-            m_world->CreateJoint(jd);
+            m_world.CreateJoint(jd);
         }
 
         // Small box
-        polygon.SetAsBox(Real{1.0f} * Meter, Real{0.5f} * Meter);
-        polygon.SetDensity(Real{1} * KilogramPerSquareMeter);
-        polygon.SetRestitution(Real(0.1f));
+        polygon.SetAsBox(1_m, 0.5_m);
+        polygon.UseDensity(1_kgpm2);
+        polygon.UseRestitution(Real(0.1f));
 
-        FixtureDef boxShapeDef;
+        auto boxShapeConf = FixtureConf{};
+        boxShapeConf.filter.groupIndex = k_smallGroup;
+        boxShapeConf.filter.categoryBits = k_boxCategory;
+        boxShapeConf.filter.maskBits = k_boxMask;
 
-        boxShapeDef.filter.groupIndex = k_smallGroup;
-        boxShapeDef.filter.categoryBits = k_boxCategory;
-        boxShapeDef.filter.maskBits = k_boxMask;
+        auto boxBodyConf = BodyConf{};
+        boxBodyConf.type = BodyType::Dynamic;
+        boxBodyConf.location = Vec2(0.0f, 2.0f) * 1_m;
 
-        BodyDef boxBodyDef;
-        boxBodyDef.type = BodyType::Dynamic;
-        boxBodyDef.position = Vec2(0.0f, 2.0f) * Meter;
-
-        const auto body3 = m_world->CreateBody(boxBodyDef);
-        body3->CreateFixture(std::make_shared<PolygonShape>(polygon), boxShapeDef);
+        const auto body3 = m_world.CreateBody(boxBodyConf);
+        body3->CreateFixture(Shape(polygon), boxShapeConf);
 
         // Large box (recycle definitions)
-        polygon.SetAsBox(Real{2.0f} * Meter, Real{1.0f} * Meter);
-        boxShapeDef.filter.groupIndex = k_largeGroup;
-        boxBodyDef.position = Vec2(0.0f, 6.0f) * Meter;
+        polygon.SetAsBox(2_m, 1_m);
+        boxShapeConf.filter.groupIndex = k_largeGroup;
+        boxBodyConf.location = Vec2(0.0f, 6.0f) * 1_m;
 
-        const auto body4 = m_world->CreateBody(boxBodyDef);
-        body4->CreateFixture(std::make_shared<PolygonShape>(polygon), boxShapeDef);
+        const auto body4 = m_world.CreateBody(boxBodyConf);
+        body4->CreateFixture(Shape(polygon), boxShapeConf);
 
         // Small circle
-        auto circleConf = DiskShape::Conf{};
-        circleConf.vertexRadius = Real{1} * Meter;
-        circleConf.density = Real{1} * KilogramPerSquareMeter;
-        auto circle = DiskShape(circleConf);
+        auto circleConf = DiskShapeConf{};
+        circleConf.density = 1_kgpm2;
 
-        FixtureDef circleShapeDef;
+        auto circleShapeConf = FixtureConf{};
+        circleShapeConf.filter.groupIndex = k_smallGroup;
+        circleShapeConf.filter.categoryBits = k_circleCategory;
+        circleShapeConf.filter.maskBits = k_circleMask;
 
-        circleShapeDef.filter.groupIndex = k_smallGroup;
-        circleShapeDef.filter.categoryBits = k_circleCategory;
-        circleShapeDef.filter.maskBits = k_circleMask;
-
-        BodyDef circleBodyDef;
-        circleBodyDef.type = BodyType::Dynamic;
-        circleBodyDef.position = Vec2(5.0f, 2.0f) * Meter;
+        auto circleBodyConf = BodyConf{};
+        circleBodyConf.type = BodyType::Dynamic;
+        circleBodyConf.location = Vec2(5.0f, 2.0f) * 1_m;
         
-        const auto body5 = m_world->CreateBody(circleBodyDef);
-        body5->CreateFixture(std::make_shared<DiskShape>(circle), circleShapeDef);
+        const auto body5 = m_world.CreateBody(circleBodyConf);
+        circleConf.vertexRadius = 1_m;
+        body5->CreateFixture(Shape(circleConf), circleShapeConf);
 
         // Large circle
-        circle.SetRadius(circle.GetRadius() * Real{2});
-        circleShapeDef.filter.groupIndex = k_largeGroup;
-        circleBodyDef.position = Vec2(5.0f, 6.0f) * Meter;
+        circleShapeConf.filter.groupIndex = k_largeGroup;
+        circleBodyConf.location = Vec2(5.0f, 6.0f) * 1_m;
 
-        const auto body6 = m_world->CreateBody(circleBodyDef);
-        body6->CreateFixture(std::make_shared<DiskShape>(circle), circleShapeDef);
+        const auto body6 = m_world.CreateBody(circleBodyConf);
+        circleConf.vertexRadius = circleConf.vertexRadius * 2;
+        body6->CreateFixture(Shape(circleConf), circleShapeConf);
+        
+        SetAccelerations(m_world, m_gravity);
     }
 };
     
-} // namespace playrho
+} // namespace testbed
 
 #endif

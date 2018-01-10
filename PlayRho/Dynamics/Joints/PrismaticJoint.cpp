@@ -26,6 +26,7 @@
 #include <PlayRho/Dynamics/Contacts/BodyConstraint.hpp>
 
 namespace playrho {
+namespace d2 {
 
 // Linear constraint (point-to-line)
 // d = p2 - p1 = x2 + r2 - x1 - r1
@@ -94,7 +95,7 @@ namespace playrho {
 // Now compute impulse to be applied:
 // df = f2 - f1
 
-PrismaticJoint::PrismaticJoint(const PrismaticJointDef& def):
+PrismaticJoint::PrismaticJoint(const PrismaticJointConf& def):
     Joint(def),
     m_localAnchorA{def.localAnchorA},
     m_localAnchorB{def.localAnchorB},
@@ -116,6 +117,11 @@ void PrismaticJoint::Accept(JointVisitor& visitor) const
     visitor.Visit(*this);
 }
 
+void PrismaticJoint::Accept(JointVisitor& visitor)
+{
+    visitor.Visit(*this);
+}
+
 void PrismaticJoint::InitVelocityConstraints(BodyConstraintsMap& bodies,
                                              const StepConf& step,
                                              const ConstraintSolverConf& conf)
@@ -133,13 +139,13 @@ void PrismaticJoint::InitVelocityConstraints(BodyConstraintsMap& bodies,
     const auto invRotInertiaB = bodyConstraintB->GetInvRotInertia();
     auto velB = bodyConstraintB->GetVelocity();
 
-    const auto qA = UnitVec2::Get(posA.angular);
-    const auto qB = UnitVec2::Get(posB.angular);
+    const auto qA = UnitVec::Get(posA.angular);
+    const auto qB = UnitVec::Get(posB.angular);
 
     // Compute the effective masses.
-    const auto rA = Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), qA); // Length2D
-    const auto rB = Rotate(m_localAnchorB - bodyConstraintB->GetLocalCenter(), qB); // Length2D
-    const auto d = (posB.linear - posA.linear) + rB - rA; // Length2D
+    const auto rA = Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), qA); // Length2
+    const auto rB = Rotate(m_localAnchorB - bodyConstraintB->GetLocalCenter(), qB); // Length2
+    const auto d = (posB.linear - posA.linear) + rB - rA; // Length2
 
     // Compute motor Jacobian and effective mass.
     m_axis = Rotate(m_localXAxisA, qA);
@@ -149,7 +155,7 @@ void PrismaticJoint::InitVelocityConstraints(BodyConstraintsMap& bodies,
     const auto invRotMassA = InvMass{invRotInertiaA * m_a1 * m_a1 / SquareRadian};
     const auto invRotMassB = InvMass{invRotInertiaB * m_a2 * m_a2 / SquareRadian};
     const auto totalInvMass = invMassA + invMassB + invRotMassA + invRotMassB;
-    m_motorMass = (totalInvMass > InvMass{0})? Real{1} / totalInvMass: Mass{0};
+    m_motorMass = (totalInvMass > InvMass{0})? Real{1} / totalInvMass: 0_kg;
 
     // Prismatic constraint.
     {
@@ -224,14 +230,11 @@ void PrismaticJoint::InitVelocityConstraints(BodyConstraintsMap& bodies,
         m_motorImpulse *= step.dtRatio;
 
         const auto ulImpulseX = GetX(m_impulse) * m_perp;
-        const auto Px = Momentum2D{
-            GetX(ulImpulseX) * Kilogram * MeterPerSecond,
-            GetY(ulImpulseX) * Kilogram * MeterPerSecond
-        };
+        const auto Px = Momentum2{GetX(ulImpulseX) * NewtonSecond, GetY(ulImpulseX) * NewtonSecond};
         const auto Pxs1 = Momentum{GetX(m_impulse) * m_s1 * Kilogram / Second};
         const auto Pxs2 = Momentum{GetX(m_impulse) * m_s2 * Kilogram / Second};
-        const auto PzLength = Momentum{m_motorImpulse + GetZ(m_impulse) * Kilogram * MeterPerSecond};
-        const auto Pz = Momentum2D{PzLength * m_axis};
+        const auto PzLength = Momentum{m_motorImpulse + GetZ(m_impulse) * NewtonSecond};
+        const auto Pz = Momentum2{PzLength * m_axis};
         const auto P = Px + Pz;
         
         // AngularMomentum is L^2 M T^-1 QP^-1.
@@ -245,7 +248,7 @@ void PrismaticJoint::InitVelocityConstraints(BodyConstraintsMap& bodies,
     }
     else
     {
-        m_impulse = Vec3_zero;
+        m_impulse = Vec3{};
         m_motorImpulse = 0;
     }
 
@@ -279,7 +282,7 @@ bool PrismaticJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const 
         m_motorImpulse = Clamp(m_motorImpulse + impulse, -maxImpulse, maxImpulse);
         impulse = m_motorImpulse - oldImpulse;
 
-        const auto P = Momentum2D{impulse * m_axis};
+        const auto P = Momentum2{impulse * m_axis};
         
         // Momentum is L^2 M T^-1. AngularMomentum is L^2 M T^-1 QP^-1.
         const auto LA = impulse * m_a1 / Radian;
@@ -325,15 +328,12 @@ bool PrismaticJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const 
         const auto df = m_impulse - f1;
 
         const auto ulP = GetX(df) * m_perp + GetZ(df) * m_axis;
-        const auto P = Momentum2D{
-            GetX(ulP) * Kilogram * MeterPerSecond,
-            GetY(ulP) * Kilogram * MeterPerSecond
-        };
+        const auto P = Momentum2{GetX(ulP) * NewtonSecond, GetY(ulP) * NewtonSecond};
         const auto LA = AngularMomentum{
-            (GetX(df) * m_s1 + GetY(df) * Meter + GetZ(df) * m_a1) * Kilogram * MeterPerSecond / Radian
+            (GetX(df) * m_s1 + GetY(df) * Meter + GetZ(df) * m_a1) * NewtonSecond / Radian
         };
         const auto LB = AngularMomentum{
-            (GetX(df) * m_s2 + GetY(df) * Meter + GetZ(df) * m_a2) * Kilogram * MeterPerSecond / Radian
+            (GetX(df) * m_s2 + GetY(df) * Meter + GetZ(df) * m_a2) * NewtonSecond / Radian
         };
 
         velA -= Velocity{invMassA * P, invRotInertiaA * LA};
@@ -349,15 +349,12 @@ bool PrismaticJoint::SolveVelocityConstraints(BodyConstraintsMap& bodies, const 
         GetY(m_impulse) += GetY(df);
 
         const auto ulP = GetX(df) * m_perp;
-        const auto P = Momentum2D{
-            GetX(ulP) * Kilogram * MeterPerSecond,
-            GetY(ulP) * Kilogram * MeterPerSecond
-        };
+        const auto P = Momentum2{GetX(ulP) * NewtonSecond, GetY(ulP) * NewtonSecond};
         const auto LA = AngularMomentum{
-            (GetX(df) * m_s1 + GetY(df) * Meter) * Kilogram * MeterPerSecond / Radian
+            (GetX(df) * m_s1 + GetY(df) * Meter) * NewtonSecond / Radian
         };
         const auto LB = AngularMomentum{
-            (GetX(df) * m_s2 + GetY(df) * Meter) * Kilogram * MeterPerSecond / Radian
+            (GetX(df) * m_s2 + GetY(df) * Meter) * NewtonSecond / Radian
         };
 
         velA -= Velocity{invMassA * P, invRotInertiaA * LA};
@@ -396,13 +393,13 @@ bool PrismaticJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const 
     const auto invMassB = bodyConstraintB->GetInvMass();
     const auto invRotInertiaB = bodyConstraintB->GetInvRotInertia();
 
-    const auto qA = UnitVec2::Get(posA.angular);
-    const auto qB = UnitVec2::Get(posB.angular);
+    const auto qA = UnitVec::Get(posA.angular);
+    const auto qB = UnitVec::Get(posB.angular);
 
     // Compute fresh Jacobians
     const auto rA = Rotate(m_localAnchorA - bodyConstraintA->GetLocalCenter(), qA);
     const auto rB = Rotate(m_localAnchorB - bodyConstraintB->GetLocalCenter(), qB);
-    const auto d = Length2D{(posB.linear + rB) - (posA.linear + rA)};
+    const auto d = Length2{(posB.linear + rB) - (posA.linear + rA)};
 
     const auto axis = Rotate(m_localXAxisA, qA);
     const auto a1 = Length{Cross(d + rA, axis)};
@@ -435,14 +432,14 @@ bool PrismaticJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const 
         else if (translation <= m_lowerTranslation)
         {
             // Prevent large linear corrections and allow some slop.
-            C2 = StripUnit(Clamp(translation - m_lowerTranslation + conf.linearSlop, -conf.maxLinearCorrection, Length{0}));
+            C2 = StripUnit(Clamp(translation - m_lowerTranslation + conf.linearSlop, -conf.maxLinearCorrection, 0_m));
             linearError = std::max(linearError, m_lowerTranslation - translation);
             active = true;
         }
         else if (translation >= m_upperTranslation)
         {
             // Prevent large linear corrections and allow some slop.
-            C2 = StripUnit(Clamp(translation - m_upperTranslation - conf.linearSlop, Length{0}, conf.maxLinearCorrection));
+            C2 = StripUnit(Clamp(translation - m_upperTranslation - conf.linearSlop, 0_m, conf.maxLinearCorrection));
             linearError = std::max(linearError, translation - m_upperTranslation);
             active = true;
         }
@@ -509,11 +506,11 @@ bool PrismaticJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const 
         GetZ(impulse) = 0;
     }
 
-    const auto P = (GetX(impulse) * perp + GetZ(impulse) * axis) * (Real(1) * Kilogram * Meter);
+    const auto P = (GetX(impulse) * perp + GetZ(impulse) * axis) * Kilogram * Meter;
     const auto LA = (GetX(impulse) * s1 + GetY(impulse) * Meter + GetZ(impulse) * a1) * Kilogram * Meter / Radian;
     const auto LB = (GetX(impulse) * s2 + GetY(impulse) * Meter + GetZ(impulse) * a2) * Kilogram * Meter / Radian;
 
-    posA -= Position{Length2D{invMassA * P}, invRotInertiaA * LA};
+    posA -= Position{Length2{invMassA * P}, invRotInertiaA * LA};
     posB += Position{invMassB * P, invRotInertiaB * LB};
 
     bodyConstraintA->SetPosition(posA);
@@ -522,26 +519,21 @@ bool PrismaticJoint::SolvePositionConstraints(BodyConstraintsMap& bodies, const 
     return (linearError <= conf.linearSlop) && (angularError <= conf.angularSlop);
 }
 
-Length2D PrismaticJoint::GetAnchorA() const
+Length2 PrismaticJoint::GetAnchorA() const
 {
     return GetWorldPoint(*GetBodyA(), GetLocalAnchorA());
 }
 
-Length2D PrismaticJoint::GetAnchorB() const
+Length2 PrismaticJoint::GetAnchorB() const
 {
     return GetWorldPoint(*GetBodyB(), GetLocalAnchorB());
 }
 
-Momentum2D PrismaticJoint::GetLinearReaction() const
+Momentum2 PrismaticJoint::GetLinearReaction() const
 {
     const auto ulImpulse = GetX(m_impulse) * m_perp;
-    const auto impulse = Momentum2D{
-        GetX(ulImpulse) * Kilogram * MeterPerSecond,
-        GetY(ulImpulse) * Kilogram * MeterPerSecond
-    };
-    return Momentum2D{
-        impulse + (m_motorImpulse + GetZ(m_impulse) * Kilogram * MeterPerSecond) * m_axis
-    };
+    const auto impulse = Momentum2{GetX(ulImpulse) * NewtonSecond, GetY(ulImpulse) * NewtonSecond};
+    return Momentum2{impulse + (m_motorImpulse + GetZ(m_impulse) * NewtonSecond) * m_axis};
 }
 
 AngularMomentum PrismaticJoint::GetAngularReaction() const
@@ -611,11 +603,6 @@ void PrismaticJoint::SetMaxMotorForce(Force force) noexcept
     }
 }
 
-Force PrismaticJoint::GetMotorForce(Frequency inv_dt) const noexcept
-{
-    return inv_dt * m_motorImpulse;
-}
-
 Length GetJointTranslation(const PrismaticJoint& joint) noexcept
 {
     const auto pA = GetWorldPoint(*joint.GetBodyA(), joint.GetLocalAnchorA());
@@ -645,4 +632,5 @@ LinearVelocity GetLinearVelocity(const PrismaticJoint& joint) noexcept
     return Dot(d, (GetRevPerpendicular(axis) * (wA / Radian))) + Dot(axis, vel);
 }
     
+} // namespace d2
 } // namespace playrho

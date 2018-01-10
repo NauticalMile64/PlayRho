@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class Mobile : public Test
 {
@@ -36,29 +36,29 @@ public:
     Mobile()
     {
         // Create ground body.
-        const auto ground = m_world->CreateBody(BodyDef{}.UseLocation(Vec2(0.0f, 20.0f) * Meter));
+        const auto ground = m_world.CreateBody(BodyConf{}.UseLocation(Vec2(0.0f, 20.0f) * 1_m));
 
         const auto a = Real{0.5f};
-        const auto shape = std::make_shared<PolygonShape>(Real{0.25f} * a * Meter, a * Meter);
-        shape->SetDensity(Real{20} * KilogramPerSquareMeter);
+        const auto shape = Shape(PolygonShapeConf{}.UseDensity(20_kgpm2).SetAsBox(Real{0.25f} * a * 1_m, a * 1_m));
 
-        RevoluteJointDef jointDef;
-        jointDef.bodyA = ground;
-        jointDef.bodyB = AddNode(ground, Vec2_zero * Meter, 0, 3.0f, static_cast<float>(a), shape);
-        jointDef.localAnchorA = Vec2_zero * Meter;
-        jointDef.localAnchorB = Vec2(0, a) * Meter;
-        m_world->CreateJoint(jointDef);
+        RevoluteJointConf jointConf;
+        jointConf.bodyA = ground;
+        jointConf.bodyB = AddNode(ground, Length2{}, 0, 3.0f, static_cast<float>(a), shape);
+        jointConf.localAnchorA = Length2{};
+        jointConf.localAnchorB = Vec2(0, a) * 1_m;
+        m_world.CreateJoint(jointConf);
     }
 
-    Body* AddNode(Body* parent, Length2D localAnchor, int depth, float offset, float a,
-                  std::shared_ptr<Shape> shape)
+    Body* AddNode(Body* parent, Length2 localAnchor, int depth, float offset, float a,
+                  Shape shape)
     {
-        const auto h = Vec2(0.0f, a) * Meter;
+        const auto h = Vec2(0.0f, a) * 1_m;
 
-        BodyDef bodyDef;
-        bodyDef.type = BodyType::Dynamic;
-        bodyDef.position = parent->GetLocation() + localAnchor - h;
-        const auto body = m_world->CreateBody(bodyDef);
+        BodyConf bodyConf;
+        bodyConf.type = BodyType::Dynamic;
+        bodyConf.linearAcceleration = m_gravity;
+        bodyConf.location = parent->GetLocation() + localAnchor - h;
+        const auto body = m_world.CreateBody(bodyConf);
         body->CreateFixture(shape);
 
         if (depth == e_depth)
@@ -66,25 +66,25 @@ public:
             return body;
         }
 
-        const auto a1 = Vec2(offset, -a) * Meter;
-        const auto a2 = Vec2(-offset, -a) * Meter;
+        const auto a1 = Vec2(offset, -a) * 1_m;
+        const auto a2 = Vec2(-offset, -a) * 1_m;
 
-        RevoluteJointDef jointDef;
-        jointDef.bodyA = body;
-        jointDef.localAnchorB = h;
+        RevoluteJointConf jointConf;
+        jointConf.bodyA = body;
+        jointConf.localAnchorB = h;
 
-        jointDef.localAnchorA = a1;
-        jointDef.bodyB = AddNode(body, a1, depth + 1, 0.5f * offset, a, shape);
-        m_world->CreateJoint(jointDef);
+        jointConf.localAnchorA = a1;
+        jointConf.bodyB = AddNode(body, a1, depth + 1, 0.5f * offset, a, shape);
+        m_world.CreateJoint(jointConf);
 
-        jointDef.localAnchorA = a2;
-        jointDef.bodyB = AddNode(body, a2, depth + 1, 0.5f * offset, a, shape);
-        m_world->CreateJoint(jointDef);
+        jointConf.localAnchorA = a2;
+        jointConf.bodyB = AddNode(body, a2, depth + 1, 0.5f * offset, a, shape);
+        m_world.CreateJoint(jointConf);
 
         return body;
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

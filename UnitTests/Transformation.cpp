@@ -20,6 +20,7 @@
 #include <PlayRho/Common/Math.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(Transformation, ByteSizeIs_16_32_or_64)
 {
@@ -32,10 +33,17 @@ TEST(Transformation, ByteSizeIs_16_32_or_64)
     }
 }
 
+TEST(Transformation, DefaultConstruct)
+{
+    const Transformation xfm;
+    EXPECT_EQ(xfm.p, Length2{});
+    EXPECT_EQ(xfm.q, UnitVec::GetRight());
+}
+
 TEST(Transformation, Initialize)
 {
-    const auto translation = Length2D{Real(2) * Meter, Real(4) * Meter};
-    const auto rotation = UnitVec2::Get(Radian * Real{Pi / 2});
+    const auto translation = Length2{2_m, 4_m};
+    const auto rotation = UnitVec::Get(1_rad * Real{Pi / 2});
     const Transformation xfm{translation, rotation};
     EXPECT_EQ(translation, xfm.p);
     EXPECT_EQ(rotation, xfm.q);
@@ -43,20 +51,20 @@ TEST(Transformation, Initialize)
 
 TEST(Transformation, Equality)
 {
-    const auto translation = Length2D{Real(2) * Meter, Real(4) * Meter};
-    const auto rotation = UnitVec2::Get(Radian * Real{Pi / 2});
+    const auto translation = Length2{2_m, 4_m};
+    const auto rotation = UnitVec::Get(1_rad * Real{Pi / 2});
     const Transformation xfm{translation, rotation};
     EXPECT_EQ(xfm, xfm);
 }
 
 TEST(Transformation, Inequality)
 {
-    const auto translation1 = Length2D{Real(2) * Meter, Real(4) * Meter};
-    const auto rotation1 = UnitVec2::Get(Radian * Pi * Real{0.7f});
+    const auto translation1 = Length2{2_m, 4_m};
+    const auto rotation1 = UnitVec::Get(1_rad * Pi * Real{0.7f});
     const Transformation xfm1{translation1, rotation1};
 
-    const auto translation2 = Length2D{-Real(3) * Meter, Real(37) * Meter};
-    const auto rotation2 = UnitVec2::Get(Radian * Pi * Real{0.002f});
+    const auto translation2 = Length2{-3_m, 37_m};
+    const auto rotation2 = UnitVec::Get(1_rad * Pi * Real{0.002f});
     const Transformation xfm2{translation2, rotation2};
 
     ASSERT_NE(translation1, translation2);
@@ -66,13 +74,13 @@ TEST(Transformation, Inequality)
 
 TEST(Transformation, Mul)
 {
-    const auto translation1 = Length2D{Real(2) * Meter, Real(4) * Meter};
-    const auto rotation1 = UnitVec2::Get(Radian * Real{Pi / 2});
+    const auto translation1 = Length2{2_m, 4_m};
+    const auto rotation1 = UnitVec::Get(1_rad * Real{Pi / 2});
     const Transformation xfm{translation1, rotation1};
 
     const auto xfm2 = Mul(xfm, xfm);
     const Vec2 translation2{4, 8};
-    const auto rotation2 = UnitVec2::Get(Radian * Pi);
+    const auto rotation2 = UnitVec::Get(1_rad * Pi);
 
     const auto Ap = xfm.p;
     const auto Bp = xfm.p;
@@ -80,18 +88,18 @@ TEST(Transformation, Mul)
     EXPECT_EQ(GetX(xfm2.p), GetX(newP));
     EXPECT_EQ(GetY(xfm2.p), GetY(newP));
     
-    EXPECT_NEAR(double(xfm2.q.cos()), double(rotation2.cos()), 0.0001);
-    EXPECT_NEAR(double(xfm2.q.sin()), double(rotation2.sin()), 0.0001);
+    EXPECT_NEAR(double(GetX(xfm2.q)), double(GetX(rotation2)), 0.0001);
+    EXPECT_NEAR(double(GetY(xfm2.q)), double(GetY(rotation2)), 0.0001);
 }
 
 TEST(Transformation, MulSameAsTransformTwice)
 {
-    const auto translation1 = Length2D{Real(2) * Meter, Real(4) * Meter};
-    const auto rotation1 = UnitVec2::Get(Radian * Real{Pi / 2});
+    const auto translation1 = Length2{2_m, 4_m};
+    const auto rotation1 = UnitVec::Get(1_rad * Real{Pi / 2});
     const Transformation xfm{translation1, rotation1};
     const auto xfm2 = Mul(xfm, xfm);
 
-    const auto location = Length2D{Real(-23.4f) * Meter, Real(0.81f) * Meter};
+    const auto location = Length2{-23.4_m, 0.81_m};
     const auto twice = Transform(Transform(location, xfm), xfm);
     const auto location2 = Transform(location, xfm2);
     EXPECT_NEAR(static_cast<double>(Real{GetX(twice) / Meter}),

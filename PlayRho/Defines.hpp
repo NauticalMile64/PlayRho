@@ -42,4 +42,16 @@
 #define PLAYRHO_UNREACHABLE std::abort()
 #endif
 
+// Macro for constant expressions.
+// Value of this macro should either be 'constexpr' or empty.
+#define PLAYRHO_CONSTEXPR constexpr
+
+// Checks if platform supports 128-bit integer types and defines macros for them if so.
+// Note that these could use any <code>LiteralType</code> type that has full operator and
+// common mathemtical function support.
+#ifdef __SIZEOF_INT128__
+#define PLAYRHO_INT128 __int128_t
+#define PLAYRHO_UINT128 __uint128_t
+#endif
+
 #endif /* PLAYRHO_DEFINES_HPP */

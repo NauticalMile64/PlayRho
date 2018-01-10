@@ -27,13 +27,14 @@
 
 #include <PlayRho/Common/Math.hpp>
 #include <PlayRho/Common/Range.hpp>
-#include <PlayRho/Dynamics/WorldDef.hpp>
-#include <PlayRho/Dynamics/BodyDef.hpp>
+#include <PlayRho/Dynamics/WorldConf.hpp>
+#include <PlayRho/Dynamics/BodyConf.hpp>
 #include <PlayRho/Dynamics/BodyAtty.hpp>
-#include <PlayRho/Dynamics/FixtureDef.hpp>
+#include <PlayRho/Dynamics/FixtureConf.hpp>
 #include <PlayRho/Dynamics/WorldCallbacks.hpp>
 #include <PlayRho/Dynamics/StepStats.hpp>
 #include <PlayRho/Collision/DynamicTree.hpp>
+#include <PlayRho/Collision/Shapes/ShapeConf.hpp>
 #include <PlayRho/Dynamics/Contacts/ContactKey.hpp>
 #include <PlayRho/Dynamics/ContactAtty.hpp>
 #include <PlayRho/Dynamics/JointAtty.hpp>
@@ -43,21 +44,41 @@
 #include <unordered_set>
 #include <memory>
 #include <stdexcept>
+#include <functional>
 
 namespace playrho {
 
-struct BodyDef;
-struct JointDef;
-struct FixtureDef;
-struct FixtureProxy;
+class StepConf;
+enum class BodyType;
+
+namespace d2 {
+
+struct BodyConf;
+struct JointConf;
+struct FixtureConf;
 class Body;
 class Contact;
 class Fixture;
 class Joint;
 struct Island;
-class StepConf;
 class Shape;
-enum class BodyType;
+
+/// @defgroup PhysicalEntities Physical Entity Classes
+///
+/// @brief Classes representing physical entities typically created/destroyed via factory methods.
+///
+/// @details Classes of creatable and destroyable managed instances that associate
+///   physical properties to simulations. These instances are typically created via a
+///   method whose name begins with the prefix of <code>Create</code>. Similarly, these
+///   instances are typically destroyed using a method whose name begins with the prefix
+///   of <code>Destroy</code>.
+///
+/// @sa World::CreateBody
+/// @sa World::CreateJoint
+/// @sa World::Destroy
+/// @sa Body::CreateFixture
+/// @sa Body::DestroyFixture
+/// @sa Body::DestroyFixtures
 
 /// @brief Definition of an independent and simulatable "world".
 ///
@@ -66,10 +87,12 @@ enum class BodyType;
 ///   world have no interaction with entities in other worlds. In any case, there's
 ///   precedence, from a physics-engine standpoint, for this being called a world.
 ///
-/// @note From a memory management perspective, world instances own Body, Joint, and Contact
-///   instances.
-/// @note This data structure is 352-bytes large (with 4-byte Real on at least one 64-bit
+/// @note World instances are composed of &mdash; i.e. contain and own &mdash; Body, Joint,
+///   and Contact instances.
+/// @note This data structure is 232-bytes large (with 4-byte Real on at least one 64-bit
 ///   platform).
+///
+/// @sa Body, Joint, Contact
 ///
 class World
 {
@@ -82,7 +105,7 @@ public:
     using Bodies = std::vector<Body*>;
 
     /// @brief Contacts container type.
-    using Contacts = std::vector<Contact*>;
+    using Contacts = std::vector<KeyedContactPtr>;
     
     /// @brief Joints container type.
     /// @note Cannot be container of Joint instances since joints are polymorphic types.
@@ -90,7 +113,7 @@ public:
     
     /// @brief Constructs a world object.
     /// @throws InvalidArgument if the given max vertex radius is less than the min.
-    explicit World(const WorldDef& def = GetDefaultWorldDef());
+    explicit World(const WorldConf& def = GetDefaultWorldConf());
 
     /// @brief Copy constructor.
     World(const World& other);
@@ -110,11 +133,6 @@ public:
     /// remain in scope.
     void SetDestructionListener(DestructionListener* listener) noexcept;
 
-    /// Register a contact filter to provide specific control over collision.
-    /// Otherwise the default filter is used. The listener is
-    /// owned by you and must remain in scope. 
-    void SetContactFilter(ContactFilter* filter) noexcept;
-
     /// Register a contact event listener. The listener is owned by you and must
     /// remain in scope.
     void SetContactListener(ContactListener* listener) noexcept;
@@ -124,14 +142,18 @@ public:
     /// @warning This function is locked during callbacks.
     /// @return Pointer to newly created body.
     /// @throws WrongState if this method is called while the world is locked.
-    /// @throws LengthError if this operation would create more than MaxBodies.
-    Body* CreateBody(const BodyDef& def = GetDefaultBodyDef());
+    /// @throws LengthError if this operation would create more than <code>MaxBodies</code>.
+    /// @sa PhysicalEntities
+    Body* CreateBody(const BodyConf& def = GetDefaultBodyConf());
 
     /// @brief Destroys the given body.
     /// @note This function is locked during callbacks.
     /// @warning This automatically deletes all associated shapes and joints.
     /// @warning This function is locked during callbacks.
+    /// @warning Behavior is undefined if given a null body.
+    /// @warning Behavior is undefined if the passed body was not created by this world.
     /// @throws WrongState if this method is called while the world is locked.
+    /// @sa PhysicalEntities
     void Destroy(Body* body);
 
     /// @brief Creates a joint to constrain bodies together.
@@ -140,20 +162,18 @@ public:
     /// @warning This function is locked during callbacks.
     /// @return Pointer to newly created joint.
     /// @throws WrongState if this method is called while the world is locked.
-    /// @throws LengthError if this operation would create more than MaxJoints.
-    Joint* CreateJoint(const JointDef& def);
+    /// @throws LengthError if this operation would create more than <code>MaxJoints</code>.
+    /// @throws InvalidArgument if the given definition is not allowed.
+    /// @sa PhysicalEntities
+    Joint* CreateJoint(const JointConf& def);
 
     /// @brief Destroys a joint.
-    ///
     /// @details This may cause the connected bodies to begin colliding.
-    ///
     /// @warning This function is locked during callbacks.
     /// @warning Behavior is undefined if the passed joint was not created by this world.
-    ///
     /// @param joint Joint, created by this world, to destroy.
-    ///
     /// @throws WrongState if this method is called while the world is locked.
-    ///
+    /// @sa PhysicalEntities
     void Destroy(Joint* joint);
 
     /// @brief Steps the world simulation according to the given configuration.
@@ -172,9 +192,11 @@ public:
     ///   do velocity or position resolutions respectively of the contacting bodies.
     /// @note While body velocities are updated accordingly (per the sum of forces acting on them),
     ///   body positions (barring any collisions) are updated as if they had moved the entire time
-    ///   step at those resulting velocities. In other words, a body initially at p0 going v0 fast
-    ///   with a sum acceleration of a, after time t and barring any collisions, will have a new
-    ///   velocity (v1) of v0 + (a * t) and a new position (p1) of p0 + v1 * t.
+    ///   step at those resulting velocities. In other words, a body initially at position 0
+    ///   (<code>p0</code>) going velocity 0 (<code>v0</code>) fast with a sum acceleration of
+    ///   <code>a</code>, after time <code>t</code> and barring any collisions, will have a new
+    ///   velocity (<code>v1</code>) of <code>v0 + (a * t)</code> and a new position
+    ///   (<code>p1</code>) of <code>p0 + v1 * t</code>.
     ///
     /// @post Static bodies are unmoved.
     /// @post Kinetic bodies are moved based on their previous velocities.
@@ -199,29 +221,6 @@ public:
     /// @param callback User implemented callback function.
     void QueryAABB(const AABB& aabb, QueryFixtureCallback callback) const;
 
-    /// @brief Ray-cast operation code.
-    ///
-    /// @details Instructs the <code>RayCast</code> method on what to do next.
-    ///
-    enum class RayCastOpcode;
-
-    /// @brief Ray cast callback function signature.
-    using RayCastCallback = std::function<RayCastOpcode(Fixture* fixture,
-                                                        ChildCounter child,
-                                                        Length2D point,
-                                                        UnitVec2 normal)>;
-
-    /// @brief Ray-cast the world for all fixtures in the path of the ray.
-    ///
-    /// @note The callback controls whether you get the closest point, any point, or n-points.
-    /// @note The ray-cast ignores shapes that contain the starting point.
-    ///
-    /// @param point1 Ray starting point.
-    /// @param point2 Ray ending point.
-    /// @param callback A user implemented callback function.
-    ///
-    void RayCast(Length2D point1, Length2D point2, RayCastCallback callback) const;
-
     /// @brief Gets the world body range for this world.
     /// @return Body range that can be iterated over using its begin and end methods
     ///   or using ranged-based for-loops.
@@ -242,7 +241,7 @@ public:
 
     /// @brief Gets the world contact range.
     /// @warning contacts are created and destroyed in the middle of a time step.
-    /// Use ContactListener to avoid missing contacts.
+    /// Use <code>ContactListener</code> to avoid missing contacts.
     /// @return World contacts sized-range.
     SizedRange<Contacts::const_iterator> GetContacts() const noexcept;
     
@@ -253,35 +252,18 @@ public:
     /// @note This is for testing.
     void SetSubStepping(bool flag) noexcept;
 
-    /// @brief Gets the number of broad-phase proxies.
-    proxy_size_type GetProxyCount() const noexcept;
-
-    /// @brief Gets the height of the dynamic tree.
-    proxy_size_type GetTreeHeight() const noexcept;
-
-    /// @brief Gets the balance of the dynamic tree.
-    proxy_size_type GetTreeBalance() const;
-
-    /// @brief Gets the quality metric of the dynamic tree.
-    /// @details The smaller the better.
-    /// @return Value of zero or more.
-    Real GetTreeQuality() const;
-
-    /// @brief Changes the global gravity vector.
-    void SetGravity(LinearAcceleration2D gravity) noexcept;
-    
-    /// @brief Gets the global gravity vector.
-    LinearAcceleration2D GetGravity() const noexcept;
+    /// @brief Gets access to the broad-phase dynamic tree information.
+    const DynamicTree& GetTree() const noexcept;
 
     /// @brief Is the world locked (in the middle of a time step).
     bool IsLocked() const noexcept;
 
     /// @brief Shifts the world origin.
     /// @note Useful for large worlds.
-    /// @note The body shift formula is: position -= newOrigin
+    /// @note The body shift formula is: <code>position -= newOrigin</code>.
     /// @param newOrigin the new origin with respect to the old origin
     /// @throws WrongState if this method is called while the world is locked.
-    void ShiftOrigin(Length2D newOrigin);
+    void ShiftOrigin(Length2 newOrigin);
 
     /// @brief Gets the minimum vertex radius that shapes in this world can be.
     Length GetMinVertexRadius() const noexcept;
@@ -291,15 +273,11 @@ public:
 
     /// @brief Gets the inverse delta time.
     Frequency GetInvDeltaTime() const noexcept;
-
-    /// @brief Gets the fat AABB for a proxy.
-    /// @warning Behavior is undefined if the given proxy ID is not a valid ID.
-    AABB GetFatAABB(proxy_size_type proxyId) const;
     
     /// @brief Sets the type of the given body.
     /// @note This may alter the body's mass and velocity.
     /// @throws WrongState if this method is called while the world is locked.
-    void SetType(Body& body, BodyType type);
+    void SetType(Body& body, playrho::BodyType type);
 
     /// @brief Register for proxies for the given fixture.
     bool RegisterForProxies(Fixture* fixture);
@@ -315,8 +293,8 @@ public:
     /// @throws InvalidArgument if called for a shape with a vertex radius greater than the
     ///    maximum vertex radius.
     /// @throws WrongState if this method is called while the world is locked.
-    Fixture* CreateFixture(Body& body, const std::shared_ptr<const Shape>& shape,
-                           const FixtureDef& def = GetDefaultFixtureDef(),
+    Fixture* CreateFixture(Body& body, const Shape& shape,
+                           const FixtureConf& def = GetDefaultFixtureConf(),
                            bool resetMassData = true);
 
     /// @brief Destroys a fixture.
@@ -326,7 +304,8 @@ public:
     ///   All fixtures attached to a body are implicitly destroyed when the body is destroyed.
     ///
     /// @warning This function is locked during callbacks.
-    /// @note Make sure to explicitly call ResetMassData after fixtures have been destroyed.
+    /// @note Make sure to explicitly call <code>ResetMassData</code> after fixtures have been
+    ///   destroyed.
     ///
     /// @param fixture the fixture to be removed.
     /// @param resetMassData Whether or not to reset the mass data of the associated body.
@@ -351,10 +330,19 @@ private:
     /// @brief Flags type data type.
     using FlagsType = std::uint32_t;
 
-    using ProxyId = DynamicTree::size_type;
+    /// @brief Proxy ID type alias.
+    using ProxyId = DynamicTree::Size;
+
+    /// @brief Contact key queue type alias.
     using ContactKeyQueue = std::vector<ContactKey>;
+    
+    /// @brief Proxy queue type alias.
     using ProxyQueue = std::vector<ProxyId>;
+    
+    /// @brief Fixture queue type alias.
     using FixtureQueue = std::vector<Fixture*>;
+    
+    /// @brief Body queue type alias.
     using BodyQueue = std::vector<Body*>;
     
     /// @brief Flag enumeration.
@@ -366,7 +354,7 @@ private:
         /// Locked.
         e_locked        = 0x0002,
 
-        /// Substepping.
+        /// Sub-stepping.
         e_substepping   = 0x0020,
         
         /// Step complete. @details Used for sub-stepping. @sa e_substepping.
@@ -376,21 +364,29 @@ private:
     /// @brief Island solver results.
     struct IslandSolverResults
     {
-        Length minSeparation = std::numeric_limits<Real>::infinity() * Meter; ///< Minimum separation.
+        Length minSeparation = std::numeric_limits<Length>::infinity(); ///< Minimum separation.
         Momentum maxIncImpulse = 0; ///< Maximum incremental impulse.
-        BodyCounter bodiesSlept = 0;
-        ContactCounter contactsUpdated = 0;
-        ContactCounter contactsSkipped = 0;
+        BodyCounter bodiesSlept = 0; ///< Bodies slept.
+        ContactCounter contactsUpdated = 0; ///< Contacts updated.
+        ContactCounter contactsSkipped = 0; ///< Contacts skipped.
         bool solved = false; ///< Solved. <code>true</code> if position constraints solved, <code>false</code> otherwise.
         TimestepIters positionIterations = 0; ///< Position iterations actually performed.
         TimestepIters velocityIterations = 0; ///< Velocity iterations actually performed.
     };
     
+    /// @brief Updates the given regular step statistics.
+    static RegStepStats& Update(RegStepStats& lhs, const IslandSolverResults& rhs) noexcept;
+
+    /// @brief Copies bodies.
     void CopyBodies(std::map<const Body*, Body*>& bodyMap,
                     std::map<const Fixture*, Fixture*>& fixtureMap,
                     SizedRange<World::Bodies::const_iterator> range);
+    
+    /// @brief Copies joints.
     void CopyJoints(const std::map<const Body*, Body*>& bodyMap,
                     SizedRange<World::Joints::const_iterator> range);
+    
+    /// @brief Copies contacts.
     void CopyContacts(const std::map<const Body*, Body*>& bodyMap,
                       const std::map<const Fixture*, Fixture*>& fixtureMap,
                       SizedRange<World::Contacts::const_iterator> range);
@@ -408,8 +404,9 @@ private:
     /// @brief Solves the given island (regularly).
     ///
     /// @details This:
-    ///   1. Updates every island-body's sweep.pos0 to its sweep.pos1.
-    ///   2. Updates every island-body's sweep.pos1 to the new "solved" position for it.
+    ///   1. Updates every island-body's <code>sweep.pos0</code> to its <code>sweep.pos1</code>.
+    ///   2. Updates every island-body's <code>sweep.pos1</code> to the new normalized "solved"
+    ///      position for it.
     ///   3. Updates every island-body's velocity to the new accelerated, dampened, and "solved"
     ///      velocity for it.
     ///   4. Synchronizes every island-body's transform (by updating it to transform one of the
@@ -435,14 +432,24 @@ private:
                      Contacts::size_type& remNumContacts,
                      Joints::size_type& remNumJoints);
 
-    void AddToIsland(Island& island, std::vector<Body*>& stack,
+    /// @brief Body stack.
+    /// @note Using a std::stack<Body*, std::vector<Body*>> would be nice except it doesn't
+    ///   support the reserve method.
+    using BodyStack = std::vector<Body*>;
+
+    /// @brief Adds to the island.
+    void AddToIsland(Island& island, BodyStack& stack,
                      Bodies::size_type& remNumBodies,
                      Contacts::size_type& remNumContacts,
                      Joints::size_type& remNumJoints);
     
-    void AddContactsToIsland(Island& island, std::vector<Body*>& stack, const Body* b);
-    void AddJointsToIsland(Island& island, std::vector<Body*>& stack, const Body* b);
+    /// @brief Adds contacts to the island.
+    void AddContactsToIsland(Island& island, BodyStack& stack, const Body* b);
+
+    /// @brief Adds joints to the island.
+    void AddJointsToIsland(Island& island, BodyStack& stack, const Body* b);
     
+    /// @brief Removes <em>unspeedables</em> from the is <em>islanded</em> state.
     Bodies::size_type RemoveUnspeedablesFromIslanded(const std::vector<Body*>& bodies);
 
     /// @brief Solves the step using successive time of impact (TOI) events.
@@ -467,9 +474,9 @@ private:
     /// @brief Solves the time of impact for bodies 0 and 1 of the given island.
     ///
     /// @details This:
-    ///   1. Updates pos0 of the sweeps of bodies 0 and 1.
-    ///   2. Updates pos1 of the sweeps, the transforms, and the velocities of the other bodies
-    ///      in this island.
+    ///   1. Updates position 0 of the sweeps of bodies 0 and 1.
+    ///   2. Updates position 1 of the sweeps, the transforms, and the velocities of the other
+    ///      bodies in this island.
     ///
     /// @pre <code>island.m_bodies</code> contains at least two bodies, the first two of which
     ///   are bodies 0 and 1.
@@ -486,16 +493,27 @@ private:
     ///
     IslandSolverResults SolveToiViaGS(const StepConf& conf, Island& island);
 
+    /// @brief Updates the given body.
+    /// @details Updates the given body's velocity, sweep position 1, and its transformation.
+    /// @param body Body to update.
+    /// @param pos New position to set the given body to.
+    /// @param vel New velocity to set the given body to.
     static void UpdateBody(Body& body, const Position& pos, const Velocity& vel);
 
+    /// @brief Reset bodies for solve TOI.
     void ResetBodiesForSolveTOI();
+
+    /// @brief Reset contacts for solve TOI.
     void ResetContactsForSolveTOI();
+    
+    /// @brief Reset contacts for solve TOI.
     void ResetContactsForSolveTOI(Body& body);
 
+    /// @brief Process contacts output.
     struct ProcessContactsOutput
     {
-        ContactCounter contactsUpdated = 0;
-        ContactCounter contactsSkipped = 0;
+        ContactCounter contactsUpdated = 0; ///< Contacts updated.
+        ContactCounter contactsSkipped = 0; ///< Contacts skipped.
     };
 
     /// @brief Processes the contacts of a given body for TOI handling.
@@ -511,12 +529,18 @@ private:
     /// @param[in,out] island Island. On return this may contain additional contacts or bodies.
     /// @param[in,out] body A dynamic/accelerable body.
     /// @param[in] toi Time of impact (TOI). Value between 0 and 1.
+    /// @param[in] conf Step configuration data.
     ProcessContactsOutput ProcessContactsForTOI(Island& island, Body& body, Real toi,
                                                 const StepConf& conf);
 
-    bool Add(Joint* j, Body* bodyA, Body* bodyB);
+    /// @brief Adds the given joint to this world.
+    /// @note This also adds the joint to the bodies of the joint.
+    bool Add(Joint* j);
 
+    /// @brief Removes the given body from this world.
     bool Remove(const Body& b);
+ 
+    /// @brief Removes the given joint from this world.
     bool Remove(Joint& j);
 
     /// @brief Whether or not "step" is complete.
@@ -524,11 +548,16 @@ private:
     /// @sa <code>SetStepComplete</code>.
     bool IsStepComplete() const noexcept;
 
+    /// @brief Sets the step complete state.
     void SetStepComplete(bool value) noexcept;
 
+    /// @brief Sets the allow sleeping state.
     void SetAllowSleeping() noexcept;
+
+    /// @brief Unsets the allow sleeping state.
     void UnsetAllowSleeping() noexcept;
     
+    /// @brief Update contacts statistics.
     struct UpdateContactsStats
     {
         /// @brief Number of contacts ignored (because both bodies were asleep).
@@ -541,32 +570,40 @@ private:
         ContactCounter skipped = 0;
     };
     
+    /// @brief Destroy contacts statistics.
     struct DestroyContactsStats
     {
-        ContactCounter ignored = 0;
-        ContactCounter filteredOut = 0;
-        ContactCounter notOverlapping = 0;
+        ContactCounter ignored = 0; ///< Ignored.
+        ContactCounter erased = 0; ///< Erased.
     };
     
+    /// @brief Contact TOI data.
     struct ContactToiData
     {
-        std::vector<Contact*> contacts; ///< Contacts for which the time of impact is relavant.
+        Contact* contact = nullptr; ///< Contact for which the time of impact is relevant.
         Real toi = std::numeric_limits<Real>::infinity(); ///< Time of impact (TOI) as a fractional value between 0 and 1.
+        ContactCounter simultaneous = 0; ///< Count of simultaneous contacts at this TOI.
     };
 
+    /// @brief Update contacts data.
     struct UpdateContactsData
     {
-        ContactCounter numAtMaxSubSteps = 0;
+        ContactCounter numAtMaxSubSteps = 0; ///< # at max sub-steps (lower the better).
         ContactCounter numUpdatedTOI = 0; ///< # updated TOIs (made valid).
         ContactCounter numValidTOI = 0; ///< # already valid TOIs.
     
+        /// @brief Distance iterations type alias.
         using dist_iter_type = std::remove_const<decltype(DefaultMaxDistanceIters)>::type;
+
+        /// @brief TOI iterations type alias.
         using toi_iter_type = std::remove_const<decltype(DefaultMaxToiIters)>::type;
+        
+        /// @brief Root iterations type alias.
         using root_iter_type = std::remove_const<decltype(DefaultMaxToiRootIters)>::type;
         
-        dist_iter_type maxDistIters = 0;
-        toi_iter_type maxToiIters = 0;
-        root_iter_type maxRootIters = 0;
+        dist_iter_type maxDistIters = 0; ///< Max distance iterations.
+        toi_iter_type maxToiIters = 0; ///< Max TOI iterations.
+        root_iter_type maxRootIters = 0; ///< Max root iterations.
     };
     
     /// @brief Updates the contact times of impact.
@@ -574,12 +611,14 @@ private:
 
     /// @brief Gets the soonest contact.
     /// @details This finds the contact with the lowest (soonest) time of impact.
-    /// @return Contacts with the least time of impact and its time of impact, or null contact.
-    ///  These contacts will all be enabled, not have sensors, be active, and impenetrable.
-    ContactToiData GetSoonestContacts(std::size_t reserveSize);
+    /// @return Contact with the least time of impact and its time of impact, or null contact.
+    ///  A non-null contact will be enabled, not have sensors, be active, and impenetrable.
+    ContactToiData GetSoonestContact() const noexcept;
 
+    /// @brief Determines whether this world has new fixtures.
     bool HasNewFixtures() const noexcept;
     
+    /// @brief Unsets the new fixtures state.
     void UnsetNewFixtures() noexcept;
     
     /// @brief Finds new contacts.
@@ -596,33 +635,39 @@ private:
     /// Essentially this really just purges contacts that are no longer relevant.
     DestroyContactsStats DestroyContacts(Contacts& contacts);
     
+    /// @brief Update contacts.
     UpdateContactsStats UpdateContacts(Contacts& contacts, const StepConf& conf);
     
-    bool ShouldCollide(const Fixture* fixtureA, const Fixture* fixtureB);
-
     /// @brief Destroys the given contact and removes it from its container.
     /// @details This updates the contacts container, returns the memory to the allocator,
     ///   and decrements the contact manager's contact count.
     /// @param contact Contact to destroy.
+    /// @param from From body.
     void Destroy(Contact* contact, Body* from);
     
-    /// @brief Adds a contact for proxyA and proxyB if appropriate.
-    /// @details Adds a new contact object to represent a contact between proxy A and proxy B if
-    /// all of the following are true:
+    /// @brief Adds a contact for the proxies identified by the key if appropriate.
+    /// @details Adds a new contact object to represent a contact between proxy A and proxy B
+    /// if all of the following are true:
     ///   1. The bodies of the fixtures of the proxies are not the one and the same.
     ///   2. No contact already exists for these two proxies.
-    ///   3. The bodies of the proxies should collide (according to Body::ShouldCollide).
+    ///   3. The bodies of the proxies should collide (according to <code>ShouldCollide</code>).
     ///   4. The contact filter says the fixtures of the proxies should collide.
     ///   5. There exists a contact-create function for the pair of shapes of the proxies.
-    /// @param proxyA Proxy A.
-    /// @param proxyB Proxy B.
-    /// @return <code>true</code> if a new contact was indeed added (and created), else <code>false</code>.
-    /// @sa bool Body::ShouldCollide(const Body* other) const
-    bool Add(const FixtureProxy& proxyA, const FixtureProxy& proxyB);
+    /// @post The size of the <code>m_contacts</code> collection is one greater-than it was
+    ///   before this method is called if it returns <code>true</code>.
+    /// @param key ID's of dynamic tree entries identifying the fixture proxies involved.
+    /// @return <code>true</code> if a new contact was indeed added (and created),
+    ///   else <code>false</code>.
+    /// @sa bool ShouldCollide(const Body& lhs, const Body& rhs) noexcept
+    bool Add(ContactKey key);
     
+    /// @brief Registers the given dynamic tree ID for processing.
     void RegisterForProcessing(ProxyId pid) noexcept;
+
+    /// @brief Unregisters the given dynamic tree ID from processing.
     void UnregisterForProcessing(ProxyId pid) noexcept;
 
+    /// @brief Destroys the given contact.
     void InternalDestroy(Contact* contact, Body* from = nullptr);
 
     /// @brief Creates proxies for every child of the given fixture's shape.
@@ -636,61 +681,80 @@ private:
     /// @brief Touches each proxy of the given fixture.
     /// @note This sets things up so that pairs may be created for potentially new contacts.
     void InternalTouchProxies(Fixture& fixture) noexcept;
-
-    ChildCounter Synchronize(Fixture& fixture,
-                             Transformation xfm1, Transformation xfm2,
-                             Real multiplier, Length extension);
-
+    
+    /// @brief Synchronizes the given body.
+    /// @details This updates the broad phase dynamic tree data for all of the given
+    ///   body's fixtures.
     ContactCounter Synchronize(Body& body,
                                Transformation xfm1, Transformation xfm2,
-                               Real multiplier, Length aabbExtension);
+                               Real multiplier, Length extension);
+
+    /// @brief Synchronizes the given fixture.
+    /// @details This updates the broad phase dynamic tree data for all of the given
+    ///   fixture shape's children.
+    ContactCounter Synchronize(Fixture& fixture,
+                               Transformation xfm1, Transformation xfm2,
+                               Length2 displacement, Length extension);
     
+    /// @brief Creates and destroys proxies.
     void CreateAndDestroyProxies(const StepConf& conf);
+
+    /// @brief Creates and destroys proxies for the given fixture.
     void CreateAndDestroyProxies(Fixture& fixture, const StepConf& conf);
     
+    /// @brief Synchronizes proxies of the bodies for proxies.
     PreStepStats::counter_type SynchronizeProxies(const StepConf& conf);
 
+    /// @brief Whether the given body is in an island.
     bool IsIslanded(const Body* body) const noexcept;
+
+    /// @brief Whether the given contact is in an island.
     bool IsIslanded(const Contact* contact) const noexcept;
+
+    /// @brief Whether the given joint is in an island.
     bool IsIslanded(const Joint* joint) const noexcept;
 
+    /// @brief Sets the given body to the in an island state.
     void SetIslanded(Body* body) noexcept;
+
+    /// @brief Sets the given contact to the in an island state.
     void SetIslanded(Contact* contact) noexcept;
+
+    /// @brief Sets the given joint to the in an island state.
     void SetIslanded(Joint* joint) noexcept;
 
+    /// @brief Unsets the given body's in island state.
     void UnsetIslanded(Body* body) noexcept;
+
+    /// @brief Unsets the given contact's in island state.
     void UnsetIslanded(Contact* contact) noexcept;
+    
+    /// @brief Unsets the given joint's in island state.
     void UnsetIslanded(Joint* joint) noexcept;
 
     /******** Member variables. ********/
     
-    DynamicTree m_tree{4096};
+    DynamicTree m_tree; ///< Dynamic tree.
     
-    ContactKeyQueue m_proxyKeys;
-    ProxyQueue m_proxies;
-    FixtureQueue m_fixturesForProxies;
-    BodyQueue m_bodiesForProxies;
-
-    ContactFilter m_defaultFilter; ///< Default contact filter. 8-bytes.
+    ContactKeyQueue m_proxyKeys; ///< Proxy keys.
+    ProxyQueue m_proxies; ///< Proxies queue.
+    FixtureQueue m_fixturesForProxies; ///< Fixtures for proxies queue.
+    BodyQueue m_bodiesForProxies; ///< Bodies for proxies queue.
     
     Bodies m_bodies; ///< Body collection.
 
     Joints m_joints; ///< Joint collection.
 
     /// @brief Container of contacts.
-    /// @note In the "AddPair" stress-test, 401 bodies can have some 31000 contacts
+    /// @note In the <em>add pair</em> stress-test, 401 bodies can have some 31000 contacts
     ///   during a given time step.
     Contacts m_contacts;
-
-    LinearAcceleration2D m_gravity; ///< Gravity setting. 8-bytes.
-
+    
     DestructionListener* m_destructionListener = nullptr; ///< Destruction listener. 8-bytes.
     
     ContactListener* m_contactListener = nullptr; ///< Contact listener. 8-bytes.
     
-    ContactFilter* m_contactFilter = &m_defaultFilter; ///< Contact filter. 8-bytes.
-    
-    FlagsType m_flags = e_stepComplete;
+    FlagsType m_flags = e_stepComplete; ///< Flags.
 
     /// Inverse delta-t from previous step.
     /// @details Used to compute time step ratio to support a variable time step.
@@ -716,28 +780,6 @@ private:
 ///   This is an example of how to use the World class.
 ///
 
-/// @brief World ray cast opcode enumeration.
-enum class World::RayCastOpcode
-{
-    /// @brief End the ray-cast search for fixtures.
-    /// @details Use this to stop searching for fixtures.
-    Terminate,
-    
-    /// @brief Ignore the current fixture.
-    /// @details Use this to continue searching for fixtures along the ray.
-    IgnoreFixture,
-    
-    /// @brief Clip the ray end to the current point.
-    /// @details Use this shorten the ray to the current point and to continue searching
-    ///   for fixtures now along the newly shortened ray.
-    ClipRay,
-    
-    /// @brief Reset the ray end back to the second point.
-    /// @details Use this to restore the ray to its full length and to continue searching
-    ///    for fixtures now along the restored full length ray.
-    ResetRay
-};
-
 inline SizedRange<World::Bodies::iterator> World::GetBodies() noexcept
 {
     return {m_bodies.begin(), m_bodies.end(), m_bodies.size()};
@@ -761,11 +803,6 @@ inline SizedRange<World::Joints::iterator> World::GetJoints() noexcept
 inline SizedRange<World::Contacts::const_iterator> World::GetContacts() const noexcept
 {
     return {m_contacts.begin(), m_contacts.end(), m_contacts.size()};
-}
-
-inline LinearAcceleration2D World::GetGravity() const noexcept
-{
-    return m_gravity;
 }
 
 inline bool World::IsLocked() const noexcept
@@ -837,29 +874,9 @@ inline Frequency World::GetInvDeltaTime() const noexcept
     return m_inv_dt0;
 }
 
-inline AABB World::GetFatAABB(proxy_size_type proxyId) const
+inline const DynamicTree& World::GetTree() const noexcept
 {
-    return m_tree.GetAABB(proxyId);
-}
-
-inline World::proxy_size_type World::GetProxyCount() const noexcept
-{
-    return m_tree.GetNodeCount();
-}
-
-inline World::proxy_size_type World::GetTreeHeight() const noexcept
-{
-    return m_tree.GetHeight();
-}
-
-inline World::proxy_size_type World::GetTreeBalance() const
-{
-    return m_tree.GetMaxBalance();
-}
-
-inline Real World::GetTreeQuality() const
-{
-    return m_tree.GetAreaRatio();
+    return m_tree;
 }
 
 inline void World::SetDestructionListener(DestructionListener* listener) noexcept
@@ -867,19 +884,9 @@ inline void World::SetDestructionListener(DestructionListener* listener) noexcep
     m_destructionListener = listener;
 }
 
-inline void World::SetContactFilter(ContactFilter* filter) noexcept
-{
-    m_contactFilter = filter;
-}
-
 inline void World::SetContactListener(ContactListener* listener) noexcept
 {
     m_contactListener = listener;
-}
-
-inline bool World::ShouldCollide(const Fixture *fixtureA, const Fixture *fixtureB)
-{
-    return (m_contactFilter == nullptr) || m_contactFilter->ShouldCollide(fixtureA, fixtureB);
 }
 
 inline bool World::IsIslanded(const Body* body) const noexcept
@@ -927,6 +934,23 @@ inline void World::UnsetIslanded(Joint* joint) noexcept
     JointAtty::UnsetIslanded(*joint);
 }
 
+inline void World::RegisterForProcessing(ProxyId pid) noexcept
+{
+    assert(pid != DynamicTree::GetInvalidSize());
+    m_proxies.push_back(pid);
+}
+
+inline RegStepStats& World::Update(RegStepStats& lhs, const World::IslandSolverResults& rhs) noexcept
+{
+    lhs.maxIncImpulse = std::max(lhs.maxIncImpulse, rhs.maxIncImpulse);
+    lhs.minSeparation = std::min(lhs.minSeparation, rhs.minSeparation);
+    lhs.islandsSolved += rhs.solved;
+    lhs.sumPosIters += rhs.positionIterations;
+    lhs.sumVelIters += rhs.velocityIterations;
+    lhs.bodiesSlept += rhs.bodiesSlept;
+    return lhs;
+}
+
 // Free functions.
 
 /// @brief Gets the body count in the given world.
@@ -969,9 +993,10 @@ ContactCounter GetTouchingCount(const World& world) noexcept;
 ///
 /// @note While body velocities are updated accordingly (per the sum of forces acting on them),
 ///   body positions (barring any collisions) are updated as if they had moved the entire time
-///   step at those resulting velocities. In other words, a body initially at p0 going v0 fast
-///   with a sum acceleration of a, after time t and barring any collisions, will have a new
-///   velocity (v1) of v0 + (a * t) and a new position (p1) of p0 + v1 * t.
+///   step at those resulting velocities. In other words, a body initially at <code>p0</code>
+///   going <code>v0</code> fast with a sum acceleration of <code>a</code>, after time
+///   <code>t</code> and barring any collisions, will have a new velocity (<code>v1</code>) of
+///   <code>v0 + (a * t)</code> and a new position (<code>p1</code>) of <code>p0 + v1 * t</code>.
 ///
 /// @warning Varying the time step may lead to non-physical behaviors.
 ///
@@ -1012,11 +1037,46 @@ BodyCounter GetAwakeCount(const World& world) noexcept;
 /// @relatedalso World
 BodyCounter Awaken(World& world) noexcept;
 
+/// @brief Sets the accelerations of all the world's bodies.
+/// @relatedalso World
+void SetAccelerations(World& world, std::function<Acceleration(const Body& b)> fn) noexcept;
+
+/// @brief Sets the accelerations of all the world's bodies to the given value.
+/// @relatedalso World
+void SetAccelerations(World& world, Acceleration acceleration) noexcept;
+
+/// @brief Sets the accelerations of all the world's bodies to the given value.
+/// @note This will leave the angular acceleration alone.
+/// @relatedalso World
+void SetAccelerations(World& world, LinearAcceleration2 acceleration) noexcept;
+
 /// @brief Clears forces.
 /// @details Manually clear the force buffer on all bodies.
 /// @relatedalso World
-void ClearForces(World& world) noexcept;
+inline void ClearForces(World& world) noexcept
+{
+    SetAccelerations(world, Acceleration{
+        LinearAcceleration2{0_mps2, 0_mps2}, 0 * RadianPerSquareSecond
+    });
+}
 
+/// @brief Creates a rectangular enclosure.
+/// @relatedalso World
+Body* CreateRectangularEnclosingBody(World& world, Length2 dimensions,
+                                     const ShapeConf& baseConf);
+
+/// @brief Creates a square enclosure.
+/// @relatedalso World
+inline Body* CreateSquareEnclosingBody(World& world, Length size, const ShapeConf& baseConf)
+{
+    return CreateRectangularEnclosingBody(world, Length2{size, size}, baseConf);
+}
+    
+/// @brief Finds body in given world that's closest to the given location.
+/// @relatedalso World
+Body* FindClosestBody(const World& world, Length2 location) noexcept;
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_WORLD_HPP

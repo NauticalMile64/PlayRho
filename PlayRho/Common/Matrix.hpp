@@ -23,7 +23,7 @@
 #define PLAYRHO_COMMON_MATRIX_HPP
 
 #include <PlayRho/Common/Vector.hpp>
-#include <PlayRho/Common/Vector2D.hpp>
+#include <PlayRho/Common/Vector2.hpp>
 #include <PlayRho/Common/Templates.hpp>
 #include <PlayRho/Common/Real.hpp>
 #include <PlayRho/Common/Units.hpp>
@@ -31,16 +31,16 @@
 namespace playrho {
     
     /// @brief Generic N by M matrix.
-    template <std::size_t N, std::size_t M, typename T>
-    using Matrix = Vector<N, Vector<M, T>>;
+    template <typename T, std::size_t N, std::size_t M>
+    using Matrix = Vector<Vector<T, M>, N>;
     
     /// @brief 2 by 2 matrix.
     template <typename T>
-    using Matrix22 = Matrix<2, 2, T>;
+    using Matrix22 = Matrix<T, 2, 2>;
     
     /// @brief 3 by 3 matrix.
     template <typename T>
-    using Matrix33 = Matrix<3, 3, T>;
+    using Matrix33 = Matrix<T, 3, 3>;
     
     /// @brief 2 by 2 matrix of Real elements.
     using Mat22 = Matrix22<Real>;
@@ -48,7 +48,7 @@ namespace playrho {
     /// @brief 2 by 2 matrix of Mass elements.
     using Mass22 = Matrix22<Mass>;
 
-    /// @brief 2 by 2 matrix of InvMass elements.
+    /// @brief 2 by 2 matrix of <code>InvMass</code> elements.
     using InvMass22 = Matrix22<InvMass>;
     
     /// @brief 3 by 3 matrix of Real elements.
@@ -56,14 +56,14 @@ namespace playrho {
     
     /// @brief Determines if the given value is valid.
     template <>
-    constexpr inline bool IsValid(const Mat22& value) noexcept
+    PLAYRHO_CONSTEXPR inline bool IsValid(const Mat22& value) noexcept
     {
         return IsValid(Get<0>(value)) && IsValid(Get<1>(value));
     }
     
-    /// @brief Gets an invalid value for a Mat22.
+    /// @brief Gets an invalid value for a <code>Mat22</code>.
     template <>
-    constexpr inline Mat22 GetInvalid() noexcept
+    PLAYRHO_CONSTEXPR inline Mat22 GetInvalid() noexcept
     {
         return Mat22{GetInvalid<Vec2>(), GetInvalid<Vec2>()};
     }

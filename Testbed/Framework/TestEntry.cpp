@@ -25,6 +25,7 @@
 #include "../Tests/BasicSliderCrank.hpp"
 #include "../Tests/BodyTypes.hpp"
 #include "../Tests/Breakable.hpp"
+#include "../Tests/BreakableTwo.hpp"
 #include "../Tests/Bridge.hpp"
 #include "../Tests/BulletTest.hpp"
 #include "../Tests/Cantilever.hpp"
@@ -41,12 +42,13 @@
 #include "../Tests/DistanceTest.hpp"
 #include "../Tests/Dominos.hpp"
 #include "../Tests/DumpShell.hpp"
-#include "../Tests/DynamicTreeTest.hpp"
 #include "../Tests/EdgeShapes.hpp"
 #include "../Tests/EdgeTest.hpp"
+#include "../Tests/FifteenPuzzle.hpp"
 #include "../Tests/Gears.hpp"
 #include "../Tests/HeavyOnLight.hpp"
 #include "../Tests/HeavyOnLightTwo.hpp"
+#include "../Tests/JointsTest.hpp"
 #include "../Tests/Mobile.hpp"
 #include "../Tests/MobileBalanced.hpp"
 #include "../Tests/MotorJoint.hpp"
@@ -76,9 +78,11 @@
 #include "../Tests/HalfPipe.hpp"
 #include "../Tests/Orbiter.hpp"
 #include "../Tests/NewtonsCradle.hpp"
+#include "../Tests/SolarSystem.hpp"
 #include "../Tests/iforce2d_TopdownCar.hpp"
+#include "../Tests/iforce2d_Trajectories.hpp"
 
-namespace playrho {
+namespace testbed {
 
 /// @brief Internal test entries array
 ///
@@ -95,7 +99,7 @@ static const TestEntry testEntries[] =
     {"Basic Slider Crank", MakeUniqueTest<BasicSliderCrank>},
     {"Slider Crank", MakeUniqueTest<SliderCrank>},
     {"Sphere Stack", MakeUniqueTest<SphereStack>},
-    {"Convex Hull", MakeUniqueTest<ConvexHull>},
+    {"Convex Hull", MakeUniqueTest<ConvexHullTest>},
     {"Tumbler", MakeUniqueTest<Tumbler>},
     {"Ray-Cast", MakeUniqueTest<class RayCast>},
     {"Dump Shell", MakeUniqueTest<DumpShell>},
@@ -111,6 +115,8 @@ static const TestEntry testEntries[] =
     {"Varying Restitution", MakeUniqueTest<VaryingRestitution>},
     {"Cantilever", MakeUniqueTest<Cantilever>},
     {"Character Collision", MakeUniqueTest<CharacterCollision>},
+    {"Fifteen Puzzle", MakeUniqueTest<FifteenPuzzle>},
+    {"Joints Overview", MakeUniqueTest<JointsTest>},
     {"Edge Test", MakeUniqueTest<EdgeTest>},
     {"Body Types", MakeUniqueTest<BodyTypes>},
     {"Shape Editing", MakeUniqueTest<ShapeEditing>},
@@ -130,13 +136,13 @@ static const TestEntry testEntries[] =
     {"PolyCollision", MakeUniqueTest<PolyCollision>},
     {"Bridge", MakeUniqueTest<Bridge>},
     {"Breakable", MakeUniqueTest<Breakable>},
+    {"Breakable Two", MakeUniqueTest<BreakableTwo>},
     {"Chain", MakeUniqueTest<Chain>},
     {"Collision Filtering", MakeUniqueTest<CollisionFiltering>},
     {"Collision Processing", MakeUniqueTest<CollisionProcessing>},
     {"Compound Shapes", MakeUniqueTest<CompoundShapes>},
     {"Distance Test", MakeUniqueTest<DistanceTest>},
     {"Dominos", MakeUniqueTest<Dominos>},
-    {"Dynamic Tree", MakeUniqueTest<DynamicTreeTest>},
     {"Sensor Test", MakeUniqueTest<SensorTest>},
     {"Spinning Circles", MakeUniqueTest<SpinningCircle>},
     {"Half Pipe", MakeUniqueTest<HalfPipe>},
@@ -145,6 +151,8 @@ static const TestEntry testEntries[] =
     {"Add Pair Stress Test", MakeUniqueTest<AddPair>},
     {"Newton's Cradle", MakeUniqueTest<NewtonsCradle>},
     {"Top-down Car", MakeUniqueTest<iforce2d_TopdownCar>},
+    {"Trajectories", MakeUniqueTest<iforce2d_Trajectories>},
+    {"Solar System", MakeUniqueTest<SolarSystem>},
 };
 
 static const std::size_t numTestEntries = sizeof(testEntries) / sizeof(TestEntry);
@@ -159,4 +167,4 @@ Span<const TestEntry> GetTestEntries()
     return Span<const TestEntry>(testEntries, numTestEntries);
 }
 
-} // namespace playrho
+} // namespace testbed

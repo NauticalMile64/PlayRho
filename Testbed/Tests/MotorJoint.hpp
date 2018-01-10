@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 /// This test shows how to use a motor joint. A motor joint
 /// can be used to animate a dynamic body. With finite motor forces
@@ -30,69 +30,58 @@ namespace playrho {
 class MotorJointTest : public Test
 {
 public:
-    MotorJointTest()
+    static Test::Conf GetTestConf()
     {
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-20.0f, 0.0f) * Meter, Vec2(20.0f, 0.0f) * Meter));
+        auto conf = Test::Conf{};
+        conf.description =
+            "A motor joint forces two bodies to have a given linear and/or angular"
+            " offset(s) from each other.";
+        return conf;
+    }
+    
+    MotorJointTest(): Test(GetTestConf())
+    {
+        const auto ground = m_world.CreateBody();
+        ground->CreateFixture(Shape{EdgeShapeConf{Vec2(-20.0f, 0.0f) * 1_m, Vec2(20.0f, 0.0f) * 1_m}});
 
         // Define motorized body
-        BodyDef bd;
-        bd.type = BodyType::Dynamic;
-        bd.position = Vec2(0.0f, 8.0f) * Meter;
-        const auto body = m_world->CreateBody(bd);
-
-        auto conf = PolygonShape::Conf{};
-        conf.friction = 0.6f;
-        conf.density = Real{2} * KilogramPerSquareMeter;
-        body->CreateFixture(std::make_shared<PolygonShape>(Real{2.0f} * Meter, Real{0.5f} * Meter, conf));
-
-        auto mjd = MotorJointDef{ground, body};
-        mjd.maxForce = Real{1000.0f} * Newton;
-        mjd.maxTorque = Real{1000.0f} * NewtonMeter;
-        m_joint = (MotorJoint*)m_world->CreateJoint(mjd);
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_S:
+        const auto body = m_world.CreateBody(BodyConf{}
+                                             .UseType(BodyType::Dynamic)
+                                             .UseLocation(Vec2(0.0f, 8.0f) * 1_m)
+                                             .UseLinearAcceleration(m_gravity));
+        body->CreateFixture(PolygonShapeConf{}.SetAsBox(2_m, 0.5_m).UseFriction(Real(0.6f)).UseDensity(2_kgpm2));
+        auto mjd = MotorJointConf{ground, body};
+        mjd.maxForce = 1000_N;
+        mjd.maxTorque = 1000_Nm;
+        m_joint = (MotorJoint*)m_world.CreateJoint(mjd);
+        
+        RegisterForKey(GLFW_KEY_S, GLFW_PRESS, 0, "Pause Motor", [&](KeyActionMods) {
             m_go = !m_go;
-            break;
-        default:
-            break;
-        }
+        });
     }
 
     void PreStep(const Settings& settings, Drawer& drawer) override
     {
+        m_status = m_go? "Motor going.": "Motor paused.";
+
         if (m_go && settings.dt > 0)
         {
             m_time += settings.dt;
         }
 
-        const auto linearOffset = Vec2{
-            Real{6} * std::sin(Real{2} * m_time),
-            Real{8} + Real{4} * std::sin(Real{1} * m_time)
-        } * Meter;
+        const auto linearOffset = Vec2{6 * sin(2 * m_time), 8 + 4 * sin(m_time)} * 1_m;
 
         m_joint->SetLinearOffset(linearOffset);
-        m_joint->SetAngularOffset(Real{4} * Radian * m_time);
+        m_joint->SetAngularOffset(4_rad * m_time);
 
         drawer.DrawPoint(linearOffset, 4.0f, Color(0.9f, 0.9f, 0.9f));
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
-    {
-        drawer.DrawString(5, m_textLine, "Keys: (s) pause");
-        m_textLine += 15;
-    }
-
     MotorJoint* m_joint;
     Real m_time = 0;
-    bool m_go = false;
+    bool m_go = true;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif /* PLAYRHO_TESTS_MOTOR_JOINT_HPP */

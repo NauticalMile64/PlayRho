@@ -18,30 +18,38 @@
 
 #include "gtest/gtest.h"
 #include <PlayRho/Collision/Shapes/Shape.hpp>
-#include <PlayRho/Collision/Shapes/DiskShape.hpp>
-#include <PlayRho/Collision/Shapes/PolygonShape.hpp>
+#include <PlayRho/Collision/Shapes/EdgeShapeConf.hpp>
+#include <PlayRho/Collision/Shapes/DiskShapeConf.hpp>
+#include <PlayRho/Collision/Shapes/PolygonShapeConf.hpp>
 #include <PlayRho/Collision/Distance.hpp>
 #include <PlayRho/Collision/Manifold.hpp>
 #include <chrono>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(Shape, ByteSize)
 {
     switch (sizeof(Real))
     {
-        case  4: EXPECT_EQ(sizeof(Shape), std::size_t(24)); break;
-        case  8: EXPECT_EQ(sizeof(Shape), std::size_t(40)); break;
-        case 16: EXPECT_EQ(sizeof(Shape), std::size_t(80)); break;
+        case  4:
+#if defined(_WIN32) && !defined(_WIN64)
+            EXPECT_EQ(sizeof(Shape), std::size_t(8));
+#else
+            EXPECT_EQ(sizeof(Shape), std::size_t(16));
+#endif
+            break;
+        case  8: EXPECT_EQ(sizeof(Shape), std::size_t(16)); break;
+        case 16: EXPECT_EQ(sizeof(Shape), std::size_t(16)); break;
         default: FAIL(); break;
     }
 }
 
 TEST(Shape, TestOverlapSlowerThanCollideShapesForCircles)
 {
-    const auto shape = DiskShape{Real{2} * Meter};
-    const auto xfm = Transformation{Length2D{}, UnitVec2::GetRight()};
-    const auto child = shape.GetChild(0);
+    const auto shape = DiskShapeConf{2_m};
+    const auto xfm = Transformation{Length2{}, UnitVec::GetRight()};
+    const auto child = GetChild(shape, 0);
 
     const auto maxloops = 1000000u;
 
@@ -84,12 +92,11 @@ TEST(Shape, TestOverlapSlowerThanCollideShapesForCircles)
     }
 }
 
-
 TEST(Shape, TestOverlapFasterThanCollideShapesForPolygons)
 {
-    const auto shape = PolygonShape{Real{2} * Meter, Real{2} * Meter};
-    const auto xfm = Transformation{Length2D{}, UnitVec2::GetRight()};
-    const auto child = shape.GetChild(0);
+    const auto shape = PolygonShapeConf{2_m, 2_m};
+    const auto xfm = Transformation{Length2{}, UnitVec::GetRight()};
+    const auto child = GetChild(shape, 0);
 
     const auto maxloops = 1000000u;
     
@@ -130,4 +137,26 @@ TEST(Shape, TestOverlapFasterThanCollideShapesForPolygons)
         
         EXPECT_LT(elapsed_test_overlap.count(), elapsed_collide_shapes.count());
     }
+}
+
+TEST(Shape, Equality)
+{
+    EXPECT_TRUE(Shape(EdgeShapeConf()) == Shape(EdgeShapeConf()));
+
+    const auto shapeA = Shape(DiskShapeConf{}.UseRadius(100_m));
+    const auto shapeB = Shape(DiskShapeConf{}.UseRadius(100_m));
+    EXPECT_TRUE(shapeA == shapeB);
+    
+    EXPECT_FALSE(Shape(DiskShapeConf()) == Shape(EdgeShapeConf()));
+}
+
+TEST(Shape, Inequality)
+{
+    EXPECT_FALSE(Shape(EdgeShapeConf()) != Shape(EdgeShapeConf()));
+    
+    const auto shapeA = Shape(DiskShapeConf{}.UseRadius(100_m));
+    const auto shapeB = Shape(DiskShapeConf{}.UseRadius(100_m));
+    EXPECT_FALSE(shapeA != shapeB);
+
+    EXPECT_TRUE(Shape(DiskShapeConf()) != Shape(EdgeShapeConf()));
 }

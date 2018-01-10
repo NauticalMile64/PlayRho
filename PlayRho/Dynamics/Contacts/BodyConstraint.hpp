@@ -25,10 +25,11 @@
 #include <PlayRho/Dynamics/Body.hpp>
 
 namespace playrho {
-    
+namespace d2 {
+
     /// @brief Body Constraint.
     /// @details Body data related to constraint processing.
-    /// @note Only position and velocity is independently changable after construction.
+    /// @note Only position and velocity is independently changeable after construction.
     /// @note This data structure is 40-bytes large (with 4-byte Real on at least one
     ///   64-bit platform).
     class BodyConstraint
@@ -42,8 +43,9 @@ namespace playrho {
         BodyConstraint() = default;
         
         /// @brief Initializing constructor.
-        constexpr BodyConstraint(InvMass invMass, InvRotInertia invRotI, Length2D localCenter,
-                                 Position position, Velocity velocity) noexcept:
+        PLAYRHO_CONSTEXPR inline
+        BodyConstraint(InvMass invMass, InvRotInertia invRotI, Length2 localCenter,
+                         Position position, Velocity velocity) noexcept:
             m_position{position},
             m_velocity{velocity},
             m_localCenter{localCenter},
@@ -65,8 +67,8 @@ namespace playrho {
         /// @return Value >= 0.
         InvRotInertia GetInvRotInertia() const noexcept;
         
-        /// @brief Gets the local center of the body.
-        Length2D GetLocalCenter() const noexcept;
+        /// @brief Gets the location of the body's center of mass in local coordinates.
+        Length2 GetLocalCenter() const noexcept;
         
         /// @brief Gets the position of the body.
         Position GetPosition() const noexcept;
@@ -87,7 +89,7 @@ namespace playrho {
     private:
         Position m_position; ///< Body position data.
         Velocity m_velocity; ///< Body velocity data.
-        Length2D m_localCenter; ///< Local center of the associated body's sweep.
+        Length2 m_localCenter; ///< Local center of the associated body's sweep.
         InvMass m_invMass; ///< Inverse mass of associated body (a non-negative value).
 
         /// Inverse rotational inertia about the center of mass of the associated body
@@ -105,7 +107,7 @@ namespace playrho {
         return m_invRotI;
     }
     
-    inline Length2D BodyConstraint::GetLocalCenter() const noexcept
+    inline Length2 BodyConstraint::GetLocalCenter() const noexcept
     {
         return m_localCenter;
     }
@@ -147,6 +149,7 @@ namespace playrho {
         };
     }
 
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_CONTACTS_BODYCONSTRAINT_HPP

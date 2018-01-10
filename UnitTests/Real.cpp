@@ -75,7 +75,7 @@ TEST(Real, BiggerValsIdenticallyInaccurate)
     auto val = Real(1);
     for (auto i = 0; i < 16; ++i)
     {
-        const auto next = std::nextafter(val, std::numeric_limits<decltype(val)>::max());
+        const auto next = nextafter(val, std::numeric_limits<decltype(val)>::max());
         const auto delta = static_cast<float>(next - val);
         ASSERT_EQ(val + (delta / 2.0f), val);
 #if 0
@@ -101,7 +101,7 @@ TEST(Real, beta0)
 {
     Real zero{0};
     Real one{1};
-    const auto beta = std::nextafter(zero, one);
+    const auto beta = nextafter(zero, one);
     const auto coefficient0 = 1 - beta;
     const auto coefficient1 = beta;
     EXPECT_EQ(coefficient0 + coefficient1, one);
@@ -111,7 +111,7 @@ TEST(Real, beta1)
 {
     Real zero{0};
     Real one{1};
-    const auto beta = std::nextafter(one, zero);
+    const auto beta = nextafter(one, zero);
     const auto coefficient0 = 1 - beta;
     const auto coefficient1 = beta;
     EXPECT_EQ(coefficient0 + coefficient1, one);

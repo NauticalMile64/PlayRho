@@ -21,14 +21,16 @@
 #define PLAYRHO_DYNAMICS_WORLDCALLBACKS_HPP
 
 #include <PlayRho/Common/Settings.hpp>
+#include <algorithm>
 
 namespace playrho {
+namespace d2 {
 
-class UnitVec2;
 class Fixture;
 class Joint;
 class Contact;
 class Manifold;
+class ContactImpulsesList;
 
 /// Joints and fixtures are destroyed when their associated
 /// body is destroyed. Implement this listener so that you
@@ -45,59 +47,6 @@ public:
     /// Called when any fixture is about to be destroyed due
     /// to the destruction of its parent body.
     virtual void SayGoodbye(Fixture& fixture) = 0;
-};
-
-/// Implement this class to provide collision filtering. In other words, you can implement
-/// this class if you want finer control over contact creation.
-/// @note This data structure is 8-bytes large (on at least one 64-bit platform).
-class ContactFilter
-{
-public:
-    virtual ~ContactFilter() = default;
-
-    /// @brief Whether contact calculations should be performed between these two shapes.
-    /// @warning for performance reasons this is only called when the AABBs begin to overlap.
-    /// @note If you implement your own collision filter you may want to build from the
-    ///   implementation of this method.
-    /// @return <code>true</code> if contact calculations should be performed between these
-    ///   two shapes; <code>false</code> otherwise.
-    virtual bool ShouldCollide(const Fixture* fixtureA, const Fixture* fixtureB);
-};
-
-/// Contact Impulse.
-/// @details
-/// Used for reporting. Impulses are used instead of forces because
-/// sub-step forces may approach infinity for rigid body collisions. These
-/// match up one-to-one with the contact points in Manifold.
-class ContactImpulsesList
-{
-public:
-    
-    /// @brief Counter type.
-    using Counter = std::remove_const<decltype(MaxManifoldPoints)>::type;
-
-    /// @brief Gets the count.
-    Counter GetCount() const noexcept { return count; }
-
-    /// @brief Gets the given indexed entry normal.
-    Momentum GetEntryNormal(Counter index) const noexcept { return normalImpulses[index]; }
-
-    /// @brief Gets the given indexed entry tangent.
-    Momentum GetEntryTanget(Counter index) const noexcept { return tangentImpulses[index]; }
-    
-    /// @brief Adds an entry of the given data.
-    void AddEntry(Momentum normal, Momentum tangent) noexcept
-    {
-        assert(count < MaxManifoldPoints);
-        normalImpulses[count] = normal;
-        tangentImpulses[count] = tangent;
-        ++count;
-    }
-
-private:
-    Momentum normalImpulses[MaxManifoldPoints];
-    Momentum tangentImpulses[MaxManifoldPoints];
-    Counter count = 0;
 };
 
 /// @brief A pure-virtual interface for "listeners" for contacts.
@@ -128,12 +77,12 @@ public:
     /// @brief End contact callback.
     ///
     /// @details Called when the contact's "touching" property becomes false, or just before
-    ///   the contactis destroyed.
+    ///   the contact is destroyed.
     ///
-    /// @note This contact persists until the broadphase determines there's no overlap anymore
+    /// @note This contact persists until the broad phase determines there's no overlap anymore
     ///   between the two fixtures.
-    /// @note If the contact's "touching" property becomes true again, BeginContact will be called
-    ///   again for this contact.
+    /// @note If the contact's "touching" property becomes true again, <code>BeginContact</code>
+    ///   will be called again for this contact.
     ///
     /// @param contact Contact that's about to be destroyed or whose "touching" property has become
     ///   false.
@@ -152,9 +101,9 @@ public:
     /// @note This is called only for awake bodies.
     /// @note This is called even when the number of contact points is zero.
     /// @note This is not called for sensors.
-    /// @note If you set the number of contact points to zero, you will not
-    ///   get an EndContact callback. However, you may get a BeginContact callback
-    ///   the next step.
+    /// @note If you set the number of contact points to zero, you will not get an
+    ///   <code>EndContact</code> callback. However, you may get a <code>BeginContact</code>
+    ///   callback the next step.
     ///
     virtual void PreSolve(Contact& contact, const Manifold& oldManifold) = 0;
 
@@ -172,6 +121,7 @@ public:
                            iteration_type solved) = 0;
 };
 
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_WORLDCALLBACKS_HPP

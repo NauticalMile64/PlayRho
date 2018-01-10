@@ -23,36 +23,66 @@
 #include <PlayRho/PlayRho.hpp>
 #include <PlayRho/Collision/RayCastOutput.hpp>
 #include <PlayRho/Collision/ShapeSeparation.hpp>
-#include <PlayRho/Collision/Shapes/ShapeVisitor.hpp>
 #include <PlayRho/Dynamics/Contacts/PositionSolverManifold.hpp>
+#include <PlayRho/Dynamics/Joints/FunctionalJointVisitor.hpp>
+#include <PlayRho/Dynamics/ContactImpulsesList.hpp>
 #include <PlayRho/Common/Range.hpp>
 #include "Drawer.hpp"
+#include "UiState.hpp"
 #include <chrono>
 #include <vector>
 #include <iterator>
+#include <functional>
+#include <GLFW/glfw3.h>
+#include <deque>
+#include <algorithm>
+#include <limits>
+#include <set>
+#include <utility>
 
-namespace playrho {
+/// @brief Adds the entire playrho namespace into any code that includes this file.
+/// @warning Using a namespace like this within a header file is ill advised. It's done
+///   here only to make it easier to use PlayRho code in subclasses of testbed::Test.
+using namespace playrho;
+using namespace playrho::d2;
+
+namespace testbed {
 
 /// Test settings. Some can be controlled in the GUI.
 struct Settings
 {
-    float maxTranslation = static_cast<float>(Real{DefaultMaxTranslation / Meter});
+    float maxTranslation = static_cast<float>(Real{
+        DefaultMaxTranslation / Meter});
     float maxRotation = 90; // in degrees
-    float hz = 60;
-    float dt = 1 / hz;
-    float maxLinearCorrection = static_cast<float>(Real{DefaultMaxLinearCorrection / Meter}); // in meters
-    float maxAngularCorrection = static_cast<float>(Real{DefaultMaxAngularCorrection / Degree}); // in degrees
+
+    float dt = 1.0f / 60; // in seconds.
+    float minDt = 1.0f / 120;
+    float maxDt = 1.0f / 5;
+
+    float minStillTimeToSleep = static_cast<float>(Real{
+        DefaultMinStillTimeToSleep / Second});
+    float maxLinearCorrection = static_cast<float>(Real{
+        DefaultMaxLinearCorrection / Meter}); // in meters
+    float maxAngularCorrection = static_cast<float>(Real{
+        DefaultMaxAngularCorrection / Degree}); // in degrees
 
     /// @brief Linear slop.
     /// @note Explicily coded to default to the same value as used in Erin's Box2D 2.3.2
-    float linearSlop = static_cast<float>(Real{DefaultLinearSlop / Meter});
+    float linearSlop = static_cast<float>(Real{
+        DefaultLinearSlop / Meter});
     
     /// @brief Angular slop.
     /// @note Explicily coded to default to the same value as used in Erin's Box2D 2.3.2
-    float angularSlop = static_cast<float>(Real{DefaultAngularSlop / Radian});
+    float angularSlop = static_cast<float>(Real{
+        DefaultAngularSlop / Radian});
     
-    float regMinSeparation = static_cast<float>(Real{DefaultLinearSlop / Meter}) * -3.0f;
-    float toiMinSeparation = static_cast<float>(Real{DefaultLinearSlop / Meter}) * -1.5f;
+    float regMinSeparation = static_cast<float>(Real{
+        DefaultLinearSlop / Meter}) * -3.0f;
+    float toiMinSeparation = static_cast<float>(Real{
+        DefaultLinearSlop / Meter}) * -1.5f;
+
+    float cameraZoom = 1.0f;
+
     int regPosResRate = 20; // in percent
     int toiPosResRate = 75; // in percent
     int regVelocityIterations = 8;
@@ -62,6 +92,7 @@ struct Settings
     int maxSubSteps = DefaultMaxSubSteps;
     bool drawShapes = true;
     bool drawSkins = false;
+    bool drawLabels = false;
     bool drawJoints = true;
     bool drawAABBs = false;
     bool drawContactPoints = false;
@@ -69,7 +100,6 @@ struct Settings
     bool drawContactImpulse = false;
     bool drawFrictionImpulse = false;
     bool drawCOMs = false;
-    bool drawStats = false;
     bool enableWarmStarting = true;
     bool enableContinuous = true;
     bool enableSubStepping = false;
@@ -81,40 +111,74 @@ struct Settings
 class Test : public ContactListener
 {
 public:
-    enum Key {
-        Key_Space, Key_Comma, Key_Minus, Key_Period, Key_Equal,
-        Key_0, Key_1, Key_2, Key_3, Key_4, Key_5, Key_6, Key_7, Key_8, Key_9,
-        Key_A, Key_B, Key_C, Key_D, Key_E, Key_F, Key_G, Key_H, Key_I, Key_J,
-        Key_K, Key_L, Key_M, Key_N, Key_O, Key_P, Key_Q, Key_R, Key_S, Key_T,
-        Key_U, Key_V, Key_W, Key_X, Key_Y, Key_Z,
-        Key_Backspace, Key_Subtract, Key_Add,
-        Key_Unknown
+    using KeyHandlerID = std::size_t;
+    
+    using KeyID = int;
+    
+    using KeyMods = int;
+    
+    using KeyAction = int;
+    
+    struct KeyActionMods
+    {
+        KeyID key;
+        KeyAction action;
+        KeyMods mods;
+    };
+
+    using KeyHandler = std::function<void(KeyActionMods keyActMods)>;
+
+    using NeededSettings = std::uint32_t;
+    enum NeededSettingsField: std::uint8_t {
+        NeedDrawSkinsField,
+        NeedDrawLabelsField,
+        NeedLinearSlopField,
+        NeedCameraZoom,
+        NeedMaxTranslation,
+        NeedDeltaTime,
     };
     
-    using Fixtures = std::vector<Fixture*>;
-    
-    Test(const WorldDef& config = WorldDef{}.UseGravity(LinearAcceleration2D{
-        Real(0.0f) * MeterPerSquareSecond, -Real(10.0f) * MeterPerSquareSecond
-    }).UseMinVertexRadius(Real(0.0001f) * Real{2} * Meter));
+    using KeyHandlers = std::vector<std::pair<std::string, KeyHandler>>;
+    using HandledKeys = std::vector<std::pair<KeyActionMods, KeyHandlerID>>;
+
+    using FixtureSet = std::set<Fixture*>;
+    using BodySet = std::set<Body*>;
+
     virtual ~Test();
 
-    void DrawTitle(Drawer& drawer, const char *string);
-    void Step(const Settings& settings, Drawer& drawer);
-    void DrawStats(Drawer& drawer, const StepConf& stepConf);
-    void DrawStats(Drawer& drawer, const Fixture& fixture);
-    void DrawContactInfo(const Settings& settings, Drawer& drawer);
-    void ShiftMouseDown(const Length2D& p);
-    void MouseMove(const Length2D& p);
-    void LaunchBomb();
-    void LaunchBomb(const Length2D& position, const LinearVelocity2D velocity);
-    void SpawnBomb(const Length2D& worldPt);
-    void CompleteBombSpawn(const Length2D& p);
-    void ShiftOrigin(const Length2D& newOrigin);
+    /// @brief Steps this test's world forward and visualizes what's going on.
+    /// @note This method calls the PreStep and PostStep methods which give
+    ///   sub-classes a way to augment some of what this operation does.
+    /// @note This uses Non-Virtual Interface idiom/pattern related to the
+    ///   Template Method pattern.
+    /// @sa https://en.wikipedia.org/wiki/Non-virtual_interface_pattern
+    /// @sa https://en.wikipedia.org/wiki/Template_method_pattern
+    void Step(const Settings& settings, Drawer& drawer, UiState& ui);
     
-    virtual void KeyboardDown(Key key) { NOT_USED(key); }
-    virtual void KeyboardUp(Key key) { NOT_USED(key); }
-    virtual void MouseDown(const Length2D& p);
-    virtual void MouseUp(const Length2D& p);
+    void ShiftMouseDown(const Length2& p);
+    void MouseMove(const Length2& p);
+    void LaunchBomb();
+    void LaunchBomb(const Length2& at, const LinearVelocity2 velocity);
+    void SpawnBomb(const Length2& worldPt);
+    void CompleteBombSpawn(const Length2& p);
+    void ShiftOrigin(const Length2& newOrigin);
+    
+    void KeyboardHandler(KeyID key, KeyAction action, KeyMods mods);
+    
+    const std::string& GetKeyHandlerInfo(KeyHandlerID id) const
+    {
+        return std::get<0>(m_keyHandlers[id]);
+    }
+    
+    SizedRange<HandledKeys::const_iterator> GetHandledKeys() const
+    {
+        return SizedRange<HandledKeys::const_iterator>(std::cbegin(m_handledKeys),
+                                                       std::cend(m_handledKeys),
+                                                       m_handledKeys.size());
+    }
+
+    void MouseDown(const Length2& p);
+    void MouseUp(const Length2& p);
     
     // Let derived tests know that a joint was destroyed.
     virtual void JointDestroyed(Joint* joint) { NOT_USED(joint); }
@@ -126,30 +190,66 @@ public:
     virtual void PostSolve(Contact&, const ContactImpulsesList&,
                            ContactListener::iteration_type) override { }
 
-    static bool Contains(const Fixtures& fixtures, const Fixture* f) noexcept;
+    static bool Contains(const FixtureSet& fixtures, const Fixture* f) noexcept;
+    
+    const std::string& GetDescription() const noexcept { return m_description; }
+    NeededSettings GetNeededSettings() const noexcept { return m_neededSettings; }
+    const Settings& GetSettings() const noexcept { return m_settings; }
+    const std::string& GetCredits() const noexcept { return m_credits; }
+    const std::string& GetSeeAlso() const noexcept { return m_seeAlso; }
+    const std::string& GetStatus() const noexcept { return m_status; }
 
-    Fixtures GetSelectedFixtures() const noexcept { return m_selectedFixtures; }
+    FixtureSet GetSelectedFixtures() const noexcept { return m_selectedFixtures; }
+    BodySet GetSelectedBodies() const noexcept { return m_selectedBodies; }
 
-    void SetSelectedFixtures(Fixtures value) noexcept
-    {
-        m_selectedFixtures = value;
-    }
+    World m_world;
 
+    static const LinearAcceleration2 Gravity;
+    
 protected:
     
+    EdgeShapeConf GetGroundEdgeConf() const noexcept
+    {
+        return EdgeShapeConf{}.Set(Vec2(-40, 0) * Meter,
+                                            Vec2( 40, 0) * Meter);
+    }
+
+    struct Conf
+    {
+        /// @brief World definition/configuration data.
+        /// @note Explicitly uses -10 for gravity here to behave more like
+        ///   Erin Catto's Box Testbed (which uses -10 for Earthly gravity).
+        WorldConf worldConf = WorldConf{}.UseMinVertexRadius(0.0002f * Meter);
+
+        Settings settings;
+        
+        NeededSettings neededSettings = 0u;
+        
+        std::string description;
+        std::string seeAlso;
+        std::string credits;
+    };
+
+    static Conf GetDefaultConf()
+    {
+        return Conf{};
+    }
+
+    Test(Conf config = GetDefaultConf());
+
     struct ContactPoint
     {
         Fixture* fixtureA;
         Fixture* fixtureB;
-        UnitVec2 normal;
-        Length2D position;
+        UnitVec normal;
+        Length2 position;
         PointState state;
         Momentum normalImpulse;
         Momentum tangentImpulse;
         Length separation;
     };
     
-    static inline bool HasFixture(const ContactPoint& cp, const Fixtures& fixtures) noexcept
+    static inline bool HasFixture(const ContactPoint& cp, const FixtureSet& fixtures) noexcept
     {
         for (auto fixture: fixtures)
         {
@@ -160,12 +260,20 @@ protected:
         }
         return false;
     }
-
+    
+    void SetSelectedFixtures(FixtureSet value) noexcept;
+    
+    void ClearSelectedFixtures()
+    {
+        m_selectedFixtures.clear();
+        m_selectedBodies.clear();
+    }
+    
     using ContactPoints = std::vector<ContactPoint>;
 
     // This is called when a joint in the world is implicitly destroyed
     // because an attached body is destroyed. This gives us a chance to
-    // nullify the mouse joint.
+    // nullify the target joint.
     class DestructionListenerImpl : public DestructionListener
     {
     public:
@@ -177,19 +285,15 @@ protected:
     
     using PointCount = int;
     using TextLinePos = int;
-    static constexpr auto k_maxContactPoints = PointCount{2048};
-    static constexpr auto DRAW_STRING_NEW_LINE = TextLinePos{16};
+    static constexpr const auto k_maxContactPoints = PointCount{2048};
+    static constexpr const auto DRAW_STRING_NEW_LINE = TextLinePos{16};
 
-    virtual void PreStep(const Settings& settings, Drawer& drawer)
+    virtual void PreStep(const Settings&, Drawer&)
     {
-        NOT_USED(settings);
-        NOT_USED(drawer);
     }
 
-    virtual void PostStep(const Settings& settings, Drawer& drawer)
+    virtual void PostStep(const Settings&, Drawer&)
     {
-        NOT_USED(settings);
-        NOT_USED(drawer);        
     }
 
     void ResetWorld(const World& saved);
@@ -204,28 +308,63 @@ protected:
     }
 
     const Body* GetBomb() const noexcept { return m_bomb; }
+    
     void SetBomb(Body* body) noexcept { m_bomb = body; }
-    void SetGroundBody(Body* body) noexcept { m_groundBody = body; }
     
-    World* const m_world;
+    Length2 GetMouseWorld() const noexcept { return m_mouseWorld; }
+
+    void SetMouseWorld(Length2 value) noexcept { m_mouseWorld = value; }
+    
+    KeyHandlerID RegisterKeyHandler(const std::string& info, KeyHandler handler)
+    {
+        const auto index = m_keyHandlers.size();
+        m_keyHandlers.push_back(std::make_pair(info, handler));
+        return index;
+    }
+
+    void RegisterForKey(KeyID key, KeyAction action, KeyMods mods, KeyHandlerID id);
+
+    void RegisterForKey(KeyID key, KeyAction action, KeyMods mods,
+                        const std::string& info, KeyHandler handler)
+    {
+        RegisterForKey(key, action, mods, RegisterKeyHandler(info, handler));
+    }
+
+    std::string m_status;
     TextLinePos m_textLine = TextLinePos{30};
-    
+    AreaDensity m_bombDensity = 20_kgpm2;
+    Length m_bombRadius = 0.3f * Meter;
+    LinearAcceleration2 m_gravity = Gravity;
+
 private:
-    Body* m_groundBody;
-    Fixtures m_selectedFixtures;
-    AABB m_worldAABB;
+    void DrawStats(const StepConf& stepConf, UiState& ui);
+    void DrawContactInfo(const Settings& settings, Drawer& drawer);
+    bool DrawWorld(Drawer& drawer, const World& world, const Settings& settings,
+                   const FixtureSet& selected);
+
+    const Settings m_settings;
+    const NeededSettings m_neededSettings;
+    const std::string m_description;
+    const std::string m_credits;
+    const std::string m_seeAlso; ///< Reference - like a URL - which user may copy into copy/paste buffer.
+
+    FixtureSet m_selectedFixtures;
+    BodySet m_selectedBodies;
+    AABB m_maxAABB;
     ContactPoints m_points;
     DestructionListenerImpl m_destructionListener;
     Body* m_bomb = nullptr;
-    MouseJoint* m_mouseJoint = nullptr;
-    Length2D m_bombSpawnPoint;
+    TargetJoint* m_targetJoint = nullptr;
+    Length2 m_bombSpawnPoint;
     bool m_bombSpawning = false;
-    Length2D m_mouseWorld;
+    Length2 m_mouseWorld = Length2{};
+    Time m_lastDeltaTime = 0 * Second;
     double m_sumDeltaTime = 0.0;
     int m_stepCount = 0;
     StepStats m_stepStats;
-    std::size_t m_numContacts = 0;
-    std::size_t m_maxContacts = 0;
+    ContactCounter m_numContacts = 0;
+    ContactCounter m_maxContacts = 0;
+    ContactCounter m_maxTouching = 0;
     std::uint64_t m_sumContactsUpdatedPre = 0;
     std::uint64_t m_sumContactsSkippedPre = 0;
     std::uint64_t m_sumContactsIgnoredPre = 0;
@@ -243,10 +382,12 @@ private:
     std::uint64_t m_sumToiContactsSkippedTouching = 0;
     std::uint64_t m_sumRegProxiesMoved = 0;
     std::uint64_t m_sumToiProxiesMoved = 0;
-    Length m_minRegSep = std::numeric_limits<Real>::infinity() * Meter;
-    Length m_maxRegSep = -std::numeric_limits<Real>::infinity() * Meter;
+    Length m_minRegSep = std::numeric_limits<Length>::infinity();
+    Length m_maxRegSep = -std::numeric_limits<Length>::infinity();
     Length m_minToiSep = 0;
-
+    
+    std::uint32_t m_maxSimulContacts = 0;
+    
     using dist_iter_type = std::remove_const<decltype(DefaultMaxDistanceIters)>::type;
     using toi_iter_type = std::remove_const<decltype(DefaultMaxToiIters)>::type;
     using root_iter_type = std::remove_const<decltype(DefaultMaxToiRootIters)>::type;
@@ -258,7 +399,16 @@ private:
     std::chrono::duration<double> m_curStepDuration{0};
     std::chrono::duration<double> m_maxStepDuration{0};
     std::chrono::duration<double> m_sumStepDuration{0};
+    
+    KeyHandlers m_keyHandlers;
+    HandledKeys m_handledKeys;
+    
+    std::size_t m_maxHistory = std::size_t{600u};
+    std::deque<std::size_t> m_numContactsPerStep;
+    std::deque<std::size_t> m_numTouchingPerStep;
 };
+
+// Free functions...
 
 /// Random number in range [-1,1]
 Real RandomFloat();
@@ -266,8 +416,28 @@ Real RandomFloat();
 /// Random floating point number in range [lo, hi]
 Real RandomFloat(Real lo, Real hi);
 
-::std::ostream& operator<<(::std::ostream& os, const ContactFeature& value);
+template <class Container, class T>
+inline bool IsWithin(const Container& container, const T& element) noexcept
+{
+    const auto first = std::cbegin(container);
+    const auto last = std::cend(container);
+    const auto it = std::find(first, last, element);
+    return it != last;
+}
 
-} // namespace playrho
+template <class T>
+inline void ForAll(World& world, const std::function<void(T& e)>& action);
+
+template <>
+inline void ForAll(World& world, const std::function<void(RevoluteJoint& e)>& action)
+{
+    auto visitor = FunctionalJointVisitor{}.Use(action);
+    const auto range = world.GetJoints();
+    std::for_each(std::begin(range), std::end(range), [&](Joint* j) {
+        j->Accept(visitor);
+    });
+}
+
+} // namespace testbed
 
 #endif

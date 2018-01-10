@@ -20,8 +20,9 @@
 #include <PlayRho/Common/Math.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
-TEST(Velocity, ByteSizeIs_12_24_or_48)
+TEST(Velocity, ByteSize)
 {
     switch (sizeof(Real))
     {

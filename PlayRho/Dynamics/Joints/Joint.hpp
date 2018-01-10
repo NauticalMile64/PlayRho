@@ -23,7 +23,6 @@
 #define PLAYRHO_DYNAMICS_JOINTS_JOINT_HPP
 
 #include <PlayRho/Common/Math.hpp>
-#include <PlayRho/Dynamics/Joints/JointDef.hpp>
 
 #include <unordered_map>
 #include <vector>
@@ -31,17 +30,19 @@
 #include <stdexcept>
 
 namespace playrho {
+class StepConf;
+struct ConstraintSolverConf;
+
+namespace d2 {
 
 class Body;
-class StepConf;
 struct Velocity;
-struct ConstraintSolverConf;
 class BodyConstraint;
 class JointVisitor;
+struct JointConf;
 
 /// @defgroup JointsGroup Joint Classes
-/// @details These are user creatable classes that specify constraints on one or more
-///   Body instances.
+/// @brief The user creatable classes that specify constraints on one or more Body instances.
 
 /// @brief A body constraint pointer alias.
 using BodyConstraintPtr = BodyConstraint*;
@@ -65,6 +66,7 @@ using BodyConstraintsMap =
 ///   Some joints also feature limits and motors.
 ///
 /// @ingroup JointsGroup
+/// @ingroup PhysicalEntities
 ///
 /// @sa World
 ///
@@ -82,7 +84,7 @@ public:
     };
 
     /// @brief Is the given definition okay.
-    static bool IsOkay(const JointDef& def) noexcept;
+    static bool IsOkay(const JointConf& def) noexcept;
 
     virtual ~Joint() = default;
 
@@ -93,19 +95,30 @@ public:
     Body* GetBodyB() const noexcept;
 
     /// Get the anchor point on bodyA in world coordinates.
-    virtual Length2D GetAnchorA() const = 0;
+    virtual Length2 GetAnchorA() const = 0;
 
     /// Get the anchor point on bodyB in world coordinates.
-    virtual Length2D GetAnchorB() const = 0;
+    virtual Length2 GetAnchorB() const = 0;
 
     /// Get the linear reaction on bodyB at the joint anchor.
-    virtual Momentum2D GetLinearReaction() const = 0;
+    virtual Momentum2 GetLinearReaction() const = 0;
 
     /// Get the angular reaction on bodyB.
     virtual AngularMomentum GetAngularReaction() const = 0;
     
     /// @brief Accepts a visitor.
+    /// @details This is the Accept method definition of a "visitor design pattern" for
+    ///   for doing joint subclass specific types of processing for a constant joint.
+    /// @sa JointVisitor
+    /// @sa https://en.wikipedia.org/wiki/Visitor_pattern
     virtual void Accept(JointVisitor& visitor) const = 0;
+    
+    /// @brief Accepts a visitor.
+    /// @details This is the Accept method definition of a "visitor design pattern" for
+    ///   for doing joint subclass specific types of processing.
+    /// @sa JointVisitor
+    /// @sa https://en.wikipedia.org/wiki/Visitor_pattern
+    virtual void Accept(JointVisitor& visitor) = 0;
 
     /// Get the user data pointer.
     void* GetUserData() const noexcept;
@@ -119,12 +132,13 @@ public:
     bool GetCollideConnected() const noexcept;
 
     /// @brief Shifts the origin for any points stored in world coordinates.
-    virtual void ShiftOrigin(const Length2D newOrigin) { NOT_USED(newOrigin);  }
+    /// @return <code>true</code> if shift done, <code>false</code> otherwise.
+    virtual bool ShiftOrigin(const Length2) { return false;  }
 
 protected:
     
     /// @brief Initializing constructor.
-    explicit Joint(const JointDef& def);
+    explicit Joint(const JointConf& def);
 
 private:
     friend class JointAtty;
@@ -141,8 +155,10 @@ private:
         e_collideConnectedFlag = 0x02u
     };
 
-    static constexpr FlagsType GetFlags(const JointDef& def) noexcept;
+    /// @brief Gets the flags value for the given joint definition.
+    static FlagsType GetFlags(const JointConf& def) noexcept;
 
+    /// @brief Dynamically allocates and instantiates the out-type from the given data.
     template <class OUT_TYPE, class IN_TYPE>
     static OUT_TYPE* Create(IN_TYPE def)
     {
@@ -150,59 +166,50 @@ private:
         {
             return new OUT_TYPE(def);
         }
-        return nullptr;
+        throw InvalidArgument("definition not okay");
     }
     
     /// @brief Creates a new joint based on the given definition.
     /// @throws InvalidArgument if given a joint definition with a type that's not recognized.
-    static Joint* Create(const JointDef& def);
+    static Joint* Create(const JointConf& def);
 
-    /// Destroys the given joint.
+    /// @brief Destroys the given joint.
     /// @note This calls the joint's destructor.
     static void Destroy(const Joint* joint);
 
-    /// Initializes velocity constraint data based on the given solver data.
+    /// @brief Initializes velocity constraint data based on the given solver data.
     /// @note This MUST be called prior to calling <code>SolveVelocityConstraints</code>.
     /// @sa SolveVelocityConstraints.
-    virtual void InitVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step,
+    virtual void InitVelocityConstraints(BodyConstraintsMap& bodies,
+                                         const playrho::StepConf& step,
                                          const ConstraintSolverConf& conf) = 0;
 
-    /// Solves velocity constraints for the given solver data.
+    /// @brief Solves velocity constraint.
     /// @pre <code>InitVelocityConstraints</code> has been called.
     /// @sa InitVelocityConstraints.
     /// @return <code>true</code> if velocity is "solved", <code>false</code> otherwise.
-    virtual bool SolveVelocityConstraints(BodyConstraintsMap& bodies, const StepConf& step) = 0;
+    virtual bool SolveVelocityConstraints(BodyConstraintsMap& bodies,
+                                          const playrho::StepConf& step) = 0;
 
-    // This returns true if the position errors are within tolerance.
+    /// @brief Solves the position constraint.
+    /// @return <code>true</code> if the position errors are within tolerance.
     virtual bool SolvePositionConstraints(BodyConstraintsMap& bodies,
                                           const ConstraintSolverConf& conf) const = 0;
 
+    /// @brief Whether this joint is in the is-islanded state.
     bool IsIslanded() const noexcept;
+    
+    /// @brief Sets this joint to be in the is-islanded state.
     void SetIslanded() noexcept;
+    
+    /// @brief Unsets this joint from being in the is-islanded state.
     void UnsetIslanded() noexcept;
 
-    Body* const m_bodyA;
-    Body* const m_bodyB;
-    void* m_userData;
+    Body* const m_bodyA; ///< Body A.
+    Body* const m_bodyB; ///< Body B.
+    void* m_userData; ///< User data.
     FlagsType m_flags = 0u; ///< Flags. 1-byte.
 };
-
-constexpr inline Joint::FlagsType Joint::GetFlags(const JointDef& def) noexcept
-{
-    auto flags = Joint::FlagsType(0);
-    if (def.collideConnected)
-    {
-        flags |= e_collideConnectedFlag;
-    }
-    return flags;
-}
-
-inline Joint::Joint(const JointDef& def):
-    m_bodyA{def.bodyA}, m_bodyB{def.bodyB},
-    m_flags{GetFlags(def)}, m_userData{def.userData}
-{
-    // Intentionally empty.
-}
 
 inline Body* Joint::GetBodyA() const noexcept
 {
@@ -267,6 +274,19 @@ BodyConstraintPtr& At(std::vector<BodyConstraintPair>& container, const Body* ke
 BodyConstraintPtr& At(std::unordered_map<const Body*, BodyConstraint*>& container,
                       const Body* key);
 
+/// @brief Provides a human readable C-style string uniquely identifying the given limit state.
+const char* ToString(Joint::LimitState val) noexcept;
+
+/// @brief Increment motor speed.
+/// @details Template function for incrementally changing the motor speed of a joint that has
+///   the <code>SetMotorSpeed</code> and <code>GetMotorSpeed</code> methods.
+template <class T>
+inline void IncMotorSpeed(T& j, AngularVelocity delta)
+{
+    j.SetMotorSpeed(j.GetMotorSpeed() + delta);
+}
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_JOINT_HPP

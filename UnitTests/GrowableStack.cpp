@@ -27,7 +27,11 @@ using namespace playrho;
 TEST(GrowableStack, ByteSize)
 {
     using T = GrowableStack<std::int32_t, 64>;
+#if defined(_WIN32) && !defined(_WIN64)
+    EXPECT_EQ(sizeof(T), sizeof(T::ElementType) * T::GetInitialCapacity() + std::size_t(12));
+#else
     EXPECT_EQ(sizeof(T), sizeof(T::ElementType) * T::GetInitialCapacity() + std::size_t(24));
+#endif
 }
 
 TEST(GrowableStack, PushAndPop)
@@ -63,4 +67,16 @@ TEST(GrowableStack, PushAndPop)
     foo.pop();
     EXPECT_EQ(foo.size(), T::CountType(4));
     EXPECT_EQ(foo.capacity(), T::GetInitialCapacity() * T::GetBufferGrowthRate());
+
+    foo.push(5);
+    foo.push(6);
+    foo.push(7);
+    foo.push(8);
+    EXPECT_EQ(foo.size(), T::CountType(8));
+    EXPECT_EQ(foo.capacity(), T::CountType(8));
+
+    foo.push(9);
+    EXPECT_EQ(foo.size(), T::CountType(9));
+    EXPECT_EQ(foo.capacity(), T::CountType(16));
 }
+

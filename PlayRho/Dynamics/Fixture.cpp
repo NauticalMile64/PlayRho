@@ -28,29 +28,42 @@
 #include <algorithm>
 
 namespace playrho {
+namespace d2 {
 
 using std::cbegin;
 using std::cend;
 
-Density Fixture::GetDensity() const noexcept
+Fixture::Fixture(const Fixture& other):
+    m_body{other.m_body},
+    m_userData{other.m_userData},
+    m_shape{other.m_shape},
+    m_proxyCount{other.m_proxyCount},
+    m_filter{other.m_filter},
+    m_isSensor{other.m_isSensor}
 {
-    return m_shape->GetDensity();
+    switch (other.m_proxyCount)
+    {
+        case 2:
+            m_proxies.asArray[1] = other.m_proxies.asArray[1];
+            // [[fallthrough]]
+        case 1:
+            m_proxies.asArray[0] = other.m_proxies.asArray[0];
+            // [[fallthrough]]
+        case 0:
+            break;
+        default:
+            m_proxies.asBuffer = std::make_unique<FixtureProxy[]>(other.m_proxyCount);
+            std::copy(other.m_proxies.asBuffer.get(),
+                      other.m_proxies.asBuffer.get() + other.m_proxyCount,
+                      m_proxies.asBuffer.get());
+            break;
+    }
 }
 
-Real Fixture::GetFriction() const noexcept
+FixtureProxy Fixture::GetProxy(ChildCounter index) const noexcept
 {
-    return m_shape->GetFriction();
-}
-
-Real Fixture::GetRestitution() const noexcept
-{
-    return m_shape->GetRestitution();
-}
-
-const FixtureProxy* Fixture::GetProxy(ChildCounter index) const noexcept
-{
-    assert(index < m_proxyCount);
-    return (index < m_proxyCount)? m_proxies + index: nullptr;
+    assert(index < GetProxyCount());
+    return (GetProxyCount() <= 2)? m_proxies.asArray[index]: m_proxies.asBuffer[index];
 }
 
 void Fixture::Refilter()
@@ -93,9 +106,9 @@ void Fixture::SetSensor(bool sensor) noexcept
     }
 }
 
-bool TestPoint(const Fixture& f, Length2D p) noexcept
+bool TestPoint(const Fixture& f, Length2 p) noexcept
 {
-    return TestPoint(*f.GetShape(), InverseTransform(p, GetTransformation(f)));
+    return TestPoint(f.GetShape(), InverseTransform(p, GetTransformation(f)));
 }
 
 void SetAwake(const Fixture& f) noexcept
@@ -105,7 +118,7 @@ void SetAwake(const Fixture& f) noexcept
 
 Transformation GetTransformation(const Fixture& f) noexcept
 {
-    assert(f.GetBody() != nullptr);
+    assert(static_cast<Body*>(f.GetBody()) != nullptr);
 
     /*
      * If fixtures have transformations (in addition to the body transformation),
@@ -117,4 +130,5 @@ Transformation GetTransformation(const Fixture& f) noexcept
     return f.GetBody()->GetTransformation();
 }
 
+} // namespace d2
 } // namespace playrho

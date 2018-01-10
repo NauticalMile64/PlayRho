@@ -22,50 +22,46 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class AddPair : public Test
 {
 public:
-
-    AddPair()
+    static Test::Conf GetTestConf()
     {
-        m_world->SetGravity(LinearAcceleration2D{Real(0) * MeterPerSquareSecond, Real(0) * MeterPerSquareSecond});
+        auto conf = Test::Conf{};
+        conf.description = "Stresses the physics engine's contact detecting and adding code.";
+        return conf;
+    }
+    
+    AddPair(): Test(GetTestConf())
+    {
+        m_gravity = LinearAcceleration2{};
         {
-            auto conf = DiskShape::Conf{};
-            conf.vertexRadius = Meter / Real{10};
-            conf.density = Real{0.01f} * KilogramPerSquareMeter;
-            const auto shape = std::make_shared<DiskShape>(conf);
-
             const auto minX = -6.0f;
             const auto maxX = 0.0f;
             const auto minY = 4.0f;
             const auto maxY = 6.0f;
-
+            const auto bd = BodyConf{}.UseType(BodyType::Dynamic);
+            const auto shape = Shape{
+                DiskShapeConf{}.UseRadius(0.1_m).UseDensity(0.01_kgpm2)
+            };
             for (auto i = 0; i < 400; ++i)
             {
-                BodyDef bd;
-                bd.type = BodyType::Dynamic;
-                bd.position = Vec2(RandomFloat(minX, maxX), RandomFloat(minY, maxY)) * Meter;
-                const auto body = m_world->CreateBody(bd);
+                const auto location = Vec2(RandomFloat(minX, maxX), RandomFloat(minY, maxY)) * Meter;
+                // Use () instead of {} to avoid MSVC++ doing const preserving copy elision.
+                const auto body = m_world.CreateBody(BodyConf(bd).UseLocation(location));
                 body->CreateFixture(shape);
             }
         }
-
-        {
-            BodyDef bd;
-            bd.type = BodyType::Dynamic;
-            bd.position = Length2D{Real(-40.0f) * Meter, Real(5.0f) * Meter};
-            bd.bullet = true;
-            const auto body = m_world->CreateBody(bd);
-            auto conf = PolygonShape::Conf{};
-            conf.density = Real{1.0f} * KilogramPerSquareMeter;
-            body->CreateFixture(std::make_shared<PolygonShape>(Real{1.5f} * Meter, Real{1.5f} * Meter, conf));
-            body->SetVelocity(Velocity{Vec2(150.0f, 0.0f) * MeterPerSecond, AngularVelocity{0}});
-        }
+        const auto bd = BodyConf{}.UseType(BodyType::Dynamic).UseBullet(true)
+            .UseLocation(Length2{-40_m, 5_m}).UseLinearVelocity(LinearVelocity2{150_mps, 0_mps});
+        const auto body = m_world.CreateBody(bd);
+        const auto conf = PolygonShapeConf{}.UseDensity(1_kgpm2).SetAsBox(1.5_m, 1.5_m);
+        body->CreateFixture(Shape{conf});
     }
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

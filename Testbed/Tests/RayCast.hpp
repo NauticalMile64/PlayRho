@@ -27,7 +27,7 @@
 // NOTE: we are intentionally filtering one of the polygons, therefore
 // the ray will always miss one type of polygon.
 
-namespace playrho {
+namespace testbed {
 
 class RayCast : public Test
 {
@@ -47,76 +47,105 @@ public:
 
     RayCast()
     {
-        m_circle->SetVertexRadius(Real{0.5f} * Meter);
-        m_circle->SetFriction(Real(0.3f));
-        m_edge->SetFriction(Real(0.3f));
-        
         // Ground body
-        const auto ground = m_world->CreateBody();
-        ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter,
-                                                          Vec2(40.0f, 0.0f) * Meter));
+        m_world.CreateBody()->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
         
-        for (auto&& p: m_polygons)
-        {
-            p = std::make_shared<PolygonShape>();
-            p->SetFriction(Real(0.3f));
-        }
-
-        m_polygons[0]->Set({
-            Vec2(-0.5f, 0.0f) * Meter,
-            Vec2(0.5f, 0.0f) * Meter,
-            Vec2(0.0f, 1.5f) * Meter
+        auto conf = PolygonShapeConf{};
+        conf.UseFriction(Real(0.3f));
+        conf.Set({
+            Vec2(-0.5f, 0.0f) * 1_m,
+            Vec2(0.5f, 0.0f) * 1_m,
+            Vec2(0.0f, 1.5f) * 1_m
         });
-        m_polygons[1]->Set({
-            Vec2(-0.1f, 0.0f) * Meter,
-            Vec2(0.1f, 0.0f) * Meter,
-            Vec2(0.0f, 1.5f) * Meter
+        m_polygons[0] = Shape(conf);
+        conf.Set({
+            Vec2(-0.1f, 0.0f) * 1_m,
+            Vec2(0.1f, 0.0f) * 1_m,
+            Vec2(0.0f, 1.5f) * 1_m
         });
-
+        m_polygons[1] = Shape(conf);
         {
             const auto w = 1.0f;
-            const auto b = w / (2.0f + Sqrt(2.0f));
-            const auto s = Sqrt(2.0f) * b;
+            const auto b = w / (2.0f + sqrt(2.0f));
+            const auto s = sqrt(2.0f) * b;
 
-            m_polygons[2]->Set({
-                Vec2(0.5f * s, 0.0f) * Meter,
-                Vec2(0.5f * w, b) * Meter,
-                Vec2(0.5f * w, b + s) * Meter,
-                Vec2(0.5f * s, w) * Meter,
-                Vec2(-0.5f * s, w) * Meter,
-                Vec2(-0.5f * w, b + s) * Meter,
-                Vec2(-0.5f * w, b) * Meter,
-                Vec2(-0.5f * s, 0.0f) * Meter
+            conf.Set({
+                Vec2(0.5f * s, 0.0f) * 1_m,
+                Vec2(0.5f * w, b) * 1_m,
+                Vec2(0.5f * w, b + s) * 1_m,
+                Vec2(0.5f * s, w) * 1_m,
+                Vec2(-0.5f * s, w) * 1_m,
+                Vec2(-0.5f * w, b + s) * 1_m,
+                Vec2(-0.5f * w, b) * 1_m,
+                Vec2(-0.5f * s, 0.0f) * 1_m
             });
         }
-        m_polygons[3]->SetAsBox(Real{0.5f} * Meter, Real{0.5f} * Meter);
+        m_polygons[2] = Shape(conf);
+        conf.SetAsBox(0.5_m, 0.5_m);
+        m_polygons[3] = Shape(conf);
         std::memset(m_bodies, 0, sizeof(m_bodies));
+        
+        RegisterForKey(GLFW_KEY_1, GLFW_PRESS, 0, "drop triangles that should be ignored by the ray.", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_2, GLFW_PRESS, 0, "drop shape that should not be ignored by the ray.", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_3, GLFW_PRESS, 0, "drop shape that should not be ignored by the ray.", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_4, GLFW_PRESS, 0, "drop shape that should not be ignored by the ray.", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_5, GLFW_PRESS, 0, "drop shape that should not be ignored by the ray.", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_6, GLFW_PRESS, 0, "drop shape that should not be ignored by the ray.", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "Destroy Bodies", [&](KeyActionMods) {
+            Destroy();
+        });
+        RegisterForKey(GLFW_KEY_M, GLFW_PRESS, 0, "Change mode of the raycast test", [&](KeyActionMods) {
+            if (m_mode == Mode::e_closest)
+            {
+                m_mode = Mode::e_any;
+            }
+            else if (m_mode == Mode::e_any)
+            {
+                m_mode = Mode::e_multiple;
+            }
+            else if (m_mode == Mode::e_multiple)
+            {
+                m_mode = Mode::e_closest;
+            }
+        });
     }
 
     void Create(int index)
     {
         if (m_bodies[m_bodyIndex])
         {
-            m_world->Destroy(m_bodies[m_bodyIndex]);
+            m_world.Destroy(m_bodies[m_bodyIndex]);
             m_bodies[m_bodyIndex] = nullptr;
         }
 
-        BodyDef bd;
+        BodyConf bd;
 
         const auto x = RandomFloat(-10.0f, 10.0f);
         const auto y = RandomFloat(0.0f, 20.0f);
-        bd.position = Vec2(x, y) * Meter;
-        bd.angle = Radian * RandomFloat(-Pi, Pi);
+        bd.location = Vec2(x, y) * 1_m;
+        bd.angle = 1_rad * RandomFloat(-Pi, Pi);
 
         m_userData[m_bodyIndex] = index;
         bd.userData = m_userData + m_bodyIndex;
 
         if (index == 4)
         {
-            bd.angularDamping = Real(0.02f) * Hertz;
+            bd.angularDamping = 0.02_Hz;
         }
 
-        m_bodies[m_bodyIndex] = m_world->CreateBody(bd);
+        m_bodies[m_bodyIndex] = m_world.CreateBody(bd);
 
         if (index < 4)
         {
@@ -140,47 +169,10 @@ public:
         {
             if (m_bodies[i])
             {
-                m_world->Destroy(m_bodies[i]);
+                m_world.Destroy(m_bodies[i]);
                 m_bodies[i] = nullptr;
                 return;
             }
-        }
-    }
-
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_1:
-        case Key_2:
-        case Key_3:
-        case Key_4:
-        case Key_5:
-        case Key_6:
-            Create(key - Key_1);
-            break;
-
-        case Key_D:
-            Destroy();
-            break;
-
-        case Key_M:
-                if (m_mode == Mode::e_closest)
-            {
-                m_mode = Mode::e_any;
-            }
-            else if (m_mode == Mode::e_any)
-            {
-                m_mode = Mode::e_multiple;
-            }
-            else if (m_mode == Mode::e_multiple)
-            {
-                m_mode = Mode::e_closest;
-            }
-            break;
-
-        default:
-            break;
         }
     }
 
@@ -197,31 +189,25 @@ public:
 
     void PostStep(const Settings& settings, Drawer& drawer) override
     {
-        drawer.DrawString(5, m_textLine,
-                          "Press '1' to drop triangles that should be ignored by the ray.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine,
-                          "Press '2'-'6' to drop shapes that should not be ignored by the ray.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-
-        drawer.DrawString(5, m_textLine,
-                          "Press 'm' to change the mode of the raycast test (currently: %s).",
-                          GetModeName(m_mode));
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "Mode of the raycast test currently: ";
+        stream << GetModeName(m_mode);
+        stream << ".";
+        m_status = stream.str();
 
         const auto L = 11.0f;
-        const auto point1 = Vec2(0.0f, 10.0f) * Meter;
-        const auto d = Vec2(L * std::cos(m_angle), L * std::sin(m_angle)) * Meter;
+        const auto point1 = Vec2(0.0f, 10.0f) * 1_m;
+        const auto d = Vec2(L * cos(m_angle), L * sin(m_angle)) * 1_m;
         const auto point2 = point1 + d;
 
         if (m_mode == Mode::e_closest)
         {
             auto hit = false;
-            Length2D point;
-            UnitVec2 normal;
+            Length2 point;
+            UnitVec normal;
 
-            m_world->RayCast(point1, point2, [&](Fixture* f, const ChildCounter,
-                                                 const Length2D& p, const UnitVec2& n)
+            d2::RayCast(m_world.GetTree(), RayCastInput{point1, point2, 1},
+                    [&](Fixture* f, const ChildCounter, const Length2& p, const UnitVec& n)
             {
                 const auto body = f->GetBody();
                 const auto userData = body->GetUserData();
@@ -232,7 +218,7 @@ public:
                     {
                         // Instruct the calling code to ignore this fixture and
                         // continue the ray-cast to the next fixture.
-                        return World::RayCastOpcode::IgnoreFixture;
+                        return RayCastOpcode::IgnoreFixture;
                     }
                 }
 
@@ -243,14 +229,14 @@ public:
                 // Instruct the calling code to clip the ray and
                 // continue the ray-cast to the next fixture. WARNING: do not assume that fixtures
                 // are reported in order. However, by clipping, we can always get the closest fixture.
-                return World::RayCastOpcode::ClipRay;
+                return RayCastOpcode::ClipRay;
             });
 
             if (hit)
             {
                 drawer.DrawPoint(point, 5.0f, Color(0.4f, 0.9f, 0.4f));
                 drawer.DrawSegment(point1, point, Color(0.8f, 0.8f, 0.8f));
-                const auto head = point + Real{0.5f} * normal * Meter;
+                const auto head = point + Real{0.5f} * normal * 1_m;
                 drawer.DrawSegment(point, head, Color(0.9f, 0.9f, 0.4f));
             }
             else
@@ -261,13 +247,13 @@ public:
         else if (m_mode == Mode::e_any)
         {
             auto hit = false;
-            Length2D point;
-            UnitVec2 normal;
+            Length2 point;
+            UnitVec normal;
 
             // This callback finds any hit. Polygon 0 is filtered. For this type of query we are
             // just checking for obstruction, so the actual fixture and hit point are irrelevant.
-            m_world->RayCast(point1, point2, [&](Fixture* f, const ChildCounter,
-                                                 const Length2D& p, const UnitVec2& n)
+            d2::RayCast(m_world.GetTree(), RayCastInput{point1, point2, 1},
+                        [&](Fixture* f, const ChildCounter, const Length2& p, const UnitVec& n)
             {
                 const auto body = f->GetBody();
                 const auto userData = body->GetUserData();
@@ -278,7 +264,7 @@ public:
                     {
                         // Instruct the calling code to ignore this fixture
                         // and continue the ray-cast to the next fixture.
-                        return World::RayCastOpcode::IgnoreFixture;
+                        return RayCastOpcode::IgnoreFixture;
                     }
                 }
                 
@@ -288,14 +274,14 @@ public:
                 
                 // At this point we have a hit, so we know the ray is obstructed.
                 // Instruct the calling code to terminate the ray-cast.
-                return World::RayCastOpcode::Terminate;
+                return RayCastOpcode::Terminate;
             });
 
             if (hit)
             {
                 drawer.DrawPoint(point, 5.0f, Color(0.4f, 0.9f, 0.4f));
                 drawer.DrawSegment(point1, point, Color(0.8f, 0.8f, 0.8f));
-                const auto head = point + Real{0.5f} * normal * Meter;
+                const auto head = point + Real{0.5f} * normal * 1_m;
                 drawer.DrawSegment(point, head, Color(0.9f, 0.9f, 0.4f));
             }
             else
@@ -310,8 +296,8 @@ public:
             // This ray cast collects multiple hits along the ray. Polygon 0 is filtered.
             // The fixtures are not necessary reported in order, so we might not capture
             // the closest fixture.
-            m_world->RayCast(point1, point2, [&](Fixture* f, const ChildCounter,
-                                                 const Length2D& p, const UnitVec2& n)
+            d2::RayCast(m_world.GetTree(), RayCastInput{point1, point2, 1},
+                        [&](Fixture* f, const ChildCounter, const Length2& p, const UnitVec& n)
             {
                 const auto body = f->GetBody();
                 const auto userData = body->GetUserData();
@@ -322,17 +308,17 @@ public:
                     {
                         // Instruct the calling code to ignore this fixture
                         // and continue the ray-cast to the next fixture.
-                        return World::RayCastOpcode::IgnoreFixture;
+                        return RayCastOpcode::IgnoreFixture;
                     }
                 }
                 
                 drawer.DrawPoint(p, 5.0f, Color(0.4f, 0.9f, 0.4f));
                 drawer.DrawSegment(point1, p, Color(0.8f, 0.8f, 0.8f));
-                const auto head = p + Real{0.5f} * n * Meter;
+                const auto head = p + Real{0.5f} * n * 1_m;
                 drawer.DrawSegment(p, head, Color(0.9f, 0.9f, 0.4f));
                 
                 // Instruct the caller to continue without clipping the ray.
-                return World::RayCastOpcode::ResetRay;
+                return RayCastOpcode::ResetRay;
             });
         }
 
@@ -351,7 +337,7 @@ public:
             //vertices[2] = Vec2(22.875f, 3.0f);
             //vertices[3] = Vec2(-22.875f, 3.0f);
 
-            PolygonShape shape;
+            PolygonShapeConf shape;
             //shape.Set(vertices, 4);
             shape.SetAsBox(22.875f, 3.0f);
 
@@ -386,13 +372,13 @@ public:
     int m_bodyIndex = 0;
     Body* m_bodies[e_maxBodies];
     int m_userData[e_maxBodies];
-    std::shared_ptr<PolygonShape> m_polygons[4];
-    std::shared_ptr<DiskShape> m_circle = std::make_shared<DiskShape>();
-    std::shared_ptr<EdgeShape> m_edge = std::make_shared<EdgeShape>(Vec2(-1.0f, 0.0f) * Meter, Vec2(1.0f, 0.0f) * Meter);
+    Shape m_polygons[4] = {PolygonShapeConf{}, PolygonShapeConf{}, PolygonShapeConf{}, PolygonShapeConf{}};
+    Shape m_circle = DiskShapeConf{}.UseRadius(0.5_m).UseFriction(Real(0.3f));
+    Shape m_edge = Shape{EdgeShapeConf{Vec2(-1.0f, 0.0f) * 1_m, Vec2(1.0f, 0.0f) * 1_m}.UseFriction(Real(0.3f))};
     Real m_angle = 0.0f;
     Mode m_mode = Mode::e_closest;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

@@ -19,9 +19,10 @@
  */
 
 #include "gtest/gtest.h"
-#include <PlayRho/Dynamics/WorldCallbacks.hpp>
+#include <PlayRho/Dynamics/ContactImpulsesList.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(ContactImpulsesList, ByteSize)
 {
@@ -45,8 +46,8 @@ TEST(ContactImpulsesList, AddEntry)
     auto v = ContactImpulsesList{};
     EXPECT_EQ(v.GetCount(), ContactImpulsesList::Counter(0));
     
-    const auto normalMomentum = Momentum{Real(3) * Kilogram * MeterPerSecond};
-    const auto tangentMomentum = Momentum{Real(1) * Kilogram * MeterPerSecond};
+    const auto normalMomentum = 3_Ns;
+    const auto tangentMomentum = 1_Ns;
 
     v.AddEntry(normalMomentum, tangentMomentum);
     EXPECT_EQ(v.GetCount(), ContactImpulsesList::Counter(1));
@@ -60,3 +61,26 @@ TEST(ContactImpulsesList, AddEntry)
     EXPECT_EQ(v.GetEntryNormal(1), normalMomentum * Real(2));
     EXPECT_EQ(v.GetEntryTanget(1), tangentMomentum * Real(2));
 }
+
+TEST(ContactImpulsesList, GetMaxNormalImpulseFF)
+{
+    EXPECT_EQ(GetMaxNormalImpulse(ContactImpulsesList{}), 0_Ns);
+    {
+        auto impulses = ContactImpulsesList{};
+        impulses.AddEntry(10_Ns, 2_Ns);
+        EXPECT_EQ(GetMaxNormalImpulse(impulses), 10_Ns);
+    }
+    {
+        auto impulses = ContactImpulsesList{};
+        impulses.AddEntry(10_Ns, 2_Ns);
+        impulses.AddEntry(66_Ns, 2_Ns);
+        EXPECT_EQ(GetMaxNormalImpulse(impulses), 66_Ns);
+    }
+    {
+        auto impulses = ContactImpulsesList{};
+        impulses.AddEntry(66_Ns, 2_Ns);
+        impulses.AddEntry(10_Ns, 2_Ns);
+        EXPECT_EQ(GetMaxNormalImpulse(impulses), 66_Ns);
+    }
+}
+

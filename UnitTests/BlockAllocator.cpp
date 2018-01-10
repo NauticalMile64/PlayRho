@@ -21,9 +21,15 @@
 
 using namespace playrho;
 
-TEST(BlockAllocator, ByteSizeIs136)
+TEST(BlockAllocator, ByteSize)
 {
+#if defined(__x86_64__) || defined(_M_X64)
     EXPECT_EQ(sizeof(BlockAllocator), std::size_t(136));
+#elif defined(__i386) || defined(_M_IX86)
+    EXPECT_EQ(sizeof(BlockAllocator), std::size_t(68));
+#else
+    EXPECT_EQ(sizeof(BlockAllocator), std::size_t(136));
+#endif
 }
 
 TEST(BlockAllocator, Equals)
@@ -90,4 +96,39 @@ TEST(BlockAllocator, aligns_data)
     foo.Free(p_int, sizeof(int));
     foo.Free(p_char2, sizeof(char));
     foo.Free(p_char1, sizeof(char));
+}
+
+TEST(BlockAllocator, AllocateReturnsNullForZero)
+{
+    BlockAllocator foo;
+    ASSERT_EQ(foo.GetChunkCount(), BlockAllocator::size_type{0});
+    EXPECT_EQ(foo.Allocate(0), nullptr);
+    EXPECT_EQ(foo.GetChunkCount(), BlockAllocator::size_type{0});
+}
+
+TEST(BlockAllocator, AllocateNonNullForOverMaxBlockSize)
+{
+    BlockAllocator foo;
+    ASSERT_EQ(foo.GetChunkCount(), BlockAllocator::size_type{0});
+    const auto mem = foo.Allocate(BlockAllocator::GetMaxBlockSize() * 2);
+    EXPECT_NE(mem, nullptr);
+    EXPECT_EQ(foo.GetChunkCount(), BlockAllocator::size_type{0});
+    foo.Free(mem, BlockAllocator::GetMaxBlockSize() * 2);
+}
+
+TEST(BlockAllocator, KeepsAllocatingAfterIncrement)
+{
+    BlockAllocator foo;
+    for (auto count = BlockAllocator::GetChunkArrayIncrement(); count != 0; --count)
+    {
+        for (auto times = BlockAllocator::ChunkSize/ BlockAllocator::GetMaxBlockSize(); times != 0; --times)
+        {
+            const auto mem = foo.Allocate(BlockAllocator::GetMaxBlockSize());
+            ASSERT_NE(mem, nullptr);
+        }
+    }
+    EXPECT_EQ(foo.GetChunkCount(), BlockAllocator::GetChunkArrayIncrement());
+    const auto mem = foo.Allocate(BlockAllocator::GetMaxBlockSize());
+    EXPECT_NE(mem, nullptr);
+    EXPECT_EQ(foo.GetChunkCount(), BlockAllocator::GetChunkArrayIncrement() + 1);
 }

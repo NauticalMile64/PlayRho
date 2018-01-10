@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class OneSidedPlatform : public Test
 {
@@ -38,32 +38,30 @@ public:
     OneSidedPlatform()
     {
         // Ground
-        {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-20.0f, 0.0f) * Meter, Vec2(20.0f, 0.0f) * Meter));
-        }
+        m_world.CreateBody()->CreateFixture(Shape{EdgeShapeConf{Vec2(-20.0f, 0.0f) * 1_m, Vec2(20.0f, 0.0f) * 1_m}});
 
         // Platform
         {
-            BodyDef bd;
-            bd.position = Vec2(0.0f, 10.0f) * Meter;
-            const auto body = m_world->CreateBody(bd);
-            m_platform = body->CreateFixture(std::make_shared<PolygonShape>(Real{3.0f} * Meter, Real{0.5f} * Meter));
-            m_bottom = Real(10.0f - 0.5f) * Meter;
-            m_top = Real(10.0f + 0.5f) * Meter;
+            BodyConf bd;
+            bd.location = Vec2(0.0f, 10.0f) * 1_m;
+            const auto body = m_world.CreateBody(bd);
+            m_platform = body->CreateFixture(PolygonShapeConf{}.SetAsBox(3_m, 0.5_m));
+            m_bottom = Real(10.0f - 0.5f) * 1_m;
+            m_top = Real(10.0f + 0.5f) * 1_m;
         }
 
         // Actor
         {
-            BodyDef bd;
+            BodyConf bd;
             bd.type = BodyType::Dynamic;
-            bd.position = Vec2(0.0f, 12.0f) * Meter;
-            const auto body = m_world->CreateBody(bd);
-            auto conf = DiskShape::Conf{};
+            bd.linearAcceleration = m_gravity;
+            bd.location = Vec2(0.0f, 12.0f) * 1_m;
+            const auto body = m_world.CreateBody(bd);
+            auto conf = DiskShapeConf{};
             conf.vertexRadius = m_radius;
-            conf.density = Real{20} * KilogramPerSquareMeter;
-            m_character = body->CreateFixture(std::make_shared<DiskShape>(conf));
-            body->SetVelocity(Velocity{Vec2(0.0f, -50.0f) * MeterPerSecond, AngularVelocity{0}});
+            conf.density = 20_kgpm2;
+            m_character = body->CreateFixture(Shape(conf));
+            body->SetVelocity(Velocity{Vec2(0.0f, -50.0f) * 1_mps, 0_rpm});
         }
     }
 
@@ -86,8 +84,7 @@ public:
 
 #if 1
         const auto position = m_character->GetBody()->GetLocation();
-
-        if (GetY(position) < m_top + m_radius - m_platform->GetShape()->GetVertexRadius())
+        if (GetY(position) < m_top + m_radius - GetVertexRadius(m_platform->GetShape()))
         {
             contact.UnsetEnabled();
         }
@@ -100,18 +97,17 @@ public:
 #endif
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        drawer.DrawString(5, m_textLine, "Press: (c) create a shape, (d) destroy a shape.");
-        m_textLine += DRAW_STRING_NEW_LINE;
-
         const auto v = GetLinearVelocity(*(m_character->GetBody()));
-        drawer.DrawString(5, m_textLine, "Character Linear Velocity: %f",
-                          static_cast<double>(Real{GetY(v) / MeterPerSecond}));
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "Character linear velocity: ";
+        stream << static_cast<double>(Real{GetY(v) / 1_mps});
+        stream << " m/s.";
+        m_status = stream.str();
     }
 
-    Length m_radius = Real{0.5f} * Meter;
+    Length m_radius = 0.5_m;
     Length m_top;
     Length m_bottom;
     State m_state = e_unknown;
@@ -119,6 +115,6 @@ public:
     Fixture* m_character;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

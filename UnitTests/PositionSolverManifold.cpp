@@ -18,13 +18,14 @@
 
 #include "gtest/gtest.h"
 #include <PlayRho/Dynamics/Contacts/PositionSolverManifold.hpp>
-#include <PlayRho/Collision/Shapes/PolygonShape.hpp>
+#include <PlayRho/Collision/Shapes/PolygonShapeConf.hpp>
 #include <PlayRho/Collision/WorldManifold.hpp>
 #include <PlayRho/Collision/Manifold.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
-TEST(PositionSolverManifold, ByteSizeIs_20_40_or_80)
+TEST(PositionSolverManifold, ByteSize)
 {
     switch (sizeof(Real))
     {
@@ -37,9 +38,9 @@ TEST(PositionSolverManifold, ByteSizeIs_20_40_or_80)
 
 TEST(PositionSolverManifold, InitializingConstructor)
 {
-    const auto normal = UnitVec2::GetBottom();
-    const auto point = Length2D{-Real(1) * Meter, Real(3) * Meter};
-    const auto separation = Real(8.12) * Meter;
+    const auto normal = UnitVec::GetBottom();
+    const auto point = Length2{-1_m, 3_m};
+    const auto separation = 8.12_m;
     
     const auto psm = PositionSolverManifold{normal, point, separation};
     
@@ -51,37 +52,37 @@ TEST(PositionSolverManifold, InitializingConstructor)
 TEST(PositionSolverManifold, GetPSM)
 {
     // wide rectangle
-    const auto shape0 = PolygonShape(Real{3} * Meter, Real{1.5f} * Meter);
-    ASSERT_EQ(GetX(shape0.GetVertex(0)), Real(+3.0) * Meter); // right
-    ASSERT_EQ(GetY(shape0.GetVertex(0)), Real(-1.5) * Meter); // bottom
-    ASSERT_EQ(GetX(shape0.GetVertex(1)), Real(+3.0) * Meter); // right
-    ASSERT_EQ(GetY(shape0.GetVertex(1)), Real(+1.5) * Meter); // top
-    ASSERT_EQ(GetX(shape0.GetVertex(2)), Real(-3.0) * Meter); // left
-    ASSERT_EQ(GetY(shape0.GetVertex(2)), Real(+1.5) * Meter); // top
-    ASSERT_EQ(GetX(shape0.GetVertex(3)), Real(-3.0) * Meter); // left
-    ASSERT_EQ(GetY(shape0.GetVertex(3)), Real(-1.5) * Meter); // bottom
+    const auto shape0 = PolygonShapeConf(3_m, 1.5_m);
+    ASSERT_EQ(GetX(shape0.GetVertex(0)), +3.0_m); // right
+    ASSERT_EQ(GetY(shape0.GetVertex(0)), -1.5_m); // bottom
+    ASSERT_EQ(GetX(shape0.GetVertex(1)), +3.0_m); // right
+    ASSERT_EQ(GetY(shape0.GetVertex(1)), +1.5_m); // top
+    ASSERT_EQ(GetX(shape0.GetVertex(2)), -3.0_m); // left
+    ASSERT_EQ(GetY(shape0.GetVertex(2)), +1.5_m); // top
+    ASSERT_EQ(GetX(shape0.GetVertex(3)), -3.0_m); // left
+    ASSERT_EQ(GetY(shape0.GetVertex(3)), -1.5_m); // bottom
     
     // square
-    const auto shape1 = PolygonShape(Real{2} * Meter, Real{2} * Meter);
-    ASSERT_EQ(GetX(shape1.GetVertex(0)), Real(+2) * Meter); // right
-    ASSERT_EQ(GetY(shape1.GetVertex(0)), Real(-2) * Meter); // bottom
-    ASSERT_EQ(GetX(shape1.GetVertex(1)), Real(+2) * Meter); // right
-    ASSERT_EQ(GetY(shape1.GetVertex(1)), Real(+2) * Meter); // top
-    ASSERT_EQ(GetX(shape1.GetVertex(2)), Real(-2) * Meter); // left
-    ASSERT_EQ(GetY(shape1.GetVertex(2)), Real(+2) * Meter); // top
-    ASSERT_EQ(GetX(shape1.GetVertex(3)), Real(-2) * Meter); // left
-    ASSERT_EQ(GetY(shape1.GetVertex(3)), Real(-2) * Meter); // bottom
+    const auto shape1 = PolygonShapeConf(2_m, 2_m);
+    ASSERT_EQ(GetX(shape1.GetVertex(0)), +2_m); // right
+    ASSERT_EQ(GetY(shape1.GetVertex(0)), -2_m); // bottom
+    ASSERT_EQ(GetX(shape1.GetVertex(1)), +2_m); // right
+    ASSERT_EQ(GetY(shape1.GetVertex(1)), +2_m); // top
+    ASSERT_EQ(GetX(shape1.GetVertex(2)), -2_m); // left
+    ASSERT_EQ(GetY(shape1.GetVertex(2)), +2_m); // top
+    ASSERT_EQ(GetX(shape1.GetVertex(3)), -2_m); // left
+    ASSERT_EQ(GetY(shape1.GetVertex(3)), -2_m); // bottom
     
-    const auto xfm0 = Transformation{Length2D{-Real(2) * Meter, Real(0) * Meter}, UnitVec2::GetRight()}; // left
-    const auto xfm1 = Transformation{Length2D{+Real(2) * Meter, Real(0) * Meter}, UnitVec2::GetRight()}; // right
+    const auto xfm0 = Transformation{Length2{-2_m, 0_m}, UnitVec::GetRight()}; // left
+    const auto xfm1 = Transformation{Length2{+2_m, 0_m}, UnitVec::GetRight()}; // right
     
     // put wide rectangle on left, square on right
-    const auto manifold = CollideShapes(shape0.GetChild(0), xfm0, shape1.GetChild(0), xfm1);
+    const auto manifold = CollideShapes(GetChild(shape0, 0), xfm0, GetChild(shape1, 0), xfm1);
     
     ASSERT_EQ(manifold.GetType(), Manifold::e_faceA);
     
-    ASSERT_EQ(GetX(manifold.GetLocalPoint()), Real(+3) * Meter);
-    ASSERT_EQ(GetY(manifold.GetLocalPoint()), Real(0) * Meter);
+    ASSERT_EQ(GetX(manifold.GetLocalPoint()), +3_m);
+    ASSERT_EQ(GetY(manifold.GetLocalPoint()), 0_m);
     
     ASSERT_NEAR(static_cast<double>(manifold.GetLocalNormal().GetX()), +1.0, 0.00001);
     ASSERT_NEAR(static_cast<double>(manifold.GetLocalNormal().GetY()), +0.0, 0.00001);
@@ -91,16 +92,16 @@ TEST(PositionSolverManifold, GetPSM)
     const auto total_radius = GetVertexRadius(shape0) + GetVertexRadius(shape1);
     
     ASSERT_GT(manifold.GetPointCount(), Manifold::size_type(0));
-    EXPECT_TRUE(AlmostEqual(GetX(manifold.GetPoint(0).localPoint) / Meter, Real(-2.0))); // left
-    EXPECT_TRUE(AlmostEqual(GetY(manifold.GetPoint(0).localPoint) / Meter, Real(-1.5))); // top
+    EXPECT_TRUE(AlmostEqual(Real{GetX(manifold.GetPoint(0).localPoint) / Meter}, Real(-2.0))); // left
+    EXPECT_TRUE(AlmostEqual(Real{GetY(manifold.GetPoint(0).localPoint) / Meter}, Real(-1.5))); // top
     ASSERT_EQ(manifold.GetPoint(0).contactFeature.typeA, ContactFeature::e_vertex);
     ASSERT_EQ(manifold.GetPoint(0).contactFeature.indexA, 0);
     ASSERT_EQ(manifold.GetPoint(0).contactFeature.typeB, ContactFeature::e_face);
     ASSERT_EQ(manifold.GetPoint(0).contactFeature.indexB, 2);
     
     ASSERT_GT(manifold.GetPointCount(), Manifold::size_type(1));
-    EXPECT_TRUE(AlmostEqual(GetX(manifold.GetPoint(1).localPoint) / Meter, Real(-2.0))); // left
-    EXPECT_TRUE(AlmostEqual(GetY(manifold.GetPoint(1).localPoint) / Meter, Real(+1.5))); // bottom
+    EXPECT_TRUE(AlmostEqual(Real{GetX(manifold.GetPoint(1).localPoint) / Meter}, Real(-2.0))); // left
+    EXPECT_TRUE(AlmostEqual(Real{GetY(manifold.GetPoint(1).localPoint) / Meter}, Real(+1.5))); // bottom
     ASSERT_EQ(manifold.GetPoint(1).contactFeature.typeA, ContactFeature::e_vertex);
     ASSERT_EQ(manifold.GetPoint(1).contactFeature.indexA, 1);
     ASSERT_EQ(manifold.GetPoint(1).contactFeature.typeB, ContactFeature::e_face);
@@ -117,14 +118,14 @@ TEST(PositionSolverManifold, GetPSM)
         EXPECT_TRUE(AlmostEqual(world_manifold.GetNormal().GetY(), Real(0)));
         
         ASSERT_GT(world_manifold.GetPointCount(), Manifold::size_type(0));
-        EXPECT_TRUE(AlmostEqual(GetX(world_manifold.GetPoint(0)) / Meter, Real(+0.5)));
-        EXPECT_TRUE(AlmostEqual(GetY(world_manifold.GetPoint(0)) / Meter, Real(-1.5)));
-        EXPECT_TRUE(AlmostEqual(world_manifold.GetSeparation(0) / Meter, Real(-1) - total_radius / Meter));
+        EXPECT_TRUE(AlmostEqual(Real{GetX(world_manifold.GetPoint(0)) / Meter}, Real(+0.5)));
+        EXPECT_TRUE(AlmostEqual(Real{GetY(world_manifold.GetPoint(0)) / Meter}, Real(-1.5)));
+        EXPECT_TRUE(AlmostEqual(Real{world_manifold.GetSeparation(0) / Meter}, Real(-1) - total_radius / Meter));
         
         ASSERT_GT(world_manifold.GetPointCount(), Manifold::size_type(1));
-        EXPECT_TRUE(AlmostEqual(GetX(world_manifold.GetPoint(1)) / Meter, Real(+0.5)));
-        EXPECT_TRUE(AlmostEqual(GetY(world_manifold.GetPoint(1)) / Meter, Real(+1.5)));
-        EXPECT_TRUE(AlmostEqual(world_manifold.GetSeparation(1) / Meter, Real(-1) - total_radius / Meter));
+        EXPECT_TRUE(AlmostEqual(Real{GetX(world_manifold.GetPoint(1)) / Meter}, Real(+0.5)));
+        EXPECT_TRUE(AlmostEqual(Real{GetY(world_manifold.GetPoint(1)) / Meter}, Real(+1.5)));
+        EXPECT_TRUE(AlmostEqual(Real{world_manifold.GetSeparation(1) / Meter}, Real(-1) - total_radius / Meter));
     }
     
     {
@@ -132,15 +133,21 @@ TEST(PositionSolverManifold, GetPSM)
         EXPECT_NEAR(static_cast<double>(psm0.m_normal.GetX()), 1.0, 0.00001);
         EXPECT_NEAR(static_cast<double>(psm0.m_normal.GetY()), 0.0, 0.00001);
         EXPECT_NEAR(static_cast<double>(Real{psm0.m_separation/Meter}), -1.0, 0.00001);
-        EXPECT_TRUE(AlmostEqual(GetX(psm0.m_point) / Meter, Real(0)));
-        EXPECT_TRUE(AlmostEqual(GetY(psm0.m_point) / Meter, Real(-1.5)));
+        EXPECT_TRUE(AlmostEqual(Real{GetX(psm0.m_point) / Meter}, Real(0)));
+        EXPECT_TRUE(AlmostEqual(Real{GetY(psm0.m_point) / Meter}, Real(-1.5)));
     }
     {
         const auto psm1 = GetPSM(manifold, 1, xfm0, xfm1);
         EXPECT_NEAR(static_cast<double>(psm1.m_normal.GetX()), 1.0, 0.0001);
         EXPECT_NEAR(static_cast<double>(psm1.m_normal.GetY()), 0.0, 0.0001);
         EXPECT_NEAR(static_cast<double>(Real{psm1.m_separation/Meter}), -1.0, 0.00001);
-        EXPECT_TRUE(AlmostEqual(GetX(psm1.m_point) / Meter, Real(0)));
-        EXPECT_TRUE(AlmostEqual(GetY(psm1.m_point) / Meter, Real(+1.5)));
+        EXPECT_TRUE(AlmostEqual(Real{GetX(psm1.m_point) / Meter}, Real(0)));
+        EXPECT_TRUE(AlmostEqual(Real{GetY(psm1.m_point) / Meter}, Real(+1.5)));
+    }
+    {
+        const auto psm = GetPSM(Manifold{}, 0, xfm0, xfm1);
+        EXPECT_FALSE(IsValid(psm.m_normal));
+        EXPECT_FALSE(IsValid(psm.m_point));
+        EXPECT_FALSE(IsValid(psm.m_separation));
     }
 }

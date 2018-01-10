@@ -22,7 +22,7 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
 
 class BulletTest : public Test
 {
@@ -31,94 +31,53 @@ public:
     BulletTest()
     {
         {
-            BodyDef bd;
-            bd.position = Vec2(0.0f, 0.0f) * Meter;
-            Body* body = m_world->CreateBody(bd);
-
-            body->CreateFixture(std::make_shared<EdgeShape>(Vec2(-10.0f, 0.0f) * Meter, Vec2(10.0f, 0.0f) * Meter));
-
-            PolygonShape shape;
-            SetAsBox(shape, Real{0.2f} * Meter, Real{1.0f} * Meter, Vec2(0.5f, 1.0f) * Meter, Real{0.0f} * Radian);
-            body->CreateFixture(std::make_shared<PolygonShape>(shape));
+            BodyConf bd;
+            bd.location = Length2{};
+            const auto body = m_world.CreateBody(bd);
+            body->CreateFixture(Shape(EdgeShapeConf{Vec2(-10.0f, 0.0f) * 1_m, Vec2(10.0f, 0.0f) * 1_m}));
+            body->CreateFixture(Shape{PolygonShapeConf{}.SetAsBox(0.2_m, 1_m, Vec2(0.5f, 1.0f) * 1_m, 0_rad)});
         }
 
         {
-            BodyDef bd;
+            BodyConf bd;
             bd.type = BodyType::Dynamic;
-            bd.position = Vec2(0.0f, 4.0f) * Meter;
+            bd.linearAcceleration = m_gravity;
+            bd.location = Vec2(0.0f, 4.0f) * 1_m;
 
-            PolygonShape box;
-            box.SetAsBox(Real{2.0f} * Meter, Real{0.1f} * Meter);
-            box.SetDensity(Real{1} * KilogramPerSquareMeter);
+            auto conf = PolygonShapeConf{};
+            conf.UseDensity(1_kgpm2);
+            conf.SetAsBox(2_m, 0.1_m);
 
-            m_body = m_world->CreateBody(bd);
-            m_body->CreateFixture(std::make_shared<PolygonShape>(box));
+            m_body = m_world.CreateBody(bd);
+            m_body->CreateFixture(Shape{conf});
 
-            box.SetAsBox(Real{0.25f} * Meter, Real{0.25f} * Meter);
-            box.SetDensity(Real{100} * KilogramPerSquareMeter);
+            conf.UseDensity(100_kgpm2);
+            conf.SetAsBox(0.25_m, 0.25_m);
 
             //m_x = RandomFloat(-1.0f, 1.0f);
             m_x = 0.20352793f;
-            bd.position = Vec2(m_x, 10.0f) * Meter;
+            bd.location = Vec2(m_x, 10.0f) * 1_m;
             bd.bullet = true;
 
-            m_bullet = m_world->CreateBody(bd);
-            m_bullet->CreateFixture(std::make_shared<PolygonShape>(box));
+            m_bullet = m_world.CreateBody(bd);
+            m_bullet->CreateFixture(Shape{conf});
 
-            m_bullet->SetVelocity(Velocity{Vec2{0.0f, -50.0f} * MeterPerSecond, AngularVelocity{0}});
+            m_bullet->SetVelocity(Velocity{Vec2{0.0f, -50.0f} * 1_mps, 0_rpm});
         }
     }
 
     void Launch()
     {
-        m_body->SetTransform(Vec2(0.0f, 4.0f) * Meter, Real{0.0f} * Radian);
-        m_body->SetVelocity(Velocity{LinearVelocity2D{}, AngularVelocity{0}});
+        m_body->SetTransform(Vec2(0.0f, 4.0f) * 1_m, 0_rad);
+        m_body->SetVelocity(Velocity{LinearVelocity2{}, 0_rpm});
 
         m_x = RandomFloat(-1.0f, 1.0f);
-        m_bullet->SetTransform(Vec2(m_x, 10.0f) * Meter, Real{0.0f} * Radian);
-        m_bullet->SetVelocity(Velocity{Vec2(0.0f, -50.0f) * MeterPerSecond, AngularVelocity{0}});
-
-        std::uint32_t gjkCalls, gjkIters, gjkMaxIters;
-        std::remove_const<decltype(DefaultMaxToiIters)>::type toiMaxIters;
-
-        gjkCalls = 0;
-        gjkIters = 0;
-        gjkMaxIters = 0;
-
-        toiMaxIters = 0;
+        m_bullet->SetTransform(Vec2(m_x, 10.0f) * 1_m, 0_rad);
+        m_bullet->SetVelocity(Velocity{Vec2(0.0f, -50.0f) * 1_mps, 0_rpm});
     }
 
-    void PostStep(const Settings&, Drawer& drawer) override
+    void PostStep(const Settings&, Drawer&) override
     {
-        std::uint32_t gjkCalls = 0, gjkIters = 0, gjkMaxIters = 0;
-        auto toiRootIters = 0, toiMaxRootIters = 0;
-
-        if (gjkCalls > 0)
-        {
-            drawer.DrawString(5, m_textLine, "gjk calls = %d, ave gjk iters = %3.1f, max gjk iters = %d",
-                gjkCalls, float(gjkIters) / gjkCalls, gjkMaxIters);
-            m_textLine += DRAW_STRING_NEW_LINE;
-        }
-
-        unsigned toiCalls = 0;
-        unsigned toiIters = 0;
-#if 0
-        for (auto&& c: m_world->GetContacts())
-        {
-            c.GetToiCount();
-        }
-#endif
-        if (toiCalls > 0)
-        {
-            drawer.DrawString(5, m_textLine, "toi calls = %d, ave toi iters = %3.1f, max toi iters = %d",
-                toiCalls, float(toiIters) / toiCalls, toiMaxRootIters);
-            m_textLine += DRAW_STRING_NEW_LINE;
-
-            drawer.DrawString(5, m_textLine, "ave toi root iters = %3.1f, max toi root iters = %d",
-                float(toiRootIters) / toiCalls, toiMaxRootIters);
-            m_textLine += DRAW_STRING_NEW_LINE;
-        }
-
         if (GetStepCount() % 60 == 0)
         {
             Launch();
@@ -130,6 +89,6 @@ public:
     Real m_x;
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

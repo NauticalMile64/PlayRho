@@ -27,26 +27,38 @@
 /// This tests stacking. It also shows how to use World::Query
 /// and TestOverlap.
 
-namespace playrho {
+namespace testbed {
 
 /// This callback is called by World::QueryAABB. We find all the fixtures
 /// that overlap an AABB. Of those, we use TestOverlap to determine which fixtures
 /// overlap a circle. Up to 4 overlapped fixtures will be highlighted with a yellow border.
-class ShapeDrawer: public IsVisitedShapeVisitor
+class ShapeDrawer
 {
 public:
 
-    void Visit(const DiskShape& shape) override
+    void operator() (const std::type_info& ti, const void* data)
+    {
+        if (ti == typeid(DiskShapeConf))
+        {
+            Visit(*static_cast<const DiskShapeConf*>(data));
+        }
+        else if (ti == typeid(PolygonShapeConf))
+        {
+            Visit(*static_cast<const PolygonShapeConf*>(data));
+        }
+    }
+
+    void Visit(const DiskShapeConf& shape)
     {
         const auto center = Transform(shape.GetLocation(), m_xf);
         const auto radius = shape.GetRadius();
         g_debugDraw->DrawCircle(center, radius, m_color);
     }
 
-    void Visit(const PolygonShape& shape) override
+    void Visit(const PolygonShapeConf& shape)
     {
         const auto vertexCount = shape.GetVertexCount();
-        auto vertices = std::vector<Length2D>(vertexCount);
+        auto vertices = std::vector<Length2>(vertexCount);
         for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
         {
             vertices[i] = Transform(shape.GetVertex(i), m_xf);
@@ -70,71 +82,91 @@ public:
 
     PolyShapes()
     {
-        m_circle->SetDensity(Real{1} * KilogramPerSquareMeter);
-        m_circle->SetFriction(Real(0.3f));
-
         // Ground body
-        {
-            const auto ground = m_world->CreateBody();
-            ground->CreateFixture(std::make_shared<EdgeShape>(Vec2(-40.0f, 0.0f) * Meter, Vec2(40.0f, 0.0f) * Meter));
-        }
+        m_world.CreateBody()->CreateFixture(Shape{EdgeShapeConf{Vec2(-40.0f, 0.0f) * 1_m, Vec2(40.0f, 0.0f) * 1_m}});
 
-        for (auto&& p: m_polygons)
-        {
-            p = std::make_shared<PolygonShape>();
-            p->SetDensity(Real{1} * KilogramPerSquareMeter);
-            p->SetFriction(Real(0.3f));
-        }
-
-        m_polygons[0]->Set({Vec2(-0.5f, 0.0f) * Meter, Vec2(0.5f, 0.0f) * Meter, Vec2(0.0f, 1.5f) * Meter});
-        m_polygons[1]->Set({Vec2(-0.1f, 0.0f) * Meter, Vec2(0.1f, 0.0f) * Meter, Vec2(0.0f, 1.5f) * Meter});
-
+        auto conf = PolygonShapeConf{};
+        conf.UseDensity(1_kgpm2);
+        conf.UseFriction(Real(0.3f));
+        conf.Set({Vec2(-0.5f, 0.0f) * 1_m, Vec2(0.5f, 0.0f) * 1_m, Vec2(0.0f, 1.5f) * 1_m});
+        m_polygons[0] = Shape(conf);
+        conf.Set({Vec2(-0.1f, 0.0f) * 1_m, Vec2(0.1f, 0.0f) * 1_m, Vec2(0.0f, 1.5f) * 1_m});
+        m_polygons[1] = Shape(conf);
         {
             const auto w = Real(1);
-            const auto b = w / (2.0f + Sqrt(2.0f));
-            const auto s = Sqrt(2.0f) * b;
+            const auto b = w / (2.0f + sqrt(2.0f));
+            const auto s = sqrt(2.0f) * b;
 
-            m_polygons[2]->Set({
-                Vec2(0.5f * s, 0.0f) * Meter,
-                Vec2(0.5f * w, b) * Meter,
-                Vec2(0.5f * w, b + s) * Meter,
-                Vec2(0.5f * s, w) * Meter,
-                Vec2(-0.5f * s, w) * Meter,
-                Vec2(-0.5f * w, b + s) * Meter,
-                Vec2(-0.5f * w, b) * Meter,
-                Vec2(-0.5f * s, 0.0f) * Meter
+            conf.Set({
+                Vec2(0.5f * s, 0.0f) * 1_m,
+                Vec2(0.5f * w, b) * 1_m,
+                Vec2(0.5f * w, b + s) * 1_m,
+                Vec2(0.5f * s, w) * 1_m,
+                Vec2(-0.5f * s, w) * 1_m,
+                Vec2(-0.5f * w, b + s) * 1_m,
+                Vec2(-0.5f * w, b) * 1_m,
+                Vec2(-0.5f * s, 0.0f) * 1_m
             });
+            m_polygons[2] = Shape(conf);
         }
-
-        {
-            m_polygons[3]->SetAsBox(Real{0.5f} * Meter, Real{0.5f} * Meter);
-        }
+        conf.SetAsBox(0.5_m, 0.5_m);
+        m_polygons[3] = Shape(conf);
 
         m_bodyIndex = 0;
         std::memset(m_bodies, 0, sizeof(m_bodies));
+        
+        RegisterForKey(GLFW_KEY_1, GLFW_PRESS, 0, "drop stuff", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_2, GLFW_PRESS, 0, "drop stuff", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_3, GLFW_PRESS, 0, "drop stuff", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_4, GLFW_PRESS, 0, "drop stuff", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_5, GLFW_PRESS, 0, "drop stuff", [&](KeyActionMods kam) {
+            Create(kam.key - GLFW_KEY_1);
+        });
+        RegisterForKey(GLFW_KEY_A, GLFW_PRESS, 0, "(de)activate some bodies", [&](KeyActionMods) {
+            for (auto i = 0; i < e_maxBodies; i += 2)
+            {
+                if (m_bodies[i])
+                {
+                    const auto enabled = m_bodies[i]->IsEnabled();
+                    m_bodies[i]->SetEnabled(!enabled);
+                }
+            }
+        });
+        RegisterForKey(GLFW_KEY_D, GLFW_PRESS, 0, "destroy a body", [&](KeyActionMods) {
+            Destroy();
+        });
     }
 
     void Create(int index)
     {
         if (m_bodies[m_bodyIndex])
         {
-            m_world->Destroy(m_bodies[m_bodyIndex]);
+            m_world.Destroy(m_bodies[m_bodyIndex]);
             m_bodies[m_bodyIndex] = nullptr;
         }
 
-        BodyDef bd;
+        BodyConf bd;
         bd.type = BodyType::Dynamic;
+        bd.linearAcceleration = m_gravity;
 
         const auto x = RandomFloat(-2.0f, 2.0f);
-        bd.position = Vec2(x, 10.0f) * Meter;
-        bd.angle = Radian * RandomFloat(-Pi, Pi);
+        bd.location = Vec2(x, 10.0f) * 1_m;
+        bd.angle = 1_rad * RandomFloat(-Pi, Pi);
 
         if (index == 4)
         {
-            bd.angularDamping = Real(0.02f) * Hertz;
+            bd.angularDamping = 0.02_Hz;
         }
 
-        m_bodies[m_bodyIndex] = m_world->CreateBody(bd);
+        m_bodies[m_bodyIndex] = m_world.CreateBody(bd);
 
         if (index < 4)
         {
@@ -154,72 +186,41 @@ public:
         {
             if (m_bodies[i])
             {
-                m_world->Destroy(m_bodies[i]);
+                m_world.Destroy(m_bodies[i]);
                 m_bodies[i] = nullptr;
                 return;
             }
         }
     }
 
-    void KeyboardDown(Key key) override
-    {
-        switch (key)
-        {
-        case Key_1:
-        case Key_2:
-        case Key_3:
-        case Key_4:
-        case Key_5:
-            Create(key - Key_1);
-            break;
-
-        case Key_A:
-            for (auto i = 0; i < e_maxBodies; i += 2)
-            {
-                if (m_bodies[i])
-                {
-                    const auto enabled = m_bodies[i]->IsEnabled();
-                    m_bodies[i]->SetEnabled(!enabled);
-                }
-            }
-            break;
-
-        case Key_D:
-            Destroy();
-            break;
-                
-        default:
-            break;
-        }
-    }
-
     void PostStep(const Settings&, Drawer& drawer) override
     {
-        auto circleConf = DiskShape::Conf{};
-        circleConf.location = Vec2(0.0f, 1.1f) * Meter;
-        circleConf.vertexRadius = Real(2) * Meter;
-        const auto circle = DiskShape{circleConf};
+        auto circleConf = DiskShapeConf{};
+        circleConf.location = Vec2(0.0f, 1.1f) * 1_m;
+        circleConf.vertexRadius = 2_m;
 
         const auto transform = Transform_identity;
 
         ShapeDrawer shapeDrawer;
         shapeDrawer.g_debugDraw = &drawer;
 
-        constexpr int e_maxCount = 4;
+        PLAYRHO_CONSTEXPR const int e_maxCount = 4;
         int count = 0;
-        const auto aabb = ComputeAABB(circle, transform);
-        m_world->QueryAABB(aabb, [&](Fixture* f, const ChildCounter) {
+        const auto circleChild = GetChild(circleConf, 0);
+        const auto aabb = ComputeAABB(circleChild, transform);
+        m_world.QueryAABB(aabb, [&](Fixture* f, const ChildCounter) {
             if (count < e_maxCount)
             {
                 const auto xfm = GetTransformation(*f);
                 const auto shape = f->GetShape();
-                const auto shapeChild = shape->GetChild(0);
-                const auto circleChild = circle.GetChild(0);
+                const auto shapeChild = GetChild(shape, 0);
                 const auto overlap = TestOverlap(shapeChild, xfm, circleChild, transform);
                 if (overlap >= Area{0})
                 {
                     shapeDrawer.m_xf = xfm;
-                    shape->Accept(shapeDrawer);
+                    Accept(shape, [&](const std::type_info& ti, const void* data) {
+                        shapeDrawer(ti, data);
+                    });
                     ++count;
                 }
                 return true;
@@ -228,22 +229,15 @@ public:
         });
 
         const auto color = Color(0.4f, 0.7f, 0.8f);
-        drawer.DrawCircle(circle.GetLocation(), circle.GetRadius(), color);
-
-        drawer.DrawString(5, m_textLine, "Press 1-5 to drop stuff");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "Press 'a' to (de)activate some bodies");
-        m_textLine += DRAW_STRING_NEW_LINE;
-        drawer.DrawString(5, m_textLine, "Press 'd' to destroy a body");
-        m_textLine += DRAW_STRING_NEW_LINE;
+        drawer.DrawCircle(circleConf.GetLocation(), circleConf.GetRadius(), color);
     }
 
     int m_bodyIndex;
     Body* m_bodies[e_maxBodies];
-    std::shared_ptr<PolygonShape> m_polygons[4];
-    std::shared_ptr<DiskShape> m_circle = std::make_shared<DiskShape>(Real{0.5f} * Meter);
+    Shape m_polygons[4] = {PolygonShapeConf{}, PolygonShapeConf{}, PolygonShapeConf{}, PolygonShapeConf{}};
+    Shape m_circle = DiskShapeConf{}.UseRadius(0.5_m).UseDensity(1_kgpm2).UseFriction(Real(0.3f));
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif

@@ -19,8 +19,11 @@
 
 #include <PlayRho/Collision/DistanceProxy.hpp>
 #include <PlayRho/Collision/Shapes/Shape.hpp>
+#include <algorithm>
+#include <iterator>
 
 namespace playrho {
+namespace d2 {
 
 bool operator== (const DistanceProxy& lhs, const DistanceProxy& rhs) noexcept
 {
@@ -28,49 +31,14 @@ bool operator== (const DistanceProxy& lhs, const DistanceProxy& rhs) noexcept
     {
         return false;
     }
-    if (lhs.GetVertexCount() != rhs.GetVertexCount())
-    {
-        return false;
-    }
-    const auto vertexCount = lhs.GetVertexCount();
-    if (vertexCount > 1)
-    {
-        for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
-        {
-            if (lhs.GetVertex(i) != rhs.GetVertex(i))
-            {
-                return false;
-            }
-        }
-    }
-    else if (vertexCount == 1)
-    {
-        if (lhs.GetVertex(0) != rhs.GetVertex(0))
-        {
-            return false;
-        }
-    }
-    return true;
+
+    // No need to compare normals since they should be invariant to the vertices.
+    const auto lhr = lhs.GetVertices();
+    const auto rhr = rhs.GetVertices();
+    return std::equal(std::cbegin(lhr), std::cend(lhr), std::cbegin(rhr), std::cend(rhr));
 }
 
-DistanceProxy::size_type GetSupportIndex(const DistanceProxy& proxy, Vec2 d) noexcept
-{
-    auto index = DistanceProxy::InvalidIndex; ///< Index of vertex that when dotted with d has the max value.
-    auto maxValue = -MaxFloat * Meter; ///< Max dot value.
-    const auto count = proxy.GetVertexCount();
-    for (auto i = decltype(count){0}; i < count; ++i)
-    {
-        const auto value = Dot(proxy.GetVertex(i), d);
-        if (maxValue < value)
-        {
-            maxValue = value;
-            index = i;
-        }
-    }
-    return index;
-}
-
-std::size_t FindLowestRightMostVertex(Span<const Length2D> vertices)
+std::size_t FindLowestRightMostVertex(Span<const Length2> vertices)
 {
     const auto size = vertices.size();
     if (size > 0)
@@ -91,9 +59,9 @@ std::size_t FindLowestRightMostVertex(Span<const Length2D> vertices)
     return static_cast<std::size_t>(-1);
 }
 
-std::vector<Length2D> GetConvexHullAsVector(Span<const Length2D> vertices)
+std::vector<Length2> GetConvexHullAsVector(Span<const Length2> vertices)
 {
-    std::vector<Length2D> result;
+    std::vector<Length2> result;
     
     // Create the convex hull using the Gift wrapping algorithm
     // http://en.wikipedia.org/wiki/Gift_wrapping_algorithm
@@ -121,7 +89,7 @@ std::vector<Length2D> GetConvexHullAsVector(Span<const Length2D> vertices)
                 const auto r = vertices[ie] - vertices[ih];
                 const auto v = vertices[j] - vertices[ih];
                 const auto c = Cross(r, v);
-                if ((c < Area{0}) || ((c == Area{0}) && (GetLengthSquared(v) > GetLengthSquared(r))))
+                if ((c < Area{0}) || ((c == Area{0}) && (GetMagnitudeSquared(v) > GetMagnitudeSquared(r))))
                 {
                     ie = j;
                 }
@@ -144,7 +112,7 @@ std::vector<Length2D> GetConvexHullAsVector(Span<const Length2D> vertices)
     return result;
 }
 
-bool TestPoint(const DistanceProxy& proxy, Length2D point) noexcept
+bool TestPoint(const DistanceProxy& proxy, Length2 point) noexcept
 {
     const auto count = proxy.GetVertexCount();
     const auto vr = proxy.GetVertexRadius();
@@ -158,7 +126,7 @@ bool TestPoint(const DistanceProxy& proxy, Length2D point) noexcept
     {
         const auto v0 = proxy.GetVertex(0);
         const auto delta = point - v0;
-        return GetLengthSquared(delta) <= Square(vr);
+        return GetMagnitudeSquared(delta) <= Square(vr);
     }
     
     auto maxDot = -MaxFloat * Meter;
@@ -178,10 +146,7 @@ bool TestPoint(const DistanceProxy& proxy, Length2D point) noexcept
             maxIdx = i;
         }
     }
-    if (maxIdx >= count)
-    {
-        return false;
-    }
+    assert(maxIdx < count);
     
     const auto v0 = proxy.GetVertex(maxIdx);
     const auto v1 = proxy.GetVertex(GetModuloNext(maxIdx, count));
@@ -191,16 +156,17 @@ bool TestPoint(const DistanceProxy& proxy, Length2D point) noexcept
     if (d0 >= Area{0})
     {
         // point is nearest v0 and not within edge
-        return GetLengthSquared(delta0) <= Square(vr);
+        return GetMagnitudeSquared(delta0) <= Square(vr);
     }
     const auto delta1 = point - v1;
     const auto d1 = Dot(edge, delta1);
     if (d1 >= Area{0})
     {
         // point is nearest v1 and not within edge
-        return GetLengthSquared(delta1) <= Square(vr);
+        return GetMagnitudeSquared(delta1) <= Square(vr);
     }
     return true;
 }
 
+} // namespace d2
 } // namespace playrho

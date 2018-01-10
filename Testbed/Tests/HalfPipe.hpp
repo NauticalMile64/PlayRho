@@ -21,30 +21,25 @@
 
 #include "../Framework/Test.hpp"
 
-namespace playrho {
+namespace testbed {
     
     class HalfPipe : public Test
     {
     public:
-        
         HalfPipe()
         {
-            const auto pipeBody = m_world->CreateBody(BodyDef{}.UseLocation(Vec2(0, 20) * Meter));
+            const auto pipeBody = m_world.CreateBody(BodyConf{}.UseLocation(Vec2(0, 20) * 1_m));
             {
-                auto conf = ChainShape::Conf{};
+                auto conf = ChainShapeConf{};
                 conf.UseFriction(Real(1));
-                conf.vertices = GetCircleVertices(Real{20.0f} * Meter, 90,
-                                                  Real(180) * Degree, Real(0.5f));
-                pipeBody->CreateFixture(std::make_shared<ChainShape>(conf));
+                conf.Set(GetCircleVertices(20_m, 90, 180_deg, Real(0.5f)));
+                pipeBody->CreateFixture(Shape{conf});
             }
-
-            const auto ballBody = m_world->CreateBody(BodyDef{}
+            const auto ballBody = m_world.CreateBody(BodyConf{}
                                                       .UseType(BodyType::Dynamic)
-                                                      .UseLocation(Vec2(-19, 28) * Meter));
-            ballBody->CreateFixture(std::make_shared<DiskShape>(DiskShape::Conf{}
-                                    .UseDensity(Real{0.01f} * KilogramPerSquareMeter)
-                                    .UseVertexRadius(Real{1} * Meter)
-                                    .UseFriction(Real(1))));
+                                                      .UseLocation(Vec2(-19, 28) * 1_m)
+                                                     .UseLinearAcceleration(m_gravity));
+            ballBody->CreateFixture(DiskShapeConf{}.UseDensity(0.01_kgpm2).UseRadius(1_m).UseFriction(Real(1)));
         }
     };
     

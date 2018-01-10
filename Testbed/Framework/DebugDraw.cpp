@@ -30,94 +30,17 @@
 #include <cstdarg>
 #include <cstdlib>
 
-#include "RenderGL3.h"
+#include "imgui.h"
 
-namespace playrho {
+using namespace playrho;
+using namespace playrho::d2;
 
-Length2D ConvertScreenToWorld(const Camera& camera, const Coord2D ps)
-{
-    const auto w = float(camera.m_width);
-    const auto h = float(camera.m_height);
-    const auto u = ps.x / w;
-    const auto v = (h - ps.y) / h;
+namespace testbed {
 
-    const auto ratio = w / h;
-    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
+Camera g_camera;
 
-    const auto lower = camera.m_center - extents;
-    const auto upper = camera.m_center + extents;
+namespace {
 
-    const auto x = Real{((1 - u) * lower.x + u * upper.x)};
-    const auto y = Real{((1 - v) * lower.y + v * upper.y)};
-    return Length2D{x * Meter, y * Meter};
-}
-
-AABB ConvertScreenToWorld(const Camera& camera)
-{
-    const auto w = float(camera.m_width);
-    const auto h = float(camera.m_height);
-    
-    const auto ratio = w / h;
-    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
-    
-    const auto lower = camera.m_center - extents;
-    const auto upper = camera.m_center + extents;
-
-    return AABB{
-        Length2D{Real{lower.x} * Meter, Real{lower.y} * Meter},
-        Length2D{Real{upper.x} * Meter, Real{upper.y} * Meter}
-    };
-}
-
-Coord2D ConvertWorldToScreen(const Camera& camera, const Length2D pw)
-{
-    const auto w = float(camera.m_width);
-    const auto h = float(camera.m_height);
-    const auto ratio = w / h;
-    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
-
-    const auto lower = camera.m_center - extents;
-    const auto upper = camera.m_center + extents;
-
-    const auto u = (float(Real{GetX(pw) / Meter}) - lower.x) / (upper.x - lower.x);
-    const auto v = (float(Real{GetY(pw) / Meter}) - lower.y) / (upper.y - lower.y);
-
-    return Coord2D{u * w, (float(1) - v) * h};
-}
-
-// Convert from world coordinates to normalized device coordinates.
-// http://www.songho.ca/opengl/gl_projectionmatrix.html
-ProjectionMatrix GetProjectionMatrix(const Camera& camera, float zBias)
-{
-    const auto w = float(camera.m_width);
-    const auto h = float(camera.m_height);
-    const auto ratio = w / h;
-    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
-
-    const auto lower = camera.m_center - extents;
-    const auto upper = camera.m_center + extents;
-
-    return ProjectionMatrix{{
-        2.0f / (upper.x - lower.x), // 0
-        0.0f, // 1
-        0.0f, // 2
-        0.0f, // 3
-        0.0f, // 4
-        2.0f / (upper.y - lower.y), // 5
-        0.0f, // 6
-        0.0f, // 7
-        0.0f, // 8
-        0.0f, // 9
-        1.0f, // 10
-        0.0f, // 11
-        -(upper.x + lower.x) / (upper.x - lower.x), // 12
-        -(upper.y + lower.y) / (upper.y - lower.y), // 13
-        zBias, // 14
-        1.0f
-    }};
-}
-
-//
 static void sCheckGLError()
 {
     const auto errCode = glGetError();
@@ -141,26 +64,24 @@ static void sPrintLog(GLuint object)
         fprintf(stderr, "printlog: Not a shader or a program\n");
         return;
     }
-
+    
     if (log_length < 0)
     {
         fprintf(stderr, "printlog: got negative log length??\n");
         return;
     }
-
+    
     char* log = (char*)std::malloc(static_cast<std::size_t>(log_length));
-
+    
     if (glIsShader(object))
         glGetShaderInfoLog(object, log_length, nullptr, log);
     else if (glIsProgram(object))
         glGetProgramInfoLog(object, log_length, nullptr, log);
-
+    
     fprintf(stderr, "%s", log);
     std::free(log);
 }
 
-
-//
 static GLuint sCreateShaderFromString(const char* source, GLenum type)
 {
     GLuint res = glCreateShader(type);
@@ -176,26 +97,25 @@ static GLuint sCreateShaderFromString(const char* source, GLenum type)
         glDeleteShader(res);
         return 0;
     }
-
+    
     return res;
 }
 
-// 
 static GLuint sCreateShaderProgram(const char* vs, const char* fs)
 {
     GLuint vsId = sCreateShaderFromString(vs, GL_VERTEX_SHADER);
     GLuint fsId = sCreateShaderFromString(fs, GL_FRAGMENT_SHADER);
     assert(vsId != 0 && fsId != 0);
-
+    
     GLuint programId = glCreateProgram();
     glAttachShader(programId, vsId);
     glAttachShader(programId, fsId);
     glBindFragDataLocation(programId, 0, "color");
     glLinkProgram(programId);
-
+    
     glDeleteShader(vsId);
     glDeleteShader(fsId);
-
+    
     GLint status = GL_FALSE;
     glGetProgramiv(programId, GL_LINK_STATUS, &status);
     assert(status != GL_FALSE);
@@ -203,12 +123,97 @@ static GLuint sCreateShaderProgram(const char* vs, const char* fs)
     return programId;
 }
 
-//
+} // namespace
+
+
+Length2 ConvertScreenToWorld(const Coord2D ps, const Camera& camera)
+{
+    const auto w = float(camera.m_width);
+    const auto h = float(camera.m_height);
+    const auto u = ps.x / w;
+    const auto v = (h - ps.y) / h;
+    
+    const auto ratio = w / h;
+    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
+    
+    const auto lower = camera.m_center - extents;
+    const auto upper = camera.m_center + extents;
+    
+    const auto x = Real{((1 - u) * lower.x + u * upper.x)};
+    const auto y = Real{((1 - v) * lower.y + v * upper.y)};
+    return Length2{x * Meter, y * Meter};
+}
+
+AABB ConvertScreenToWorld(const Camera& camera)
+{
+    const auto w = float(camera.m_width);
+    const auto h = float(camera.m_height);
+    
+    const auto ratio = w / h;
+    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
+    
+    const auto lower = camera.m_center - extents;
+    const auto upper = camera.m_center + extents;
+    
+    return AABB{
+        Length2{Real{lower.x} * Meter, Real{lower.y} * Meter},
+        Length2{Real{upper.x} * Meter, Real{upper.y} * Meter}
+    };
+}
+
+Coord2D ConvertWorldToScreen(const Length2 pw, const Camera& camera)
+{
+    const auto w = float(camera.m_width);
+    const auto h = float(camera.m_height);
+    const auto ratio = w / h;
+    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
+    
+    const auto lower = camera.m_center - extents;
+    const auto upper = camera.m_center + extents;
+    
+    const auto u = (float(Real{GetX(pw) / Meter}) - lower.x) / (upper.x - lower.x);
+    const auto v = (float(Real{GetY(pw) / Meter}) - lower.y) / (upper.y - lower.y);
+    
+    return Coord2D{u * w, (float(1) - v) * h};
+}
+
+// Convert from world coordinates to normalized device coordinates.
+// http://www.songho.ca/opengl/gl_projectionmatrix.html
+ProjectionMatrix GetProjectionMatrix(float zBias, const Camera& camera)
+{
+    const auto w = float(camera.m_width);
+    const auto h = float(camera.m_height);
+    const auto ratio = w / h;
+    const auto extents = Coord2D{ratio * 25.0f, 25.0f} * camera.m_zoom;
+    
+    const auto lower = camera.m_center - extents;
+    const auto upper = camera.m_center + extents;
+    
+    return ProjectionMatrix{{
+        2.0f / (upper.x - lower.x), // 0
+        0.0f, // 1
+        0.0f, // 2
+        0.0f, // 3
+        0.0f, // 4
+        2.0f / (upper.y - lower.y), // 5
+        0.0f, // 6
+        0.0f, // 7
+        0.0f, // 8
+        0.0f, // 9
+        1.0f, // 10
+        0.0f, // 11
+        -(upper.x + lower.x) / (upper.x - lower.x), // 12
+        -(upper.y + lower.y) / (upper.y - lower.y), // 13
+        zBias, // 14
+        1.0f
+    }};
+}
+
 struct GLRenderPoints
 {
     GLRenderPoints()
     {
-        static constexpr char vs[] = \
+        static PLAYRHO_CONSTEXPR const char vs[] = \
         "#version 330\n"
         "uniform mat4 projectionMatrix;\n"
         "layout(location = 0) in vec2 v_position;\n"
@@ -222,7 +227,7 @@ struct GLRenderPoints
         "    gl_PointSize = v_size;\n"
         "}\n";
         
-        static constexpr char fs[] = \
+        static PLAYRHO_CONSTEXPR const char fs[] = \
         "#version 330\n"
         "in vec4 f_color;\n"
         "out vec4 color;\n"
@@ -302,7 +307,7 @@ struct GLRenderPoints
         
         glUseProgram(m_programId);
         
-        const auto proj = GetProjectionMatrix(camera, 0.0f);
+        const auto proj = GetProjectionMatrix(0.0f, camera);
         
         glUniformMatrix4fv(m_projectionUniform, 1, GL_FALSE, proj.m);
         
@@ -434,7 +439,7 @@ struct GLRenderLines
         
         glUseProgram(m_programId);
         
-        const auto proj = GetProjectionMatrix(camera, 0.1f);
+        const auto proj = GetProjectionMatrix(0.1f, camera);
         
         glUniformMatrix4fv(m_projectionUniform, 1, GL_FALSE, proj.m);
         
@@ -559,7 +564,7 @@ struct GLRenderTriangles
         
         glUseProgram(m_programId);
         
-        const auto proj = GetProjectionMatrix(camera, 0.2f);
+        const auto proj = GetProjectionMatrix(0.2f, camera);
         
         glUniformMatrix4fv(m_projectionUniform, 1, GL_FALSE, proj.m);
         
@@ -599,18 +604,16 @@ struct GLRenderTriangles
     GLuint m_colorAttribute;
 };
 
-//
 DebugDraw::DebugDraw(Camera& camera):
     m_camera(camera),
-    m_cosInc{std::cos((2 * Pi) / m_circleParts)},
-    m_sinInc{std::sin((2 * Pi) / m_circleParts)}
+    m_cosInc{cos((2 * Pi) / m_circleParts)},
+    m_sinInc{sin((2 * Pi) / m_circleParts)}
 {
     m_points = new GLRenderPoints;
     m_lines = new GLRenderLines;
     m_triangles = new GLRenderTriangles;
 }
 
-//
 DebugDraw::~DebugDraw() noexcept
 {
     delete m_triangles;
@@ -618,7 +621,7 @@ DebugDraw::~DebugDraw() noexcept
     delete m_points;
 }
 
-void DebugDraw::DrawTriangle(const Length2D& p1, const Length2D& p2, const Length2D& p3, const Color& color)
+void DebugDraw::DrawTriangle(const Length2& p1, const Length2& p2, const Length2& p3, const Color& color)
 {
     const auto c1 = Coord2D{static_cast<float>(StripUnit(GetX(p1))), static_cast<float>(StripUnit(GetY(p1)))};
     const auto c2 = Coord2D{static_cast<float>(StripUnit(GetX(p2))), static_cast<float>(StripUnit(GetY(p2)))};
@@ -628,8 +631,7 @@ void DebugDraw::DrawTriangle(const Length2D& p1, const Length2D& p2, const Lengt
     m_triangles->Vertex(m_camera, c3, color);
 }
 
-//
-void DebugDraw::DrawSegment(const Length2D& p1, const Length2D& p2, const Color& color)
+void DebugDraw::DrawSegment(const Length2& p1, const Length2& p2, const Color& color)
 {
     const auto c1 = Coord2D{static_cast<float>(StripUnit(GetX(p1))), static_cast<float>(StripUnit(GetY(p1)))};
     const auto c2 = Coord2D{static_cast<float>(StripUnit(GetX(p2))), static_cast<float>(StripUnit(GetY(p2)))};
@@ -637,13 +639,21 @@ void DebugDraw::DrawSegment(const Length2D& p1, const Length2D& p2, const Color&
     m_lines->Vertex(m_camera, c2, color);
 }
 
-void DebugDraw::DrawPoint(const Length2D& p, float size, const Color& color)
+void DebugDraw::DrawSegment(const Length2& p1, const Color& c1,
+                 const Length2& p2, const Color& c2)
+{
+    const auto coord1 = Coord2D{static_cast<float>(StripUnit(GetX(p1))), static_cast<float>(StripUnit(GetY(p1)))};
+    const auto coord2 = Coord2D{static_cast<float>(StripUnit(GetX(p2))), static_cast<float>(StripUnit(GetY(p2)))};
+    m_lines->Vertex(m_camera, coord1, c1);
+    m_lines->Vertex(m_camera, coord2, c2);
+}
+
+void DebugDraw::DrawPoint(const Length2& p, float size, const Color& color)
 {
     const auto c = Coord2D{static_cast<float>(StripUnit(GetX(p))), static_cast<float>(StripUnit(GetY(p)))};
     m_points->Vertex(m_camera, c, color, size);
 }
 
-//
 void DebugDraw::Flush()
 {
     m_triangles->Flush(m_camera);
@@ -651,8 +661,7 @@ void DebugDraw::Flush()
     m_points->Flush(m_camera);
 }
 
-//
-void DebugDraw::DrawPolygon(const Length2D* vertices, size_type vertexCount, const Color& color)
+void DebugDraw::DrawPolygon(const Length2* vertices, size_type vertexCount, const Color& color)
 {
     auto p1 = vertices[vertexCount - 1];
     for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
@@ -663,8 +672,7 @@ void DebugDraw::DrawPolygon(const Length2D* vertices, size_type vertexCount, con
     }
 }
 
-//
-void DebugDraw::DrawCircle(const Length2D& center, Length radius, const Color& color)
+void DebugDraw::DrawCircle(const Length2& center, Length radius, const Color& color)
 {
     auto r1 = Vec2(1, 0);
     auto v1 = center + radius * r1;
@@ -680,8 +688,7 @@ void DebugDraw::DrawCircle(const Length2D& center, Length radius, const Color& c
     }
 }
 
-//
-void DebugDraw::DrawSolidPolygon(const Length2D* vertices, size_type vertexCount, const Color& color)
+void DebugDraw::DrawSolidPolygon(const Length2* vertices, size_type vertexCount, const Color& color)
 {
     for (auto i = decltype(vertexCount){1}; i < vertexCount - 1; ++i)
     {
@@ -689,8 +696,7 @@ void DebugDraw::DrawSolidPolygon(const Length2D* vertices, size_type vertexCount
     }
 }
 
-//
-void DebugDraw::DrawSolidCircle(const Length2D& center, Length radius, const Color& color)
+void DebugDraw::DrawSolidCircle(const Length2& center, Length radius, const Color& color)
 {
     const auto v0 = center;
     auto r1 = Vec2(m_cosInc, m_sinInc);
@@ -708,44 +714,48 @@ void DebugDraw::DrawSolidCircle(const Length2D& center, Length radius, const Col
     }
 }
 
-void DebugDraw::DrawString(int x, int y, const char *string, ...)
+void DebugDraw::DrawString(const Length2& pw, TextAlign align, const char *string, ...)
 {
-    const auto h = float(m_camera.m_height);
+    auto ps = ConvertWorldToScreen(pw, m_camera);
 
     char buffer[512];
-
-    va_list arg;
-    va_start(arg, string);
-    vsnprintf(buffer, sizeof(buffer), string, arg);
-    va_end(arg);
-
-    AddGfxCmdText(float(x), h - float(y), TEXT_ALIGN_LEFT, buffer, SetRGBA(230, 153, 153, 255));
-}
-
-void DebugDraw::DrawString(const Length2D& pw, const char *string, ...)
-{
-    const auto ps = ConvertWorldToScreen(m_camera, pw);
-    const auto h = float(m_camera.m_height);
-
-    char buffer[512];
-
     va_list arg;
     va_start(arg, string);
     vsprintf(buffer, string, arg);
     va_end(arg);
+    
+    const auto textSize = ImGui::CalcTextSize(buffer);
+    switch (align)
+    {
+        case Left:
+            break;
+        case Right:
+            ps.x -= textSize.x;
+            break;
+        case Center:
+            ps.x -= textSize.x / 2;
+            break;
+    }
 
-    AddGfxCmdText(ps.x, h - ps.y, TEXT_ALIGN_LEFT, buffer, SetRGBA(230, 153, 153, 255));
+    ImGui::SetNextWindowPos(ImVec2(0,0));
+    ImGui::WindowContext wc("Overlay", nullptr, ImVec2(0,0), 0.0f,
+                            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs |
+                            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar);
+    ImGui::SetCursorPos(ImVec2(ps.x, ps.y - ImGui::GetFontSize() / 2));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImColor(230, 153, 153, 255).Value);
+    ImGui::TextUnformatted(buffer);
+    ImGui::PopStyleColor();
 }
 
-Length2D DebugDraw::GetTranslation() const
+Length2 DebugDraw::GetTranslation() const
 {
-    return Length2D{
+    return Length2{
         Real(m_camera.m_center.x) * Meter,
         Real(m_camera.m_center.y) * Meter
     };
 }
 
-void DebugDraw::SetTranslation(Length2D value)
+void DebugDraw::SetTranslation(Length2 value)
 {
     m_camera.m_center = Coord2D{
         static_cast<float>(Real{GetX(value) / Meter}),

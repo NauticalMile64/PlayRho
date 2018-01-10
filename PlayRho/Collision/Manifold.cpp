@@ -32,13 +32,12 @@
 #define PLAYRHO_MAGIC(x) (x)
 
 namespace playrho {
+namespace d2 {
 
 namespace {
 
 #ifdef DEFINE_GET_MANIFOLD
-using index_type = IndexPair::size_type;
-
-inline index_type GetEdgeIndex(index_type i1, index_type i2, index_type count)
+inline index_type GetEdgeIndex(VertexCounter i1, VertexCounter i2, VertexCounter count)
 {
     if (GetModuloNext(i1, count) == i2)
     {
@@ -48,24 +47,65 @@ inline index_type GetEdgeIndex(index_type i1, index_type i2, index_type count)
     {
         return i2;
     }
-    return IndexPair::InvalidIndex;
+    return InvalidVertex;
 }
 #endif
+
+using VertexCounterPair = std::pair<VertexCounter, VertexCounter>;
+    
+VertexCounterPair
+GetMostAntiParallelEdge(UnitVec shape0_rel_n0, const Transformation& xf0,
+                        const DistanceProxy& shape1, const Transformation& xf1,
+                        const VertexCounter2 indices1) noexcept
+{
+    const auto firstIdx = std::get<0>(indices1);
+    const auto secondIdx = std::get<1>(indices1);
+    if (secondIdx == InvalidVertex)
+    {
+        // Gets most anti-parallel edge of either prevIdx or firstIdx.
+        const auto normal = InverseRotate(Rotate(shape0_rel_n0, xf0.q), xf1.q);
+        const auto count = shape1.GetVertexCount();
+        const auto prevIdx = GetModuloPrev(firstIdx, count);
+        const auto prevDot = Dot(normal, shape1.GetNormal(prevIdx));
+        const auto currDot = Dot(normal, shape1.GetNormal(firstIdx));
+        return (prevDot < currDot)?
+            std::make_pair(prevIdx, firstIdx):
+            std::make_pair(firstIdx, GetModuloNext(firstIdx, count));
+    }
+    return ((secondIdx > firstIdx) && ((firstIdx + 1) == secondIdx))?
+        std::make_pair(firstIdx, secondIdx): std::make_pair(secondIdx, firstIdx);
+}
+
+ClipList GetClipPoints(Length2 shape0_abs_v0, Length2 shape0_abs_v1, VertexCounterPair shape0_e,
+                       UnitVec shape0_abs_e0_dir,
+                       Length2 shape1_abs_v0, Length2 shape1_abs_v1, VertexCounterPair shape1_e)
+{
+    // Gets the two vertices in world coordinates and their face-vertex contact features
+    // of the incident edge of shape1
+    const auto ie = ClipList{
+        ClipVertex{shape1_abs_v0, GetFaceVertexContactFeature(shape0_e.first, shape1_e.first)},
+        ClipVertex{shape1_abs_v1, GetFaceVertexContactFeature(shape0_e.first, shape1_e.second)}
+    };
+    const auto shape0_dp_v0_e0 = -Dot(shape0_abs_e0_dir, shape0_abs_v0);
+    const auto shape0_dp_v1_e0 = +Dot(shape0_abs_e0_dir, shape0_abs_v1);
+
+    const auto points = ClipSegmentToLine(ie, -shape0_abs_e0_dir, shape0_dp_v0_e0, shape0_e.first);
+    return ClipSegmentToLine(points, +shape0_abs_e0_dir, shape0_dp_v1_e0, shape0_e.second);
+}
 
 /// @param shape0 Shape 0. This should be shape A for face-A type manifold or shape B for face-B type manifold.
 /// @param xf0 Transform 1. This should be transform A for face-A type manifold or transform B for face-B type manifold.
 /// @param idx0 Index 0. This should be the index of the vertex and normal of shape0 that had the maximal
 ///    separation distance from any vertex in shape1.
-/// @param idx1 Index 1. This is the index of the vertex of shape1 that had the maximal separation distance
-//     from the edge of shape0 identified by idx0.
-Manifold GetFaceManifold(const Manifold::Type type,
+/// @param indices1 Index 1. This is the first and possibly second index of the vertex of shape1
+///   that had the maximal separation distance from the edge of shape0 identified by idx0.
+Manifold GetFaceManifold(bool flipped,
                          const DistanceProxy& shape0, const Transformation& xf0,
-                         const IndexSeparation::index_type idx0,
+                         const VertexCounter idx0,
                          const DistanceProxy& shape1, const Transformation& xf1,
-                         const IndexSeparation::index_type idx1,
+                         const VertexCounter2 indices1,
                          const Manifold::Conf conf)
 {
-    assert(type == Manifold::e_faceA || type == Manifold::e_faceB);
     assert(shape0.GetVertexCount() > 1 && shape1.GetVertexCount() > 1);
     
     const auto r0 = shape0.GetVertexRadius();
@@ -79,79 +119,51 @@ Manifold GetFaceManifold(const Manifold::Type type,
     const auto shape0_abs_v0 = Transform(shape0_rel_v0, xf0);
     const auto shape0_abs_v1 = Transform(shape0_rel_v1, xf0);
     
-    auto shape0_len_edge0 = GetLengthSquared(shape0_rel_v1 - shape0_rel_v0);
+    auto shape0_len_edge0 = GetMagnitudeSquared(shape0_rel_v1 - shape0_rel_v0);
 
     // Clip incident edge against extruded edge1 side edges.
     // Side offsets, extended by polytope skin thickness.
     
     const auto shape0_rel_n0 = shape0.GetNormal(idx0);
     const auto shape0_rel_e0_dir = GetRevPerpendicular(shape0_rel_n0);
-    const auto shape0_normal = InverseRotate(Rotate(shape0_rel_n0, xf0.q), xf1.q);
-    const auto shape1_idx0 = GetModuloPrev(idx1, shape1.GetVertexCount());
-    const auto shape1_idx1 = idx1;
-    const auto shape1_rel_n0 = shape1.GetNormal(shape1_idx0);
-    const auto shape1_rel_n1 = shape1.GetNormal(shape1_idx1);
-    const auto shape1_s0 = Dot(shape0_normal, shape1_rel_n0);
-    const auto shape1_s1 = Dot(shape0_normal, shape1_rel_n1);
-    const auto shape1_i0 = (shape1_s0 < shape1_s1)? shape1_idx0: shape1_idx1;
-    const auto shape1_i1 = GetModuloNext(shape1_i0, shape1.GetVertexCount()); /// XXX is correct?
-    const auto shape1_rel_v0 = shape1.GetVertex(shape1_i0);
+    const auto shape1_e = GetMostAntiParallelEdge(shape0_rel_n0, xf0, shape1, xf1, indices1);
+    const auto shape1_rel_v0 = shape1.GetVertex(shape1_e.first);
     const auto shape1_abs_v0 = Transform(shape1_rel_v0, xf1);
-    const auto shape1_rel_v1 = shape1.GetVertex(shape1_i1);
+    const auto shape1_rel_v1 = shape1.GetVertex(shape1_e.second);
     const auto shape1_abs_v1 = Transform(shape1_rel_v1, xf1);
     {
         const auto shape0_abs_e0_dir = Rotate(shape0_rel_e0_dir, xf0.q);
-        const auto clipPoints = [&]()
-        {
-            // Gets the two vertices in world coordinates and their face-vertex contact features
-            // of the incident edge of shape1
-            const auto ie = ClipList{
-                ClipVertex{shape1_abs_v0, GetFaceVertexContactFeature(idx0, shape1_i0)},
-                ClipVertex{shape1_abs_v1, GetFaceVertexContactFeature(idx0, shape1_i1)}
-            };
-            //const auto ie = GetIncidentEdgeClipList(idx0, shape0_rel_n0, xf0, shape1, xf1, idx1);
-            assert(ie[0].cf.indexB == idx1 || ie[1].cf.indexB == idx1);
-            const auto shape0_dp_v0_e0 = -Dot(shape0_abs_e0_dir, shape0_abs_v0);
-            const auto shape0_dp_v1_e0 = +Dot(shape0_abs_e0_dir, shape0_abs_v1);
-            
-            const auto points = ClipSegmentToLine(ie, -shape0_abs_e0_dir, shape0_dp_v0_e0, idx0);
-            return ClipSegmentToLine(points, +shape0_abs_e0_dir, shape0_dp_v1_e0, idx0Next);
-        }();
+        const auto clipPoints = GetClipPoints(shape0_abs_v0, shape0_abs_v1, std::make_pair(idx0, idx0Next),
+                                              shape0_abs_e0_dir,
+                                              shape1_abs_v0, shape1_abs_v1, shape1_e);
         if (clipPoints.size() == 2)
         {
             const auto abs_normal = GetFwdPerpendicular(shape0_abs_e0_dir);
-            const auto rel_midpoint = (shape0_rel_v0 + shape0_rel_v1) / Real{2};
+            const auto rel_midpoint = (shape0_rel_v0 + shape0_rel_v1) / 2;
             const auto abs_offset = Dot(abs_normal, shape0_abs_v0); ///< Face offset.
             
             auto manifold = Manifold{};
-            switch (type)
+            if (!flipped)
             {
-                case Manifold::e_faceA:
+                manifold = Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), rel_midpoint);
+                for (auto&& cp: clipPoints)
                 {
-                    manifold = Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), rel_midpoint);
-                    for (auto&& cp: clipPoints)
+                    if ((Dot(abs_normal, cp.v) - abs_offset) <= totalRadius)
                     {
-                        if ((Dot(abs_normal, cp.v) - abs_offset) <= totalRadius)
-                        {
-                            manifold.AddPoint(Manifold::Point{InverseTransform(cp.v, xf1), cp.cf});
-                        }
+                        manifold.AddPoint(Manifold::Point{InverseTransform(cp.v, xf1), cp.cf});
                     }
-                    break;
                 }
-                case Manifold::e_faceB:
+            }
+            else
+            {
+                manifold = Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), rel_midpoint);
+                for (auto&& cp: clipPoints)
                 {
-                    manifold = Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), rel_midpoint);
-                    for (auto&& cp: clipPoints)
+                    if ((Dot(abs_normal, cp.v) - abs_offset) <= totalRadius)
                     {
-                        if ((Dot(abs_normal, cp.v) - abs_offset) <= totalRadius)
-                        {
-                            manifold.AddPoint(Manifold::Point{InverseTransform(cp.v, xf1), Flip(cp.cf)});
-                        }
+                        manifold.AddPoint(Manifold::Point{InverseTransform(cp.v, xf1), Flip(cp.cf)});
                     }
-                    break;
                 }
-                default:
-                    break;
             }
             if (manifold.GetPointCount() > 0)
             {
@@ -170,121 +182,105 @@ Manifold GetFaceManifold(const Manifold::Type type,
     // or a face manifold.
     const auto totalRadiusSquared = Square(totalRadius);
     const auto mustUseFaceManifold = shape0_len_edge0 > Square(conf.maxCirclesRatio * r0);
-    if (GetLengthSquared(shape0_abs_v0 - shape1_abs_v0) <= totalRadiusSquared)
+    if (GetMagnitudeSquared(shape0_abs_v0 - shape1_abs_v0) <= totalRadiusSquared)
     {
         // shape 1 vertex 1 is colliding with shape 2 vertex 1
         // shape 1 vertex 1 is the vertex at index idx0, or one before idx0Next.
-        // shape 2 vertex 1 is the vertex at index shape1_i0, or one before shape1_i1.
-        switch (type)
+        // shape 2 vertex 1 is the vertex at index shape1_e.first, or one before shape1_e.second.
+        if (!flipped) // face A
         {
-            case Manifold::e_faceA:
-                // shape 1 is shape A.
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
-                                                 shape0_rel_v0, ContactFeature::e_vertex,
-                                                 shape1_i0, shape1_rel_v0);
-                }
-                return Manifold::GetForCircles(shape0_rel_v0, idx0, shape1_rel_v0, shape1_i0);
-            case Manifold::e_faceB:
-                // shape 2 is shape A.
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
-                                                 shape0_rel_v0, ContactFeature::e_vertex,
-                                                 shape1_i0, shape1_rel_v0);
-                }
-                return Manifold::GetForCircles(shape1_rel_v0, shape1_i0, shape0_rel_v0, idx0);
-            default:
-                break;
+            // shape 1 is shape A.
+            if (mustUseFaceManifold)
+            {
+                return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
+                                             shape0_rel_v0, ContactFeature::e_vertex,
+                                             shape1_e.first, shape1_rel_v0);
+            }
+            return Manifold::GetForCircles(shape0_rel_v0, idx0, shape1_rel_v0, shape1_e.first);
         }
+        // shape 2 is shape A.
+        if (mustUseFaceManifold)
+        {
+            return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
+                                         shape0_rel_v0, ContactFeature::e_vertex,
+                                         shape1_e.first, shape1_rel_v0);
+        }
+        return Manifold::GetForCircles(shape1_rel_v0, shape1_e.first, shape0_rel_v0, idx0);
     }
-    else if (GetLengthSquared(shape0_abs_v0 - shape1_abs_v1) <= totalRadiusSquared)
+    else if (GetMagnitudeSquared(shape0_abs_v0 - shape1_abs_v1) <= totalRadiusSquared)
     {
         // shape 1 vertex 1 is colliding with shape 2 vertex 2
-        switch (type)
+        if (!flipped)
         {
-            case Manifold::e_faceA:
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
-                                                 shape0_rel_v0, ContactFeature::e_vertex,
-                                                 shape1_i1, shape1_rel_v1);
-                }
-                return Manifold::GetForCircles(shape0_rel_v0, idx0, shape1_rel_v1, shape1_i1);
-            case Manifold::e_faceB:
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
-                                                 shape0_rel_v0, ContactFeature::e_vertex,
-                                                 shape1_i1, shape1_rel_v1);
-                }
-                return Manifold::GetForCircles(shape1_rel_v1, shape1_i1, shape0_rel_v0, idx0);
-            default:
-                break;
+            if (mustUseFaceManifold)
+            {
+                return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
+                                             shape0_rel_v0, ContactFeature::e_vertex,
+                                             shape1_e.second, shape1_rel_v1);
+            }
+            return Manifold::GetForCircles(shape0_rel_v0, idx0, shape1_rel_v1, shape1_e.second);
         }
+        if (mustUseFaceManifold)
+        {
+            return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0,
+                                         shape0_rel_v0, ContactFeature::e_vertex,
+                                         shape1_e.second, shape1_rel_v1);
+        }
+        return Manifold::GetForCircles(shape1_rel_v1, shape1_e.second, shape0_rel_v0, idx0);
     }
-    else if (GetLengthSquared(shape0_abs_v1 - shape1_abs_v1) <= totalRadiusSquared)
+    else if (GetMagnitudeSquared(shape0_abs_v1 - shape1_abs_v1) <= totalRadiusSquared)
     {
         // shape 1 vertex 2 is colliding with shape 2 vertex 2
-        switch (type)
+        if (!flipped)
         {
-            case Manifold::e_faceA:
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
-                                                 shape0_rel_v1, ContactFeature::e_vertex,
-                                                 shape1_i1, shape1_rel_v1);
-                }
-                return Manifold::GetForCircles(shape0_rel_v1, idx0Next, shape1_rel_v1, shape1_i1);
-            case Manifold::e_faceB:
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
-                                                 shape0_rel_v1, ContactFeature::e_vertex,
-                                                 shape1_i1, shape1_rel_v1);
-                }
-                return Manifold::GetForCircles(shape1_rel_v1, shape1_i1, shape0_rel_v1, idx0Next);
-            default:
-                break;
+            if (mustUseFaceManifold)
+            {
+                return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
+                                             shape0_rel_v1, ContactFeature::e_vertex,
+                                             shape1_e.second, shape1_rel_v1);
+            }
+            return Manifold::GetForCircles(shape0_rel_v1, idx0Next, shape1_rel_v1, shape1_e.second);
         }
+        if (mustUseFaceManifold)
+        {
+            return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
+                                         shape0_rel_v1, ContactFeature::e_vertex,
+                                         shape1_e.second, shape1_rel_v1);
+        }
+        return Manifold::GetForCircles(shape1_rel_v1, shape1_e.second, shape0_rel_v1, idx0Next);
     }
-    else if (GetLengthSquared(shape0_abs_v1 - shape1_abs_v0) <= totalRadiusSquared)
+    else if (GetMagnitudeSquared(shape0_abs_v1 - shape1_abs_v0) <= totalRadiusSquared)
     {
         // shape 1 vertex 2 is colliding with shape 2 vertex 1
-        switch (type)
+        if (!flipped)
         {
-            case Manifold::e_faceA:
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
-                                                 shape0_rel_v1, ContactFeature::e_vertex,
-                                                 shape1_i0, shape1_rel_v0);
-                }
-                return Manifold::GetForCircles(shape0_rel_v1, idx0Next, shape1_rel_v0, shape1_i0);
-            case Manifold::e_faceB:
-                if (mustUseFaceManifold)
-                {
-                    return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
-                                                 shape0_rel_v1, ContactFeature::e_vertex,
-                                                 shape1_i0, shape1_rel_v0);
-                }
-                return Manifold::GetForCircles(shape1_rel_v0, shape1_i0, shape0_rel_v1, idx0Next);
-            default:
-                break;
+            if (mustUseFaceManifold)
+            {
+                return Manifold::GetForFaceA(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
+                                             shape0_rel_v1, ContactFeature::e_vertex,
+                                             shape1_e.first, shape1_rel_v0);
+            }
+            return Manifold::GetForCircles(shape0_rel_v1, idx0Next, shape1_rel_v0, shape1_e.first);
         }
+        if (mustUseFaceManifold)
+        {
+            return Manifold::GetForFaceB(GetFwdPerpendicular(shape0_rel_e0_dir), idx0Next,
+                                         shape0_rel_v1, ContactFeature::e_vertex,
+                                         shape1_e.first, shape1_rel_v0);
+        }
+        return Manifold::GetForCircles(shape1_rel_v0, shape1_e.first, shape0_rel_v1, idx0Next);
     }
     return Manifold{};
 }
 
-Manifold CollideShapes(Manifold::Type type,
-                       const DistanceProxy& shape, const Transformation& sxf,
-                       Length2D point, Length radius, const Transformation& xfm)
+/// @brief Computes manifolds for face-to-point collision.
+Manifold GetFacePointManifold(bool flipped, Length totalRadius,
+                              const DistanceProxy& shape, const Transformation& sxf,
+                              Length2 point, const Transformation& xfm)
 {
     // Computes the center of the circle in the frame of the polygon.
     const auto cLocal = InverseTransform(Transform(point, xfm), sxf); ///< Center of circle in frame of polygon.
     
-    const auto totalRadius = shape.GetVertexRadius() + radius;
     const auto vertexCount = shape.GetVertexCount();
     
     // Find edge that circle is closest to.
@@ -314,21 +310,17 @@ Manifold CollideShapes(Manifold::Type type,
     const auto v1 = shape.GetVertex(indexOfMax);
     const auto v2 = shape.GetVertex(indexOfMax2);
     
-    if (maxSeparation < Length{0})
+    if (maxSeparation < 0_m)
     {
         const auto faceCenter = (v1 + v2) / Real{2};
         // Circle's center is inside the polygon and closest to edge[indexOfMax].
-        switch (type)
+        if (!flipped)
         {
-            case Manifold::e_faceA:
-                return Manifold::GetForFaceA(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
-                                             ContactFeature::e_vertex, 0, point);
-            case Manifold::e_faceB:
-                return Manifold::GetForFaceB(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
-                                             ContactFeature::e_vertex, 0, point);
-            default: break;
+            return Manifold::GetForFaceA(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
+                                         ContactFeature::e_vertex, 0, point);
         }
-        return Manifold{};
+        return Manifold::GetForFaceB(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
+                                     ContactFeature::e_vertex, 0, point);
     }
     
     // Circle's center is outside polygon and closest to edge[indexOfMax].
@@ -338,38 +330,30 @@ Manifold CollideShapes(Manifold::Type type,
     if (Dot(cLocalV1, v2 - v1) <= Area{0})
     {
         // Circle's center right of v1 (in direction of v1 to v2).
-        if (GetLengthSquared(cLocalV1) > Square(totalRadius))
+        if (GetMagnitudeSquared(cLocalV1) > Square(totalRadius))
         {
             return Manifold{};
         }
-        switch (type)
+        if (!flipped)
         {
-            case Manifold::e_faceA:
-                return Manifold::GetForCircles(v1, indexOfMax, point, 0);
-            case Manifold::e_faceB:
-                return Manifold::GetForCircles(point, 0, v1, indexOfMax);
-            default: break;
+            return Manifold::GetForCircles(v1, indexOfMax, point, 0);
         }
-        return Manifold{};
+        return Manifold::GetForCircles(point, 0, v1, indexOfMax);
     }
     
     const auto ClocalV2 = cLocal - v2;
     if (Dot(ClocalV2, v1 - v2) <= Area{0})
     {
         // Circle's center left of v2 (in direction of v2 to v1).
-        if (GetLengthSquared(ClocalV2) > Square(totalRadius))
+        if (GetMagnitudeSquared(ClocalV2) > Square(totalRadius))
         {
             return Manifold{};
         }
-        switch (type)
+        if (!flipped)
         {
-            case Manifold::e_faceA:
-                return Manifold::GetForCircles(v2, indexOfMax2, point, 0);
-            case Manifold::e_faceB:
-                return Manifold::GetForCircles(point, 0, v2, indexOfMax2);
-            default: break;
+            return Manifold::GetForCircles(v2, indexOfMax2, point, 0);
         }
-        return Manifold{};
+        return Manifold::GetForCircles(point, 0, v2, indexOfMax2);
     }
     
     // Circle's center is between v1 and v2.
@@ -378,27 +362,25 @@ Manifold CollideShapes(Manifold::Type type,
     {
         return Manifold{};
     }
-    switch (type)
+    if (!flipped)
     {
-        case Manifold::e_faceA:
-            return Manifold::GetForFaceA(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
-                                         ContactFeature::e_vertex, 0, point);
-        case Manifold::e_faceB:
-            return Manifold::GetForFaceB(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
-                                         ContactFeature::e_vertex, 0, point);
-        default: break;
+        return Manifold::GetForFaceA(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
+                                     ContactFeature::e_vertex, 0, point);
     }
-    return Manifold{};
+    return Manifold::GetForFaceB(shape.GetNormal(indexOfMax), indexOfMax, faceCenter,
+                                 ContactFeature::e_vertex, 0, point);
 }
 
-Manifold CollideShapes(Length2D locationA, Length radiusA, const Transformation& xfA,
-                       Length2D locationB, Length radiusB, const Transformation& xfB)
+Manifold GetPointPointManifold(Length2 locationA, const Transformation& xfA,
+                               Length2 locationB, const Transformation& xfB,
+                               Length totalRadius) noexcept
 {
     const auto pA = Transform(locationA, xfA);
     const auto pB = Transform(locationB, xfB);
-    const auto totalRadius = radiusA + radiusB;
-    return (GetLengthSquared(pB - pA) > Square(totalRadius))?
-    Manifold{}: Manifold::GetForCircles(locationA, 0, locationB, 0);
+    // Intermediary results here for debugging...
+    const auto lenSq = GetMagnitudeSquared(pB - pA);
+    const auto totSq = Square(totalRadius);
+    return (lenSq > totSq)? Manifold{}: Manifold::GetForCircles(locationA, 0, locationB, 0);
 }
 
 } // anonymous namespace
@@ -409,66 +391,58 @@ Manifold CollideShapes(Length2D locationA, Length radiusA, const Transformation&
  */
 
 Manifold CollideShapes(const DistanceProxy& shapeA, const Transformation& xfA,
-                              const DistanceProxy& shapeB, const Transformation& xfB,
-                              Manifold::Conf conf)
+                       const DistanceProxy& shapeB, const Transformation& xfB,
+                       Manifold::Conf conf)
 {
+    // Assumes called after detecting AABB overlap.
     // Find edge normal of max separation on A - return if separating axis is found
     // Find edge normal of max separation on B - return if separation axis is found
     // Choose reference edge as min(minA, minB)
     // Find incident edge
     // Clip
     
+    const auto totalRadius = shapeA.GetVertexRadius() + shapeB.GetVertexRadius();
     const auto countA = shapeA.GetVertexCount();
     const auto countB = shapeB.GetVertexCount();
-    if (countA == 1)
+    
+    enum: unsigned { ZeroOneVert = 0x0u, OneVertA = 0x1u, OneVertB = 0x2u };
+    switch (((countA == 1)? OneVertA: ZeroOneVert) | ((countB == 1)? OneVertB: ZeroOneVert))
     {
-        if (countB > 1)
-        {
-            return CollideShapes(Manifold::e_faceB, shapeB, xfB,
-                                 shapeA.GetVertex(0), shapeA.GetVertexRadius(), xfA);
-        }
-        return CollideShapes(shapeA.GetVertex(0), shapeA.GetVertexRadius(), xfA,
-                             shapeB.GetVertex(0), shapeB.GetVertexRadius(), xfB);
-    }
-    if (countB == 1)
-    {
-        if (countA > 1)
-        {
-            return CollideShapes(Manifold::e_faceA, shapeA, xfA,
-                                 shapeB.GetVertex(0), shapeB.GetVertexRadius(), xfB);
-        }
-        return CollideShapes(shapeA.GetVertex(0), shapeA.GetVertexRadius(), xfA,
-                             shapeB.GetVertex(0), shapeB.GetVertexRadius(), xfB);
+        case OneVertA|OneVertB:
+            return GetPointPointManifold(shapeA.GetVertex(0), xfA, shapeB.GetVertex(0), xfB, totalRadius);
+        case OneVertA:
+            return GetFacePointManifold(true, totalRadius, shapeB, xfB, shapeA.GetVertex(0), xfA);
+        case OneVertB:
+            return GetFacePointManifold(false, totalRadius, shapeA, xfA, shapeB.GetVertex(0), xfB);
     }
     
-    const auto totalRadius = shapeA.GetVertexRadius() + shapeB.GetVertexRadius();
     const auto do4x4 = (countA == 4) && (countB == 4);
     
     const auto edgeSepA = do4x4?
         GetMaxSeparation4x4(shapeA, xfA, shapeB, xfB):
-        GetMaxSeparation(shapeA, xfA, shapeB, xfB, totalRadius);
-    if (edgeSepA.separation > totalRadius)
+        GetMaxSeparation(shapeA, xfA, shapeB, xfB);
+    if (edgeSepA.distance > totalRadius)
     {
         return Manifold{};
     }
     
     const auto edgeSepB = do4x4?
         GetMaxSeparation4x4(shapeB, xfB, shapeA, xfA):
-        GetMaxSeparation(shapeB, xfB, shapeA, xfA, totalRadius);
-    if (edgeSepB.separation > totalRadius)
+        GetMaxSeparation(shapeB, xfB, shapeA, xfA);
+    if (edgeSepB.distance > totalRadius)
     {
         return Manifold{};
     }
     
-    const auto k_tol = PLAYRHO_MAGIC(conf.linearSlop / Real{10});
-    return (edgeSepB.separation > (edgeSepA.separation + k_tol))?
-        GetFaceManifold(Manifold::e_faceB,
-                        shapeB, xfB, edgeSepB.index1,
-                        shapeA, xfA, edgeSepB.index2,
+    const auto k_tol = PLAYRHO_MAGIC(conf.linearSlop / 10);
+    return (edgeSepB.distance > (edgeSepA.distance + k_tol))?
+        GetFaceManifold(true,
+                        shapeB, xfB, edgeSepB.firstShape,
+                        shapeA, xfA, edgeSepB.secondShape,
                         conf):
-        GetFaceManifold(Manifold::e_faceA,
-                        shapeA, xfA, edgeSepA.index1,
-                        shapeB, xfB, edgeSepA.index2,
+        GetFaceManifold(false,
+                        shapeA, xfA, edgeSepA.firstShape,
+                        shapeB, xfB, edgeSepA.secondShape,
                         conf);
 }
 
@@ -513,10 +487,10 @@ Manifold CollideCached(const DistanceProxy& shapeA, const Transformation& xfA,
 
     if (vertexCountShapeA == 4 && vertexCountShapeB == 4)
     {
-        Length2D verticesA[4];
-        Length2D verticesB[4];
-        UnitVec2 normalsA[4];
-        UnitVec2 normalsB[4];
+        Length2 verticesA[4];
+        Length2 verticesB[4];
+        UnitVec normalsA[4];
+        UnitVec normalsB[4];
         
         verticesA[0] = Transform(shapeA.GetVertex(0), xfA);
         verticesA[1] = Transform(shapeA.GetVertex(1), xfA);
@@ -565,7 +539,7 @@ Manifold CollideCached(const DistanceProxy& shapeA, const Transformation& xfA,
         }
     }
     
-    constexpr auto k_tol = PLAYRHO_MAGIC(DefaultLinearSlop / Real{10});
+    PLAYRHO_CONSTEXPR const auto k_tol = PLAYRHO_MAGIC(DefaultLinearSlop / Real{10});
     return (edgeSepB.separation > (edgeSepA.separation + k_tol))?
     GetFaceManifold(Manifold::e_faceB,
                     shapeB, xfB, edgeSepB.index1,
@@ -586,7 +560,7 @@ Manifold GetManifold(const DistanceProxy& proxyA, const Transformation& transfor
     const auto totalRadius = proxyA.GetVertexRadius() + proxyB.GetVertexRadius();
     const auto witnessPoints = GetWitnessPoints(distanceInfo.simplex);
 
-    const auto distance = Sqrt(GetLengthSquared(witnessPoints.a - witnessPoints.b));
+    const auto distance = sqrt(GetMagnitudeSquared(witnessPoints.a - witnessPoints.b));
     if (distance > totalRadius)
     {
         // no collision
@@ -634,7 +608,7 @@ Manifold GetManifold(const DistanceProxy& proxyA, const Transformation& transfor
             case 1: // uniqB must be 2 or 3
             {
                 const auto b_idx0 = GetEdgeIndex(b_indices_array[0], b_indices_array[1], b_count);
-                assert(b_idx0 != IndexPair::InvalidIndex);
+                assert(b_idx0 != InvalidVertex);
                 const auto b_idx1 = GetModuloNext(b_idx0, b_count);
                 const auto b_v0 = proxyB.GetVertex(b_idx0);
                 const auto b_v1 = proxyB.GetVertex(b_idx1);
@@ -692,7 +666,7 @@ Manifold GetManifold(const DistanceProxy& proxyA, const Transformation& transfor
             case 1: // uniqA must be 2 or 3
             {
                 const auto a_idx0 = GetEdgeIndex(a_indices_array[0],a_indices_array[1], a_count);
-                assert(a_idx0 != IndexPair::InvalidIndex);
+                assert(a_idx0 != InvalidVertex);
                 const auto a_idx1 = GetModuloNext(a_idx0, a_count);
                 const auto a_v0 = proxyA.GetVertex(a_idx0);
                 const auto a_v1 = proxyA.GetVertex(a_idx1);
@@ -789,8 +763,8 @@ Manifold GetManifold(const DistanceProxy& proxyA, const Transformation& transfor
             }
             case 3:
             {
-                const auto ln = UnitVec2::GetLeft();
-                const auto lp = Length2D{};
+                const auto ln = UnitVec::GetLeft();
+                const auto lp = Length2{};
                 return Manifold::GetForFaceA(ln, lp);
             }
             default:
@@ -806,12 +780,13 @@ const char* GetName(Manifold::Type type) noexcept
 {
     switch (type)
     {
-        case Manifold::e_unset: return "unset";
+        case Manifold::e_unset: break;
         case Manifold::e_circles: return "circles";
         case Manifold::e_faceA: return "face-a";
         case Manifold::e_faceB: return "face-b";
     }
-    PLAYRHO_UNREACHABLE;
+    assert(type == Manifold::e_unset);
+    return "unset";
 }
 
 bool operator==(const Manifold::Point& lhs, const Manifold::Point& rhs) noexcept
@@ -923,7 +898,7 @@ bool operator!=(const Manifold& lhs, const Manifold& rhs) noexcept
 }
 
 #if 0
-Length2D GetLocalPoint(const DistanceProxy& proxy, ContactFeature::Type type,
+Length2 GetLocalPoint(const DistanceProxy& proxy, ContactFeature::Type type,
                                 ContactFeature::Index index)
 {
     switch (type)
@@ -935,8 +910,9 @@ Length2D GetLocalPoint(const DistanceProxy& proxy, ContactFeature::Type type,
             return proxy.GetVertex(index);
         }
     }
-    return GetInvalid<Length2D>();
+    return GetInvalid<Length2>();
 }
 #endif
 
+} // namespace d2
 } // namespace playrho

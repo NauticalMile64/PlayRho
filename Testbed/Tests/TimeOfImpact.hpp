@@ -23,55 +23,42 @@
 #include "../Framework/Test.hpp"
 #include <vector>
 
-namespace playrho {
+namespace testbed {
 
 class TimeOfImpactTest : public Test
 {
 public:
     TimeOfImpactTest()
     {
-        m_shapeA.SetAsBox(Real{25.0f} * Meter, Real{5.0f} * Meter);
-        m_shapeB.SetAsBox(Real{2.5f} * Meter, Real{2.5f} * Meter);
     }
-
-    static const char *GetName(TOIOutput::State state)
-    {
-        switch (state)
-        {
-            case TOIOutput::e_failed: return "failed";
-            case TOIOutput::e_unknown: return "unknown";
-            case TOIOutput::e_touching: return "touching";
-            case TOIOutput::e_separated: return "separated";
-            case TOIOutput::e_overlapped: return "overlapped";
-            default: break;
-        }
-        return "unknown";
-    }
-
+    
     void PostStep(const Settings&, Drawer& drawer) override
     {
-        const auto offset = Vec2{Real(-35), Real(70)} * Meter;
+        const auto offset = Vec2{Real(-35), Real(70)} * 1_m;
         const auto sweepA = Sweep{
-            Position{Vec2(24.0f, -60.0f) * Meter + offset, Real{2.95f} * Radian}
+            Position{Vec2(24.0f, -60.0f) * 1_m + offset, 2.95_rad}
         };
         const auto sweepB = Sweep{
-            Position{Vec2(53.474274f, -50.252514f) * Meter + offset, Real{513.36676f} * Radian},
-            Position{Vec2(54.595478f, -51.083473f) * Meter + offset, Real{513.62781f} * Radian}
+            Position{Vec2(53.474274f, -50.252514f) * 1_m + offset, 513.36676_rad},
+            Position{Vec2(54.595478f, -51.083473f) * 1_m + offset, 513.62781_rad}
         };
 
-        const auto output = GetToiViaSat(m_shapeA.GetChild(0), sweepA,
-                                         m_shapeB.GetChild(0), sweepB);
+        const auto output = GetToiViaSat(GetChild(m_shapeA, 0), sweepA,
+                                         GetChild(m_shapeB, 0), sweepB);
 
-        drawer.DrawString(5, m_textLine, "at toi=%g, state=%s", static_cast<float>(output.get_t()), GetName(output.get_state()));
-        m_textLine += DRAW_STRING_NEW_LINE;
-
-        drawer.DrawString(5, m_textLine, "TOI iters = %d, max root iters = %d",
-                          output.get_toi_iters(), output.get_max_root_iters());
-        m_textLine += DRAW_STRING_NEW_LINE;
+        std::stringstream stream;
+        stream << "At TOI ";
+        stream << static_cast<float>(output.time);
+        stream << ", state is ";
+        stream << GetName(output.state);
+        stream << ". TOI iterations is " << unsigned{output.stats.toi_iters};
+        stream << ", max root iterations is " << unsigned{output.stats.max_root_iters};
+        stream << ".";
+        m_status = stream.str();
 
         {
             const auto vertexCount = m_shapeA.GetVertexCount();
-            auto vertices = std::vector<Length2D>(vertexCount);
+            auto vertices = std::vector<Length2>(vertexCount);
             const auto transformA = GetTransformation(sweepA, 0.0f);
             for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
             {
@@ -82,7 +69,7 @@ public:
 
         {
             const auto vertexCount = m_shapeB.GetVertexCount();
-            auto vertices = std::vector<Length2D>(vertexCount);
+            auto vertices = std::vector<Length2>(vertexCount);
             const auto transformB = GetTransformation(sweepB, 0.0f);
             for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
             {
@@ -93,8 +80,8 @@ public:
 
         {
             const auto vertexCount = m_shapeB.GetVertexCount();
-            auto vertices = std::vector<Length2D>(vertexCount);
-            const auto transformB = GetTransformation(sweepB, output.get_t());
+            auto vertices = std::vector<Length2>(vertexCount);
+            const auto transformB = GetTransformation(sweepB, output.time);
             for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
             {
                 vertices[i] = Transform(m_shapeB.GetVertex(i), transformB);
@@ -104,7 +91,7 @@ public:
 
         {
             const auto vertexCount = m_shapeB.GetVertexCount();
-            auto vertices = std::vector<Length2D>(vertexCount);
+            auto vertices = std::vector<Length2>(vertexCount);
             const auto transformB = GetTransformation(sweepB, 1.0f);
             for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
             {
@@ -118,7 +105,7 @@ public:
         {
             const auto transformB = GetTransformation(sweepB, t);
             const auto vertexCount = m_shapeB.GetVertexCount();
-            auto vertices = std::vector<Length2D>(vertexCount);
+            auto vertices = std::vector<Length2>(vertexCount);
             for (auto i = decltype(vertexCount){0}; i < vertexCount; ++i)
             {
                 vertices[i] = Transform(m_shapeB.GetVertex(i), transformB);
@@ -127,11 +114,11 @@ public:
         }
 #endif
     }
-
-    PolygonShape m_shapeA;
-    PolygonShape m_shapeB;
+    
+    PolygonShapeConf m_shapeA{PolygonShapeConf{}.SetAsBox(25_m, 5_m)};
+    PolygonShapeConf m_shapeB{PolygonShapeConf{}.SetAsBox(2.5_m, 2.5_m)};
 };
 
-} // namespace playrho
+} // namespace testbed
 
 #endif /* PLAYRHO_TESTS_TIME_OF_IMPACT_HPP */

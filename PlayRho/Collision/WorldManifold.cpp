@@ -24,6 +24,7 @@
 #include <PlayRho/Dynamics/Fixture.hpp>
 
 namespace playrho {
+namespace d2 {
 
 namespace {
 
@@ -35,7 +36,7 @@ inline WorldManifold GetForCircles(const Manifold& manifold,
 
     const auto pointA = Transform(manifold.GetLocalPoint(), xfA);
     const auto pointB = Transform(manifold.GetPoint(0).localPoint, xfB);
-    const auto normal = GetUnitVector(pointB - pointA, UnitVec2::GetRight());
+    const auto normal = GetUnitVector(pointB - pointA, UnitVec::GetRight());
     const auto cA = pointA + (radiusA * normal);
     const auto cB = pointB - (radiusB * normal);
     const auto p0 = (cA + cB) / Real{2};
@@ -126,13 +127,14 @@ WorldManifold GetWorldManifold(const Contact& contact)
 {
     const auto fA = contact.GetFixtureA();
     const auto xfA = GetTransformation(*fA);
-    const auto radiusA = GetVertexRadius(*(fA->GetShape()));
+    const auto radiusA = GetVertexRadius(fA->GetShape());
 
     const auto fB = contact.GetFixtureB();
     const auto xfB = GetTransformation(*fB);
-    const auto radiusB = GetVertexRadius(*(fB->GetShape()));
+    const auto radiusB = GetVertexRadius(fB->GetShape());
 
     return GetWorldManifold(contact.GetManifold(), xfA, radiusA, xfB, radiusB);
 }
 
+} /* namespace d2 */
 } /* namespace playrho */

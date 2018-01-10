@@ -23,11 +23,13 @@
 /// @file
 /// Declarations of the Filter struct and any free functions associated with it.
 
+#include <PlayRho/Defines.hpp>
 #include <cstdint>
 
 namespace playrho {
     
     /// @brief A holder for contact filtering data.
+    /// @note This data structure size is 6-bytes.
     struct Filter
     {
         /// @brief Bits type definition.
@@ -59,7 +61,24 @@ namespace playrho {
         index_type groupIndex = 0;
     };
     
+    /// @brief Equality operator.
+    /// @relatedalso Filter
+    PLAYRHO_CONSTEXPR inline bool operator== (const Filter lhs, const Filter rhs) noexcept
+    {
+        return lhs.categoryBits == rhs.categoryBits
+            && lhs.maskBits == rhs.maskBits
+            && lhs.groupIndex == rhs.groupIndex;
+    }
+
+    /// @brief Inequality operator.
+    /// @relatedalso Filter
+    PLAYRHO_CONSTEXPR inline bool operator!= (const Filter lhs, const Filter rhs) noexcept
+    {
+        return !(lhs == rhs);
+    }
+
     /// @brief Determines whether collision processing should be performed.
+    /// @relatedalso Filter
     inline bool ShouldCollide(const Filter filterA, const Filter filterB) noexcept
     {
         if ((filterA.groupIndex == filterB.groupIndex) && (filterA.groupIndex != 0))

@@ -25,20 +25,30 @@
 #include <cassert>
 #include <cstddef>
 #include <type_traits>
+#include <iterator>
+#include <algorithm>
+#include <functional>
+#include <iostream>
 #include <PlayRho/Common/InvalidArgument.hpp>
+#include <PlayRho/Common/Real.hpp>
+#include <PlayRho/Common/Templates.hpp>
 
-namespace playrho
-{
+namespace playrho {
 
 /// @brief Vector.
-/// @details Basically a constexpr and constructor enhanced std::array for C++14.
+/// @details This is a <code>PLAYRHO_CONSTEXPR inline</code> and constructor enhanced
+///   <code>std::array</code>-like template class for types supporting the +, -, *, /
+///   arithmetic operators ("arithmetic types" as defined by the <code>IsArithmetic</code>
+///   type trait) that itself comes with non-member arithmetic operator support making
+///   Vector instances arithmetic types as well.
 /// @note This type is trivially default constructible - i.e. default construction
 ///   performs no actions (no initialization).
-/// @note This type should be drop-in replacable with std::array in C++17.
-template <std::size_t N, typename T>
+/// @sa IsArithmetic
+template <typename T, std::size_t N>
 struct Vector
 {
-    static_assert(N > 0, "Dimension must be greater than 0");
+    static_assert(N > 0, "Number of elements must be greater than 0");
+    static_assert(IsArithmetic<T>::value, "Type must be arithmetic");
 
     /// @brief Value type.
     using value_type = T;
@@ -67,28 +77,34 @@ struct Vector
     /// @brief Constant iterator type.
     using const_iterator = const value_type*;
     
+    /// @brief Reverse iterator type.
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    
+    /// @brief Constant reverse iterator type.
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    
     /// @brief Default constructor.
     /// @note Defaulted explicitly.
     /// @note This constructor performs no action.
-    constexpr Vector() = default;
+    PLAYRHO_CONSTEXPR inline Vector() = default;
     
     /// @brief Initializing constructor.
     template<typename... Tail>
-    constexpr Vector(typename std::enable_if<sizeof...(Tail)+1 == N, T>::type
+    PLAYRHO_CONSTEXPR inline explicit Vector(typename std::enable_if<sizeof...(Tail)+1 == N, T>::type
                      head, Tail... tail) noexcept: elements{head, T(tail)...}
     {
-        //static_assert(sizeof...(args) == N, "Invalid number of arguments");
+        // Intentionally empty.
     }
 
     /// @brief Gets the max size.
-    constexpr size_type max_size() const noexcept { return N; }
+    PLAYRHO_CONSTEXPR inline size_type max_size() const noexcept { return N; }
     
     /// @brief Gets the size.
-    constexpr size_type size() const noexcept { return N; }
+    PLAYRHO_CONSTEXPR inline size_type size() const noexcept { return N; }
     
     /// @brief Whether empty.
     /// @note Always false for N > 0.
-    constexpr bool empty() const noexcept { return N == 0; }
+    PLAYRHO_CONSTEXPR inline bool empty() const noexcept { return N == 0; }
     
     /// @brief Gets a "begin" iterator.
     iterator begin() noexcept { return iterator(elements); }
@@ -108,20 +124,49 @@ struct Vector
     /// @brief Gets an "end" iterator.
     const_iterator cend() const noexcept { return end(); }
 
+    /// @brief Gets a reverse "begin" iterator.
+    reverse_iterator rbegin() noexcept { return reverse_iterator{elements + N}; }
+
+    /// @brief Gets a reverse "end" iterator.
+    reverse_iterator rend() noexcept { return reverse_iterator{elements}; }
+    
+    /// @brief Gets a reverse "begin" iterator.
+    const_reverse_iterator crbegin() const noexcept
+    {
+        return const_reverse_iterator{elements + N};
+    }
+    
+    /// @brief Gets a reverse "end" iterator.
+    const_reverse_iterator crend() const noexcept
+    {
+        return const_reverse_iterator{elements};
+    }
+
+    /// @brief Gets a reverse "begin" iterator.
+    const_reverse_iterator rbegin() const noexcept
+    {
+        return crbegin();
+    }
+    
+    /// @brief Gets a reverse "end" iterator.
+    const_reverse_iterator rend() const noexcept
+    {
+        return crend();
+    }
+
     /// @brief Gets a reference to the requested element.
     /// @note No bounds checking is performed.
     /// @warning Behavior is undefined if given a position equal to or greater than size().
-    constexpr reference operator[](size_type pos) noexcept
+    PLAYRHO_CONSTEXPR inline reference operator[](size_type pos) noexcept
     {
         assert(pos < size());
         return elements[pos];
     }
-
     
     /// @brief Gets a constant reference to the requested element.
     /// @note No bounds checking is performed.
     /// @warning Behavior is undefined if given a position equal to or greater than size().
-    constexpr const_reference operator[](size_type pos) const noexcept
+    PLAYRHO_CONSTEXPR inline const_reference operator[](size_type pos) const noexcept
     {
         assert(pos < size());
         return elements[pos];
@@ -129,7 +174,7 @@ struct Vector
     
     /// @brief Gets a reference to the requested element.
     /// @throws InvalidArgument if given a position that's >= size().
-    constexpr reference at(size_type pos)
+    PLAYRHO_CONSTEXPR inline reference at(size_type pos)
     {
         if (pos >= size())
         {
@@ -140,7 +185,7 @@ struct Vector
     
     /// @brief Gets a constant reference to the requested element.
     /// @throws InvalidArgument if given a position that's >= size().
-    constexpr const_reference at(size_type pos) const
+    PLAYRHO_CONSTEXPR inline const_reference at(size_type pos) const
     {
         if (pos >= size())
         {
@@ -150,13 +195,13 @@ struct Vector
     }
     
     /// @brief Direct access to data.
-    constexpr pointer data() noexcept
+    PLAYRHO_CONSTEXPR inline pointer data() noexcept
     {
         return elements;
     }
     
     /// @brief Direct access to data.
-    constexpr const_pointer data() const noexcept
+    PLAYRHO_CONSTEXPR inline const_pointer data() const noexcept
     {
         return elements;
     }
@@ -168,9 +213,222 @@ struct Vector
     value_type elements[N];
 };
 
+/// @brief Equality operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline bool operator== (const Vector<T, N>& lhs, const Vector<T, N>& rhs) noexcept
+{
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        if (lhs[i] != rhs[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// @brief Inequality operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline bool operator!= (const Vector<T, N>& lhs, const Vector<T, N>& rhs) noexcept
+{
+    return !(lhs == rhs);
+}
+
+/// @brief Unary plus operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto operator+ (Vector<T, N> v) noexcept
+{
+    return v;
+}
+
+/// @brief Unary negation operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto operator- (Vector<T, N> v) noexcept
+{
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        v[i] = -v[i];
+    }
+    return v;
+}
+
+/// @brief Increments the left hand side value by the right hand side value.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto& operator+= (Vector<T, N>& lhs, const Vector<T, N> rhs) noexcept
+{
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        lhs[i] += rhs[i];
+    }
+    return lhs;
+}
+
+/// @brief Decrements the left hand side value by the right hand side value.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto& operator-= (Vector<T, N>& lhs, const Vector<T, N> rhs) noexcept
+{
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        lhs[i] -= rhs[i];
+    }
+    return lhs;
+}
+
+/// @brief Adds two vectors component-wise.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto operator+ (Vector<T, N> lhs, const Vector<T, N> rhs) noexcept
+{
+    return lhs += rhs;
+}
+
+/// @brief Subtracts two vectors component-wise.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto operator- (Vector<T, N> lhs, const Vector<T, N> rhs) noexcept
+{
+    return lhs -= rhs;
+}
+
+/// @brief Multiplication assignment operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto& operator*= (Vector<T, N>& lhs, const Real rhs) noexcept
+{
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        lhs[i] *= rhs;
+    }
+    return lhs;
+}
+
+/// @brief Division assignment operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline auto& operator/= (Vector<T, N>& lhs, const Real rhs) noexcept
+{
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        lhs[i] /= rhs;
+    }
+    return lhs;
+}
+
+/// @brief Multiplication operator.
+/// @relatedalso Vector
+template <std::size_t N, typename T1, typename T2, typename OT = decltype(T1{} * T2{})>
+PLAYRHO_CONSTEXPR inline auto operator* (const T1 s, const Vector<T2, N>& a) noexcept
+{
+    auto result = Vector<OT, N>{};
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        result[i] = a[i] * s;
+    }
+    return result;
+}
+
+/// @brief Multiplication operator.
+/// @relatedalso Vector
+template <std::size_t N, typename T1, typename T2, typename OT = decltype(T1{} * T2{})>
+PLAYRHO_CONSTEXPR inline auto operator* (const Vector<T1, N>& a, const T2 s) noexcept
+{
+    auto result = Vector<OT, N>{};
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        result[i] = a[i] * s;
+    }
+    return result;
+}
+
+/// @brief Division operator.
+/// @relatedalso Vector
+template <std::size_t N, typename T1, typename T2, typename OT = decltype(T1{} / T2{})>
+PLAYRHO_CONSTEXPR inline auto operator/ (const Vector<T1, N>& a, const T2 s) noexcept
+{
+    auto result = Vector<OT, N>{};
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        result[i] = a[i] / s;
+    }
+    return result;
+}
+
+/// @brief Multiplication operator.
+/// @relatedalso Vector
+template <std::size_t N, typename T1, typename T2, typename OT = decltype(T1{} * T2{})>
+PLAYRHO_CONSTEXPR inline auto operator* (const Vector<T1, N>& lhs, const Vector<T2, N>& rhs) noexcept
+{
+    auto result = Vector<OT, N>{};
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        result[i] = lhs[i] * rhs[i];
+    }
+    return result;
+}
+
+/// @brief Division operator.
+/// @relatedalso Vector
+template <std::size_t N, typename T1, typename T2, typename OT = decltype(T1{} / T2{})>
+PLAYRHO_CONSTEXPR inline auto operator/ (const Vector<T1, N>& lhs, const Vector<T2, N>& rhs) noexcept
+{
+    auto result = Vector<OT, N>{};
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        result[i] = lhs[i] / rhs[i];
+    }
+    return result;
+}
+
+/// @brief Lexicographical less-than operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline bool operator< (const Vector<T, N>& lhs, const Vector<T, N>& rhs) noexcept
+{
+    return std::lexicographical_compare(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
+                                        std::less<T>{});
+}
+
+/// @brief Lexicographical less-than or equal-to operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline bool operator<= (const Vector<T, N>& lhs, const Vector<T, N>& rhs) noexcept
+{
+    const auto lhsEnd = std::cend(lhs);
+    const auto rhsEnd = std::cend(rhs);
+    const auto diff = std::mismatch(std::cbegin(lhs), lhsEnd, std::cbegin(rhs), rhsEnd);
+    return (std::get<0>(diff) == lhsEnd) || (*std::get<0>(diff) < *std::get<1>(diff));
+}
+
+/// @brief Lexicographical greater-than operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline bool operator> (const Vector<T, N>& lhs, const Vector<T, N>& rhs) noexcept
+{
+    return std::lexicographical_compare(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(),
+                                        std::greater<T>{});
+}
+
+/// @brief Lexicographical greater-than or equal-to operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+PLAYRHO_CONSTEXPR inline bool operator>= (const Vector<T, N>& lhs, const Vector<T, N>& rhs) noexcept
+{
+    const auto lhsEnd = std::cend(lhs);
+    const auto rhsEnd = std::cend(rhs);
+    const auto diff = std::mismatch(std::cbegin(lhs), lhsEnd, std::cbegin(rhs), rhsEnd);
+    return (std::get<0>(diff) == lhsEnd) || (*std::get<0>(diff) > *std::get<1>(diff));
+}
+
 /// @brief Gets the I'th element of the given collection.
+/// @relatedalso Vector
 template <size_t I, size_t N, typename T>
-constexpr auto& Get(Vector<N, T>& v) noexcept
+PLAYRHO_CONSTEXPR inline auto& Get(Vector<T, N>& v) noexcept
 {
     static_assert(I < N, "Index out of bounds in playrho::Get<> (playrho::Vector)");
     return v[I];
@@ -178,12 +436,47 @@ constexpr auto& Get(Vector<N, T>& v) noexcept
 
 /// @brief Gets the I'th element of the given collection.
 template <size_t I, size_t N, typename T>
-constexpr auto Get(const Vector<N, T>& v) noexcept
+PLAYRHO_CONSTEXPR inline auto Get(const Vector<T, N>& v) noexcept
 {
     static_assert(I < N, "Index out of bounds in playrho::Get<> (playrho::Vector)");
     return v[I];
+}
+
+/// @brief Output stream operator.
+/// @relatedalso Vector
+template <typename T, std::size_t N>
+::std::ostream& operator<< (::std::ostream& os, const Vector<T, N>& value)
+{
+    os << "{";
+    for (auto i = static_cast<size_t>(0); i < N; ++i)
+    {
+        if (i > static_cast<size_t>(0))
+        {
+            os << ',';
+        }
+        os << value[i];
+    }
+    os << "}";
+    return os;
 }
 
 } // namespace playrho
+
+namespace std {
+
+/// @brief Tuple size info for playrho::Vector
+template<class T, std::size_t N>
+class tuple_size< playrho::Vector<T, N> >: public std::integral_constant<size_t, N> {};
+
+/// @brief Tuple element type info for playrho::Vector
+template<std::size_t I, class T, size_t N>
+class tuple_element<I, playrho::Vector<T, N>>
+{
+public:
+    /// @brief Type alias revealing the actual element type of the given Vector.
+    using type = T;
+};
+
+} // namespace std
 
 #endif // PLAYRHO_COMMON_VECTOR_HPP

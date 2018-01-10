@@ -23,14 +23,15 @@
 #define PLAYRHO_DYNAMICS_JOINTS_WHEELJOINT_HPP
 
 #include <PlayRho/Dynamics/Joints/Joint.hpp>
-#include <PlayRho/Dynamics/Joints/WheelJointDef.hpp>
+#include <PlayRho/Dynamics/Joints/WheelJointConf.hpp>
 
 namespace playrho {
+namespace d2 {
 
 /// @brief Wheel joint.
 ///
 /// @details This joint provides two degrees of freedom: translation along an axis
-///   fixed in bodyA and rotation in the plane. In other words, it is a point to
+///   fixed in body A and rotation in the plane. In other words, it is a point to
 ///   line constraint with a rotational motor and a linear spring/damper.
 ///
 /// @note This joint is designed for vehicle suspensions.
@@ -44,30 +45,35 @@ class WheelJoint : public Joint
 public:
     
     /// @brief Initializing constructor.
-    WheelJoint(const WheelJointDef& def);
+    WheelJoint(const WheelJointConf& def);
     
     void Accept(JointVisitor& visitor) const override;
+    void Accept(JointVisitor& visitor) override;
 
-    Length2D GetAnchorA() const override;
-    Length2D GetAnchorB() const override;
+    Length2 GetAnchorA() const override;
+    Length2 GetAnchorB() const override;
 
-    Momentum2D GetLinearReaction() const override;
+    Momentum2 GetLinearReaction() const override;
     AngularMomentum GetAngularReaction() const override;
 
-    /// The local anchor point relative to bodyA's origin.
-    Length2D GetLocalAnchorA() const { return m_localAnchorA; }
+    /// The local anchor point relative to body A's origin.
+    Length2 GetLocalAnchorA() const { return m_localAnchorA; }
 
-    /// The local anchor point relative to bodyB's origin.
-    Length2D GetLocalAnchorB() const  { return m_localAnchorB; }
+    /// The local anchor point relative to body B's origin.
+    Length2 GetLocalAnchorB() const  { return m_localAnchorB; }
 
     /// The local joint axis relative to bodyA.
-    UnitVec2 GetLocalAxisA() const { return m_localXAxisA; }
+    UnitVec GetLocalAxisA() const { return m_localXAxisA; }
 
     /// Is the joint motor enabled?
     bool IsMotorEnabled() const noexcept { return m_enableMotor; }
 
     /// Enable/disable the joint motor.
     void EnableMotor(bool flag);
+    
+    /// @brief Gets the computed motor mass.
+    /// @note This is zero unless motor is enabled and either body has any rotational intertia.
+    RotInertia GetMotorMass() const noexcept { return m_motorMass; }
 
     /// Set the angular motor speed.
     void SetMotorSpeed(AngularVelocity speed);
@@ -80,9 +86,6 @@ public:
 
     /// @brief Gets the maximum motor torque.
     Torque GetMaxMotorTorque() const;
-
-    /// Get the current motor torque given the inverse time step.
-    Torque GetMotorTorque(Frequency inv_dt) const;
 
     /// @brief Sets the spring frequency.
     /// @note Setting the frequency to zero disables the spring.
@@ -105,39 +108,44 @@ private:
     bool SolvePositionConstraints(BodyConstraintsMap& bodies,
                                   const ConstraintSolverConf& conf) const override;
 
-    Frequency m_frequency;
-    Real m_dampingRatio;
-
     // Solver shared
-    Length2D m_localAnchorA;
-    Length2D m_localAnchorB;
-    UnitVec2 m_localXAxisA;
-    UnitVec2 m_localYAxisA;
+    Length2 m_localAnchorA; ///< Local anchor A.
+    Length2 m_localAnchorB; ///< Local anchor B.
+    UnitVec m_localXAxisA; ///< Local X axis A.
+    UnitVec m_localYAxisA; ///< Local Y axis A.
 
-    Momentum m_impulse = 0;
-    AngularMomentum m_motorImpulse = 0;
-    Momentum m_springImpulse = 0;
+    Frequency m_frequency; ///< Frequency.
+    Real m_dampingRatio; ///< Damping ratio.
 
-    Torque m_maxMotorTorque;
-    AngularVelocity m_motorSpeed;
-    bool m_enableMotor;
+    Momentum m_impulse = 0; ///< Impulse.
+    AngularMomentum m_motorImpulse = 0; ///< Motor impulse.
+    Momentum m_springImpulse = 0; ///< Spring impulse.
+
+    Torque m_maxMotorTorque; ///< Max motor torque.
+    AngularVelocity m_motorSpeed; ///< Motor speed.
+    bool m_enableMotor; ///< Enable motor. <code>true</code> if motor is enabled.
 
     // Solver temp    
-    UnitVec2 m_ax;
-    UnitVec2 m_ay;
+    UnitVec m_ax; ///< Solver A X directional.
+    UnitVec m_ay; ///< Solver A Y directional.
 
-    Length m_sAx;
-    Length m_sBx;
-    Length m_sAy;
-    Length m_sBy;
+    Length m_sAx; ///< Solver A x location.
+    Length m_sBx; ///< Solver B x location.
+    Length m_sAy; ///< Solver A y location.
+    Length m_sBy; ///< Solver B y location.
 
-    Mass m_mass = Mass{0};
-    RotInertia m_motorMass = RotInertia{0};
-    Mass m_springMass = Mass{0};
+    Mass m_mass = 0_kg; ///< Mass.
+    RotInertia m_motorMass = RotInertia{0}; ///< Motor mass.
+    Mass m_springMass = 0_kg; ///< Spring mass.
 
-    LinearVelocity m_bias = LinearVelocity{0};
-    InvMass m_gamma = InvMass{0};
+    LinearVelocity m_bias = 0_mps; ///< Bias.
+    InvMass m_gamma = InvMass{0}; ///< Gamma.
 };
+
+inline AngularMomentum WheelJoint::GetAngularReaction() const
+{
+    return m_motorImpulse;
+}
 
 inline AngularVelocity WheelJoint::GetMotorSpeed() const
 {
@@ -179,6 +187,13 @@ Length GetJointTranslation(const WheelJoint& joint) noexcept;
 /// @relatedalso WheelJoint
 AngularVelocity GetAngularVelocity(const WheelJoint& joint) noexcept;
 
+/// @brief Gets the current motor torque for the given joint for the given the inverse time step.
+inline Torque GetMotorTorque(const WheelJoint& joint, Frequency inv_dt) noexcept
+{
+    return joint.GetAngularReaction() * inv_dt;
+}
+
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_JOINTS_WHEELJOINT_HPP

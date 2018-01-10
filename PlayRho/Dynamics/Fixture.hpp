@@ -29,15 +29,18 @@
 #include <PlayRho/Common/Span.hpp>
 #include <PlayRho/Common/BoundedValue.hpp>
 #include <PlayRho/Dynamics/Filter.hpp>
-#include <PlayRho/Dynamics/FixtureDef.hpp>
+#include <PlayRho/Dynamics/FixtureConf.hpp>
+#include <PlayRho/Dynamics/FixtureProxy.hpp>
+#include <PlayRho/Collision/Shapes/Shape.hpp>
 #include <limits>
 #include <memory>
+#include <vector>
+#include <array>
 
 namespace playrho {
+namespace d2 {
 
 class Body;
-struct FixtureProxy;
-class Shape;
 
 /// @brief An association between a body and a shape.
 ///
@@ -46,12 +49,13 @@ class Shape;
 /// such as collision filters, etc.
 ///
 /// @warning you cannot reuse fixtures.
-/// @note Fixtures are created via Body::CreateFixture.
+/// @note Fixtures should be created using the Body::CreateFixture method.
 /// @note This structure is 56-bytes large (using a 4-byte Real on at least one 64-bit
 ///   architecture/build).
 ///
-/// @sa Body
-/// @sa Shape
+/// @ingroup PhysicalEntities
+///
+/// @sa Body, Shape
 ///
 class Fixture
 {
@@ -68,26 +72,28 @@ public:
     /// @param body Body the new fixture is to be associated with.
     /// @param def Initial fixture settings.
     ///    Friction must be greater-than-or-equal-to zero.
-    ///    Density must be greater-than-or-equal-to zero.
+    ///    AreaDensity must be greater-than-or-equal-to zero.
     /// @param shape Sharable shape to associate fixture with. Must be non-null.
     ///
-    Fixture(NonNull<Body*> body, const FixtureDef& def, const std::shared_ptr<const Shape>& shape):
+    Fixture(NonNull<Body*> body, const FixtureConf& def, const Shape& shape):
         m_body{body},
+        m_userData{def.userData},
         m_shape{shape},
         m_filter{def.filter},
-        m_isSensor{def.isSensor},
-        m_userData{def.userData}
+        m_isSensor{def.isSensor}
     {
-        assert(shape);
+        // Intentionally empty.
     }
+    
+    /// @brief Copy constructor.
+    Fixture(const Fixture& other);
     
     /// @brief Destructor.
     /// @pre Proxy count is zero.
     /// @warning Behavior is undefined if proxy count is greater than zero.
     ~Fixture()
     {
-        assert(!m_proxies);
-        assert(m_proxyCount == 0);
+        // Intentionally empty.
     }
 
     /// @brief Gets the parent body of this fixture.
@@ -96,7 +102,7 @@ public:
     
     /// @brief Gets the child shape.
     /// @details The shape is not modifiable. Use a new fixture instead.
-    std::shared_ptr<const Shape> GetShape() const noexcept;
+    Shape GetShape() const noexcept;
     
     /// @brief Set if this fixture is a sensor.
     void SetSensor(bool sensor) noexcept;
@@ -116,7 +122,8 @@ public:
 
     /// @brief Refilter the fixture.
     /// @note Call this if you want to establish collision that was previously disabled by
-    ///   ContactFilter::ShouldCollide.
+    ///   <code>ShouldCollide(const Fixture&, const Fixture&)</code>.
+    /// @sa bool ShouldCollide(const Fixture& fixtureA, const Fixture& fixtureB) noexcept
     void Refilter();
 
     /// Get the user data that was assigned in the fixture definition. Use this to
@@ -129,7 +136,7 @@ public:
 
     /// @brief Gets the density of this fixture.
     /// @return Non-negative density (in mass per area).
-    Density GetDensity() const noexcept;
+    AreaDensity GetDensity() const noexcept;
 
     /// @brief Gets the coefficient of friction.
     /// @return Value of 0 or higher.
@@ -138,39 +145,52 @@ public:
     /// @brief Gets the coefficient of restitution.
     Real GetRestitution() const noexcept;
 
-    /// @brief Sets the coefficient of restitution.
-    /// @note This will _not_ change the restitution of existing contacts.
-    void SetRestitution(Real restitution) noexcept;
-
     /// @brief Gets the proxy count.
+    /// @note This will be zero until a world step has been run since this fixture's
+    ///   creation.
     ChildCounter GetProxyCount() const noexcept;
 
     /// @brief Gets the proxy for the given index.
-    const FixtureProxy* GetProxy(ChildCounter index) const noexcept;
+    /// @warning Behavior is undefined if given an invalid index.
+    /// @return Fixture proxy value.
+    FixtureProxy GetProxy(ChildCounter index) const noexcept;
+    
+    /// @brief Gets the proxies.
+    Span<const FixtureProxy> GetProxies() const noexcept;
 
 private:
 
     friend class FixtureAtty;
     
-    using FixtureProxies = FixtureProxy*;
+    /// @brief Fixture proxies union.
+    union FixtureProxies {
+        FixtureProxies() noexcept: asArray{} {}
+        ~FixtureProxies() noexcept {}
+
+        std::array<FixtureProxy, 2> asArray; ///< Values accessed as a local array.
+        std::unique_ptr<FixtureProxy[]> asBuffer; ///< Values accessed as pointer to array.
+    };
     
-    Span<FixtureProxy> GetProxies() const noexcept;
-    void SetProxies(Span<FixtureProxy> value) noexcept;
+    /// @brief Sets the proxies.
+    void SetProxies(std::unique_ptr<FixtureProxy[]> value, std::size_t count) noexcept;
+
+    /// @brief Resets the proxies.
+    void ResetProxies() noexcept;
 
     // Data ordered here for memory compaction.
     
     NonNull<Body*> const m_body; ///< Parent body. Set on construction. 8-bytes.
 
+    void* m_userData = nullptr; ///< User data. 8-bytes.
+
     /// Shape (of fixture).
     /// @note Set on construction.
     /// @note Either null or pointer to a heap-memory private copy of the assigned shape.
     /// @note 16-bytes.
-    std::shared_ptr<const Shape> m_shape;
+    Shape m_shape;
     
-    FixtureProxies m_proxies = nullptr; ///< Array of fixture proxies for the assigned shape. 8-bytes.
+    FixtureProxies m_proxies; ///< Collection of fixture proxies for the assigned shape. 8-bytes.
     
-    void* m_userData = nullptr; ///< User data. 8-bytes.
-
     /// Proxy count.
     /// @details This is the fixture shape's child count after proxy creation. 4-bytes.
     ChildCounter m_proxyCount = 0;
@@ -180,7 +200,7 @@ private:
     bool m_isSensor = false; ///< Is/is-not sensor. 1-bytes.
 };
 
-inline std::shared_ptr<const Shape> Fixture::GetShape() const noexcept
+inline Shape Fixture::GetShape() const noexcept
 {
     return m_shape;
 }
@@ -221,16 +241,54 @@ inline void Fixture::SetFilterData(Filter filter)
     Refilter();
 }
 
-inline Span<FixtureProxy> Fixture::GetProxies() const noexcept
+inline Span<const FixtureProxy> Fixture::GetProxies() const noexcept
 {
-    return Span<FixtureProxy>(m_proxies, m_proxyCount);
+    const auto ptr = (m_proxyCount <= 2)? &(m_proxies.asArray[0]): m_proxies.asBuffer.get();
+    return Span<const FixtureProxy>(ptr, m_proxyCount);
 }
 
-inline void Fixture::SetProxies(Span<FixtureProxy> value) noexcept
+inline void Fixture::SetProxies(std::unique_ptr<FixtureProxy[]> value, std::size_t count) noexcept
 {
-    assert(value.size() < std::numeric_limits<ChildCounter>::max());
-    m_proxies = value.begin();
-    m_proxyCount = static_cast<decltype(m_proxyCount)>(value.size());
+    assert(count < std::numeric_limits<ChildCounter>::max());
+    switch (count)
+    {
+        case 2:
+            m_proxies.asArray[1] = value[1];
+            // [[fallthrough]]
+        case 1:
+            m_proxies.asArray[0] = value[0];
+            // [[fallthrough]]
+        case 0:
+            break;
+        default:
+            m_proxies.asBuffer = std::move(value);
+            break;
+    }
+    m_proxyCount = static_cast<decltype(m_proxyCount)>(count);
+}
+
+inline void Fixture::ResetProxies() noexcept
+{
+    if (m_proxyCount > 2)
+    {
+        m_proxies.asBuffer.reset();
+    }
+    m_proxyCount = 0;
+}
+
+inline Real Fixture::GetFriction() const noexcept
+{
+    return playrho::d2::GetFriction(m_shape);
+}
+
+inline Real Fixture::GetRestitution() const noexcept
+{
+    return playrho::d2::GetRestitution(m_shape);
+}
+
+inline AreaDensity Fixture::GetDensity() const noexcept
+{
+    return playrho::d2::GetDensity(m_shape);
 }
 
 // Free functions...
@@ -240,7 +298,7 @@ inline void Fixture::SetProxies(Span<FixtureProxy> value) noexcept
 /// @param p Point in world coordinates.
 /// @relatedalso Fixture
 /// @ingroup TestPointGroup
-bool TestPoint(const Fixture& f, Length2D p) noexcept;
+bool TestPoint(const Fixture& f, Length2 p) noexcept;
 
 /// @brief Sets the associated body's sleep status to awake.
 /// @note This is a convenience function that simply looks up the fixture's body and
@@ -255,6 +313,16 @@ void SetAwake(const Fixture& f) noexcept;
 /// @relatedalso Fixture
 Transformation GetTransformation(const Fixture& f) noexcept;
 
+/// @brief Whether contact calculations should be performed between the two fixtures.
+/// @return <code>true</code> if contact calculations should be performed between these
+///   two fixtures; <code>false</code> otherwise.
+/// @relatedalso Fixture
+inline bool ShouldCollide(const Fixture& fixtureA, const Fixture& fixtureB) noexcept
+{
+    return ShouldCollide(fixtureA.GetFilterData(), fixtureB.GetFilterData());
+}
+    
+} // namespace d2
 } // namespace playrho
 
 #endif // PLAYRHO_DYNAMICS_FIXTURE_HPP

@@ -22,19 +22,20 @@
 #include <PlayRho/Dynamics/Contacts/Contact.hpp>
 #include <PlayRho/Dynamics/Fixture.hpp>
 #include <PlayRho/Dynamics/Body.hpp>
-#include <PlayRho/Dynamics/BodyDef.hpp>
-#include <PlayRho/Dynamics/FixtureDef.hpp>
-#include <PlayRho/Collision/Shapes/DiskShape.hpp>
+#include <PlayRho/Dynamics/BodyConf.hpp>
+#include <PlayRho/Dynamics/FixtureConf.hpp>
+#include <PlayRho/Collision/Shapes/DiskShapeConf.hpp>
 
 using namespace playrho;
+using namespace playrho::d2;
 
 TEST(Contact, ByteSize)
 {
     switch (sizeof(Real))
     {
-        case  4: EXPECT_EQ(sizeof(Contact), std::size_t(104)); break;
-        case  8: EXPECT_EQ(sizeof(Contact), std::size_t(184)); break;
-        case 16: EXPECT_EQ(sizeof(Contact), std::size_t(352)); break;
+        case  4: EXPECT_EQ(sizeof(Contact), std::size_t(128)); break;
+        case  8: EXPECT_EQ(sizeof(Contact), std::size_t(192)); break;
+        case 16: EXPECT_EQ(sizeof(Contact), std::size_t(384)); break;
         default: FAIL(); break;
     }
 }
@@ -54,14 +55,29 @@ TEST(Contact, IsNotCopyAssignable)
     EXPECT_FALSE(std::is_copy_assignable<Contact>::value);    
 }
 
+TEST(Contact, Enabled)
+{
+    const auto shape = DiskShapeConf{};
+    auto bA = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto bB = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto fA = Fixture{&bA, FixtureConf{}, shape};
+    auto fB = Fixture{&bB, FixtureConf{}, shape};
+    auto c = Contact{&fA, 0u, &fB, 0u};
+    EXPECT_TRUE(c.IsEnabled());
+    c.UnsetEnabled();
+    EXPECT_FALSE(c.IsEnabled());
+    c.SetEnabled();
+    EXPECT_TRUE(c.IsEnabled());
+}
+
 TEST(Contact, SetAwake)
 {
-    const auto shape = std::make_shared<DiskShape>();
-    auto bA = Body{nullptr, BodyDef{}.UseType(BodyType::Dynamic)};
-    auto bB = Body{nullptr, BodyDef{}.UseType(BodyType::Dynamic)};
-    auto fA = Fixture{&bA, FixtureDef{}, shape};
-    auto fB = Fixture{&bB, FixtureDef{}, shape};
-    const auto c = Contact{&fA, 0, &fB, 0};
+    const auto shape = DiskShapeConf{};
+    auto bA = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto bB = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto fA = Fixture{&bA, FixtureConf{}, shape};
+    auto fB = Fixture{&bB, FixtureConf{}, shape};
+    const auto c = Contact{&fA, 0u, &fB, 0u};
     
     bA.UnsetAwake();
     ASSERT_FALSE(bA.IsAwake());
@@ -77,34 +93,34 @@ TEST(Contact, SetAwake)
 
 TEST(Contact, ResetFriction)
 {
-    const auto shape = std::make_shared<DiskShape>();
-    auto bA = Body{nullptr, BodyDef{}.UseType(BodyType::Dynamic)};
-    auto bB = Body{nullptr, BodyDef{}.UseType(BodyType::Dynamic)};
-    auto fA = Fixture{&bA, FixtureDef{}, shape};
-    auto fB = Fixture{&bB, FixtureDef{}, shape};
-    auto c = Contact{&fA, 0, &fB, 0};
-    
-    ASSERT_GT(shape->GetFriction(), Real(0));
-    ASSERT_EQ(c.GetFriction(), shape->GetFriction());
-    c.SetFriction(shape->GetFriction() * Real(2));
-    ASSERT_NE(c.GetFriction(), shape->GetFriction());
+    const auto shape = DiskShapeConf{};
+    auto bA = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto bB = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto fA = Fixture{&bA, FixtureConf{}, shape};
+    auto fB = Fixture{&bB, FixtureConf{}, shape};
+    auto c = Contact{&fA, 0u, &fB, 0u};
+
+    ASSERT_GT(GetFriction(shape), Real(0));
+    ASSERT_NEAR(static_cast<double>(c.GetFriction()), static_cast<double>(Real{GetFriction(shape)}), 0.01);
+    c.SetFriction(GetFriction(shape) * Real(2));
+    ASSERT_NE(c.GetFriction(), GetFriction(shape));
     ResetFriction(c);
-    EXPECT_EQ(c.GetFriction(), shape->GetFriction());
+    EXPECT_NEAR(static_cast<double>(c.GetFriction()), static_cast<double>(Real{GetFriction(shape)}), 0.01);
 }
 
 TEST(Contact, ResetRestitution)
 {
-    const auto shape = std::make_shared<DiskShape>();
-    auto bA = Body{nullptr, BodyDef{}.UseType(BodyType::Dynamic)};
-    auto bB = Body{nullptr, BodyDef{}.UseType(BodyType::Dynamic)};
-    auto fA = Fixture{&bA, FixtureDef{}, shape};
-    auto fB = Fixture{&bB, FixtureDef{}, shape};
-    auto c = Contact{&fA, 0, &fB, 0};
-    
-    ASSERT_EQ(shape->GetRestitution(), Real(0));
-    ASSERT_EQ(c.GetRestitution(), shape->GetRestitution());
+    const auto shape = DiskShapeConf{};
+    auto bA = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto bB = Body{nullptr, BodyConf{}.UseType(BodyType::Dynamic)};
+    auto fA = Fixture{&bA, FixtureConf{}, shape};
+    auto fB = Fixture{&bB, FixtureConf{}, shape};
+    auto c = Contact{&fA, 0u, &fB, 0u};
+
+    ASSERT_EQ(GetRestitution(shape), Real(0));
+    ASSERT_EQ(c.GetRestitution(), GetRestitution(shape));
     c.SetRestitution(Real(2));
-    ASSERT_NE(c.GetRestitution(), shape->GetRestitution());
+    ASSERT_NE(c.GetRestitution(), GetRestitution(shape));
     ResetRestitution(c);
-    EXPECT_EQ(c.GetRestitution(), shape->GetRestitution());
+    EXPECT_EQ(c.GetRestitution(), GetRestitution(shape));
 }
